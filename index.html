@@ -244,6 +244,48 @@ body {
 .error-card p { font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.6; }
 .retry-btn { margin-top: 14px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); padding: 10px 20px; font-family: var(--font-mono); font-size: 13px; cursor: pointer; }
 
+/* ── RACE PLANNER ── */
+.race-planner { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; margin-bottom: 20px; }
+.race-planner-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.race-planner-title { font-family: var(--font-display); font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.race-count-badge { font-size: 10px; background: var(--tri-dim); color: var(--tri); border: 1px solid var(--tri-border); padding: 2px 8px; border-radius: 99px; font-family: var(--font-display); font-weight: 600; }
+.race-planner-toggle { font-size: 12px; color: var(--muted); transition: transform 0.2s; display: inline-block; }
+.race-planner-toggle.open { transform: rotate(180deg); }
+.race-planner-body { border-top: 1px solid var(--border); display: none; }
+.race-planner-body.open { display: block; }
+.race-list { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.race-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+.race-item-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.race-item-name { font-family: var(--font-display); font-size: 13px; font-weight: 700; }
+.race-item-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+.race-type-badge { font-size: 10px; font-weight: 600; font-family: var(--font-display); padding: 2px 8px; border-radius: 6px; letter-spacing: 0.04em; }
+.race-type-badge.triathlon { background: var(--tri-dim); color: var(--tri); border: 1px solid var(--tri-border); }
+.race-type-badge.running { background: var(--ok-dim); color: var(--ok); border: 1px solid rgba(109,186,109,0.3); }
+.race-item-date { font-size: 11px; color: var(--muted); }
+.race-item-goal { font-size: 11px; color: var(--mar); }
+.race-item-insight { font-size: 12px; color: var(--muted); line-height: 1.6; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 8px; }
+.race-item-insight.loading { color: var(--dim); font-style: italic; }
+.race-delete-btn { background: none; border: none; color: var(--dim); font-size: 16px; cursor: pointer; padding: 0; flex-shrink: 0; line-height: 1; }
+.race-delete-btn:active { color: var(--warn); }
+.add-race-form { padding: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+.form-field { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+.form-row { display: flex; gap: 8px; }
+.form-label { font-size: 10px; font-family: var(--font-display); font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+.form-input, .form-select { background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; color: var(--text); padding: 9px 12px; font-family: var(--font-mono); font-size: 13px; outline: none; width: 100%; }
+.form-input:focus, .form-select:focus { border-color: var(--tri); }
+.form-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a7990' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; }
+.type-selector { display: flex; gap: 6px; }
+.type-btn { flex: 1; padding: 9px; border-radius: 8px; border: 1px solid var(--border2); background: none; color: var(--muted); font-family: var(--font-display); font-size: 12px; font-weight: 600; cursor: pointer; text-align: center; transition: all 0.15s; }
+.type-btn.active-tri { background: var(--tri-dim); color: var(--tri); border-color: var(--tri-border); }
+.type-btn.active-run { background: var(--ok-dim); color: var(--ok); border-color: rgba(109,186,109,0.3); }
+.subtype-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.subtype-btn { padding: 6px 12px; border-radius: 99px; border: 1px solid var(--border2); background: none; color: var(--muted); font-family: var(--font-mono); font-size: 11px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.subtype-btn.active-tri { background: var(--tri-dim); color: var(--tri); border-color: var(--tri-border); }
+.subtype-btn.active-run { background: var(--ok-dim); color: var(--ok); border-color: rgba(109,186,109,0.3); }
+.add-race-btn { background: var(--tri); color: #0a0a0f; border: none; border-radius: 10px; padding: 11px; font-family: var(--font-display); font-size: 13px; font-weight: 700; cursor: pointer; width: 100%; transition: opacity 0.15s; }
+.add-race-btn:active { opacity: 0.8; }
+.add-race-btn:disabled { opacity: 0.4; cursor: default; }
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -666,7 +708,48 @@ function renderDashboard(d) {
       <div class="section-label">Today's insights</div>
       <div class="insights-stack">${insightCards}</div>
     </div>
+    <div class="section">
+      <div class="section-label">Race planner</div>
+      <div class="race-planner" id="race-planner">
+        <div class="race-planner-header" onclick="toggleRacePlanner()">
+          <div class="race-planner-title">&#127937; My Races <span class="race-count-badge" id="race-count">0</span></div>
+          <span class="race-planner-toggle" id="race-planner-toggle">&#9660;</span>
+        </div>
+        <div class="race-planner-body" id="race-planner-body">
+          <div class="race-list" id="race-list"></div>
+          <div class="add-race-form">
+            <div class="form-field">
+              <div class="form-label">Race name</div>
+              <input class="form-input" id="race-name" placeholder="e.g. Chicago Sprint Tri" />
+            </div>
+            <div class="form-row">
+              <div class="form-field">
+                <div class="form-label">Date</div>
+                <input class="form-input" id="race-date" type="date" />
+              </div>
+              <div class="form-field">
+                <div class="form-label">Goal time</div>
+                <input class="form-input" id="race-goal" placeholder="e.g. 2:30:00" />
+              </div>
+            </div>
+            <div class="form-field">
+              <div class="form-label">Type</div>
+              <div class="type-selector">
+                <button class="type-btn active-tri" id="type-tri" onclick="selectRaceType(\'triathlon\')">&#127946; Triathlon</button>
+                <button class="type-btn" id="type-run" onclick="selectRaceType(\'running\')">&#127939; Running</button>
+              </div>
+            </div>
+            <div class="form-field" id="subtype-field">
+              <div class="form-label">Distance</div>
+              <div class="subtype-row" id="subtype-row"></div>
+            </div>
+            <button class="add-race-btn" onclick="addRace()">+ Add Race</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="app-footer">Last updated ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} · BRB Training</div>`;
+  setTimeout(initRacePlanner, 0);
 }
 
 function showError(msg) {
@@ -720,6 +803,7 @@ Athlete profile: father of 2 young kids, full-time job, early morning training o
 Goals: Olympic Triathlon July 26 2026 (${triDays} days away), Chicago Marathon October 11 2026 (${marDays} days away).
 Boston Marathon April 2026: 3:38:18. Strong run base. Swim volume critically low. Needs brick sessions.
 Recent activity data: ${activitySummary || 'Not yet loaded.'}
+Upcoming races: ${races.length ? races.map(r => r.name + ' (' + r.subtype + ' ' + r.type + ', ' + r.date + ', goal: ' + (r.goal||'none') + ')').join('; ') : 'none added'}
 Be concise, specific, and actionable. Reference their actual data when relevant. Use miles not km.`;
 
     const reply = await callClaude({
@@ -754,6 +838,123 @@ function handleChatKey(e) {
 function autoResize(el) {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+
+// ── RACE PLANNER ──────────────────────────────────────────────────────────
+let races = JSON.parse(localStorage.getItem('brb_races') || '[]');
+let selectedRaceType = 'triathlon';
+let selectedSubtype = '';
+
+const TRI_SUBTYPES = ['Sprint','Olympic','70.3 Half','140.6 Full'];
+const RUN_SUBTYPES = ['5K','10K','Half Marathon','Marathon','Ultra'];
+
+function saveRaces() { localStorage.setItem('brb_races', JSON.stringify(races)); }
+
+function toggleRacePlanner() {
+  const body = document.getElementById('race-planner-body');
+  const toggle = document.getElementById('race-planner-toggle');
+  body.classList.toggle('open');
+  toggle.classList.toggle('open');
+}
+
+function selectRaceType(type) {
+  selectedRaceType = type;
+  selectedSubtype = '';
+  document.getElementById('type-tri').className = 'type-btn' + (type === 'triathlon' ? ' active-tri' : '');
+  document.getElementById('type-run').className = 'type-btn' + (type === 'running' ? ' active-run' : '');
+  renderSubtypes();
+}
+
+function renderSubtypes() {
+  const subtypes = selectedRaceType === 'triathlon' ? TRI_SUBTYPES : RUN_SUBTYPES;
+  const activeClass = selectedRaceType === 'triathlon' ? 'active-tri' : 'active-run';
+  document.getElementById('subtype-row').innerHTML = subtypes.map(s =>
+    `<button class="subtype-btn${selectedSubtype===s?' '+activeClass:''}" onclick="selectSubtype('${s}')">${s}</button>`
+  ).join('');
+}
+
+function selectSubtype(sub) {
+  selectedSubtype = sub;
+  renderSubtypes();
+}
+
+async function addRace() {
+  const name = document.getElementById('race-name').value.trim();
+  const date = document.getElementById('race-date').value;
+  const goal = document.getElementById('race-goal').value.trim();
+  if (!name || !date || !selectedSubtype) {
+    alert('Please fill in race name, date, and select a distance.');
+    return;
+  }
+  const race = { id: Date.now(), name, date, goal, type: selectedRaceType, subtype: selectedSubtype, insight: null };
+  races.push(race);
+  races.sort((a,b) => new Date(a.date) - new Date(b.date));
+  saveRaces();
+  // Clear form
+  document.getElementById('race-name').value = '';
+  document.getElementById('race-date').value = '';
+  document.getElementById('race-goal').value = '';
+  selectedSubtype = '';
+  renderSubtypes();
+  renderRaces();
+  // Generate insight async
+  generateRaceInsight(race.id);
+}
+
+function deleteRace(id) {
+  races = races.filter(r => r.id !== id);
+  saveRaces();
+  renderRaces();
+}
+
+function renderRaces() {
+  const list = document.getElementById('race-list');
+  const badge = document.getElementById('race-count');
+  if (badge) badge.textContent = races.length;
+  if (!races.length) { list.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--dim);text-align:center">No races added yet</div>'; return; }
+  list.innerHTML = races.map(r => {
+    const daysAway = Math.ceil((new Date(r.date) - new Date()) / 86400000);
+    const isPast = daysAway < 0;
+    return `<div class="race-item" id="race-${r.id}">
+      <div class="race-item-header">
+        <div class="race-item-name">${r.name}</div>
+        <button class="race-delete-btn" onclick="deleteRace(${r.id})">✕</button>
+      </div>
+      <div class="race-item-meta">
+        <span class="race-type-badge ${r.type}">${r.subtype} ${r.type === 'triathlon' ? 'Tri' : ''}</span>
+        <span class="race-item-date">${new Date(r.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} · ${isPast ? 'Completed' : daysAway + 'd away'}</span>
+      </div>
+      ${r.goal ? `<div class="race-item-goal">&#127945; Goal: ${r.goal}</div>` : ''}
+      <div class="race-item-insight ${r.insight ? '' : 'loading'}" id="insight-${r.id}">
+        ${r.insight || '&#8230; Generating coaching insight'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function generateRaceInsight(id) {
+  const race = races.find(r => r.id === id);
+  if (!race || !activitySummary) return;
+  const daysAway = Math.ceil((new Date(race.date) - new Date()) / 86400000);
+  try {
+    const reply = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 200,
+      system: 'You are a concise triathlon and marathon coach. Give a 2-sentence coaching insight for the athlete specific to this race and their recent training. Use miles not km. Be direct and specific.',
+      messages: [{ role: 'user', content: `Race: ${race.name} (${race.subtype} ${race.type}), ${daysAway} days away. Goal: ${race.goal || 'not set'}. Recent training: ${activitySummary.split('\n').slice(0,15).join(', ')}` }]
+    });
+    race.insight = reply;
+    saveRaces();
+    const el = document.getElementById('insight-' + id);
+    if (el) { el.textContent = reply; el.classList.remove('loading'); }
+  } catch(e) { console.error('Insight error', e); }
+}
+
+function initRacePlanner() {
+  renderSubtypes();
+  renderRaces();
+  // Generate insights for races that don't have one yet
+  races.forEach(r => { if (!r.insight && activitySummary) generateRaceInsight(r.id); });
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
