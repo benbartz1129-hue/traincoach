@@ -499,9 +499,8 @@ body {
 
 <script>
 // ── CONFIG — FILL THESE IN ────────────────────────────────────────────────
-const STRAVA_CLIENT_ID     = '256087';       // from strava.com/settings/api
-const ANTHROPIC_API_KEY    = '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';   // from console.anthropic.com
-const REDIRECT_URI         = window.location.origin + window.location.pathname;
+const STRAVA_CLIENT_ID = '256087';  // only this one stays in the frontend
+const REDIRECT_URI     = 'https://glowing-sunshine-5f84df.netlify.app/';
 // ─────────────────────────────────────────────────────────────────────────
 
 const TRI_DATE = new Date('2026-07-26');
@@ -532,33 +531,19 @@ function connectStrava() {
 }
 
 async function exchangeToken(code) {
-  // NOTE: In production, do this server-side to keep client_secret safe.
-  // For a personal-use PWA, this pattern is acceptable.
-  const STRAVA_CLIENT_SECRET = 'YOUR_CLIENT_SECRET'; // ← fill in
-  const r = await fetch('https://www.strava.com/oauth/token', {
+  const r = await fetch('/.netlify/functions/strava-token', {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({
-      client_id: STRAVA_CLIENT_ID,
-      client_secret: STRAVA_CLIENT_SECRET,
-      code,
-      grant_type: 'authorization_code'
-    })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, grant_type: 'authorization_code' })
   });
   return r.json();
 }
 
 async function refreshToken(refresh_token) {
-  const STRAVA_CLIENT_SECRET = '0c940c6b6e6345d2a578f220f5e4c7f40f2759d8';
-  const r = await fetch('https://www.strava.com/oauth/token', {
+  const r = await fetch('/.netlify/functions/strava-token', {
     method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({
-      client_id: STRAVA_CLIENT_ID,
-      client_secret: STRAVA_CLIENT_SECRET,
-      refresh_token,
-      grant_type: 'refresh_token'
-    })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token, grant_type: 'refresh_token' })
   });
   return r.json();
 }
@@ -600,10 +585,10 @@ async function runAnalysis(summary) {
   const triDays = daysUntil(TRI_DATE);
   const marDays = daysUntil(MAR_DATE);
 
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
+  const r = await fetch('/.netlify/functions/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
       system: `You are an expert triathlon and marathon coach. Today is ${today}.
