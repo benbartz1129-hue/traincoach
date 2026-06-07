@@ -575,9 +575,9 @@ function summariseActivities(acts) {
     const d = new Date(a.start_date_local);
     const date = d.toISOString().split('T')[0];
     const sport = a.type.toLowerCase();
-    const km = a.distance ? (a.distance / 1000).toFixed(1) : '0';
+    const miles = a.distance ? (a.distance / 1609.34).toFixed(1) : '0';
     const cal = a.calories || '';
-    return `${date}: ${a.type} ${km}km${cal ? ' ' + cal + 'cal' : ''}${a.kudos_count ? ' ' + a.kudos_count + ' kudos' : ''}`;
+    return `${date}: ${a.type} ${miles}mi${cal ? ' ' + cal + 'cal' : ''}${a.kudos_count ? ' ' + a.kudos_count + ' kudos' : ''}`;
   }).join('\n');
 }
 
@@ -600,23 +600,23 @@ Athlete profile:
 - Boston Marathon April 2026: 3:38:18
 - Key need: swim volume is critically low, needs brick sessions, run base is strong
 
-Return ONLY valid JSON (no markdown, no backticks):
+Return ONLY valid JSON (no markdown, no backticks). All distances in miles:
 {
-  "weekSwimKm": number,
-  "weekBikeKm": number,
-  "weekRunKm": number,
-  "totalWeekKm": number,
+  "weekSwimMi": number,
+  "weekBikeMi": number,
+  "weekRunMi": number,
+  "totalWeekMi": number,
   "weeklyLoad": "low"|"moderate"|"high"|"very high",
   "todayRec": {"sport":"swim"|"run"|"ride"|"rest"|"strength","title":"short title","detail":"1 sentence"},
   "tomorrowRec": {"sport":"swim"|"run"|"ride"|"rest"|"strength","title":"short title","detail":"1 sentence"},
   "weekDays": [
-    {"day":"Mon","sport":"run"|"swim"|"ride"|"rest"|"strength","km":0},
-    {"day":"Tue","sport":"...","km":0},
-    {"day":"Wed","sport":"...","km":0},
-    {"day":"Thu","sport":"...","km":0},
-    {"day":"Fri","sport":"...","km":0},
-    {"day":"Sat","sport":"rest","km":0},
-    {"day":"Sun","sport":"rest","km":0}
+    {"day":"Mon","sport":"run"|"swim"|"ride"|"rest"|"strength","mi":0},
+    {"day":"Tue","sport":"...","mi":0},
+    {"day":"Wed","sport":"...","mi":0},
+    {"day":"Thu","sport":"...","mi":0},
+    {"day":"Fri","sport":"...","mi":0},
+    {"day":"Sat","sport":"rest","mi":0},
+    {"day":"Sun","sport":"rest","mi":0}
   ],
   "swimReadiness": 0-100,
   "bikeReadiness": 0-100,
@@ -691,23 +691,23 @@ function renderDashboard(d) {
       <div class="metrics-grid">
         <div class="metric-card swim">
           <div class="metric-label">Swim</div>
-          <div class="metric-value">${d.weekSwimKm.toFixed(1)}<span>km</span></div>
-          <div class="metric-sub">target 2 km/wk</div>
+          <div class="metric-value">${(d.weekSwimMi||0).toFixed(1)}<span>mi</span></div>
+          <div class="metric-sub">target 1.2 mi/wk</div>
         </div>
         <div class="metric-card bike">
           <div class="metric-label">Bike</div>
-          <div class="metric-value">${d.weekBikeKm.toFixed(1)}<span>km</span></div>
-          <div class="metric-sub">target 40 km/wk</div>
+          <div class="metric-value">${(d.weekBikeMi||0).toFixed(1)}<span>mi</span></div>
+          <div class="metric-sub">target 25 mi/wk</div>
         </div>
         <div class="metric-card run">
           <div class="metric-label">Run</div>
-          <div class="metric-value">${d.weekRunKm.toFixed(1)}<span>km</span></div>
-          <div class="metric-sub">target 25 km/wk</div>
+          <div class="metric-value">${(d.weekRunMi||0).toFixed(1)}<span>mi</span></div>
+          <div class="metric-sub">target 15 mi/wk</div>
         </div>
         <div class="metric-card load">
           <div class="metric-label">Load</div>
           <div class="load-badge" style="color:${loadColors[d.weeklyLoad]}">${d.weeklyLoad}</div>
-          <div class="metric-sub">${d.totalWeekKm.toFixed(0)} km total</div>
+          <div class="metric-sub">${(d.totalWeekMi||0).toFixed(0)} mi total</div>
         </div>
       </div>
     </div>
