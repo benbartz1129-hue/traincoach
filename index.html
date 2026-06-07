@@ -755,8 +755,8 @@ async function refreshData() {
     const acts = await fetchActivities(token);
     if (!Array.isArray(acts)) throw new Error('Bad response');
 
-    allActivities = acts;
-    activitySummary = buildSummary(acts);
+    allActivities = acts.sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+    activitySummary = buildSummary(allActivities);
 
     document.getElementById('loading-msg') && (document.getElementById('loading-msg').textContent = 'Running AI analysis…');
     const analysis = await runAnalysis(activitySummary);
