@@ -566,19 +566,35 @@ async function callClaude(payload) {
 async function runAnalysis(summary) {
   const triDays = daysUntil(TRI_DATE), marDays = daysUntil(MAR_DATE);
   const today = new Date().toISOString().split('T')[0];
+
+  // Calculate weekly totals directly from raw activity data — no AI guessing
+  const startOfWeek = new Date();
+  startOfWeek.setHours(0,0,0,0);
+  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + (startOfWeek.getDay() === 0 ? -6 : 1)); // Monday
+  const thisWeek = allActivities.filter(a => new Date(a.start_date_local) >= startOfWeek);
+
+  const weekSwimMi = thisWeek.filter(a=>a.type==='Swim').reduce((s,a)=>s+mToMi(a.distance),0);
+  const weekBikeMi = thisWeek.filter(a=>a.type==='Ride'&&a.distance>0).reduce((s,a)=>s+mToMi(a.distance),0);
+  const weekRunMi  = thisWeek.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
+  const totalWeekMi = weekSwimMi + weekBikeMi + weekRunMi;
+
   const text = await callClaude({
     model: 'claude-sonnet-4-6', max_tokens: 1000,
     system: `You are an expert triathlon and marathon coach. Today is ${today}.
 Athlete: father of 2 kids, full-time job, early morning training only. Olympic Tri Jul 26 (${triDays}d), Chicago Marathon Oct 11 (${marDays}d). Boston 2026: 3:38. Swim volume critically low, needs bricks, strong run base.
+Weekly totals have already been calculated from raw data — do NOT recalculate them, just use the values provided.
 Return ONLY valid JSON, all distances in miles:
-{"weekSwimMi":0,"weekBikeMi":0,"weekRunMi":0,"totalWeekMi":0,"weeklyLoad":"low|moderate|high|very high",
+{"weeklyLoad":"low|moderate|high|very high",
 "todayRec":{"sport":"swim|run|ride|rest|strength","title":"","detail":""},"tomorrowRec":{"sport":"swim|run|ride|rest|strength","title":"","detail":""},
 "weekDays":[{"day":"Mon","sport":"rest","mi":0},{"day":"Tue","sport":"rest","mi":0},{"day":"Wed","sport":"rest","mi":0},{"day":"Thu","sport":"rest","mi":0},{"day":"Fri","sport":"rest","mi":0},{"day":"Sat","sport":"rest","mi":0},{"day":"Sun","sport":"rest","mi":0}],
 "swimReadiness":0,"bikeReadiness":0,"runReadiness":0,
 "insights":[{"type":"warning|success|info","tag":"tri|mar|both","title":"","detail":""},{"type":"warning|success|info","tag":"tri|mar|both","title":"","detail":""},{"type":"warning|success|info","tag":"tri|mar|both","title":"","detail":""}]}`,
-    messages: [{ role: 'user', content: 'Recent activities:\n' + summary }]
+    messages: [{ role: 'user', content: `Recent activities:\n${summary}\n\nThis week totals (already calculated): Swim ${weekSwimMi.toFixed(1)}mi, Bike ${weekBikeMi.toFixed(1)}mi, Run ${weekRunMi.toFixed(1)}mi, Total ${totalWeekMi.toFixed(1)}mi` }]
   });
-  return JSON.parse(text.replace(/```json|```/g,'').trim());
+
+  const ai = JSON.parse(text.replace(/```json|```/g,'').trim());
+  // Merge accurate calculated totals with AI insights
+  return { ...ai, weekSwimMi, weekBikeMi, weekRunMi, totalWeekMi };
 }
 
 // ── DASHBOARD RENDER ──────────────────────────────────────────────────────
