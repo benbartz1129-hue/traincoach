@@ -499,7 +499,7 @@ body {
 
 <script>
 // ── CONFIG — FILL THESE IN ────────────────────────────────────────────────
-const STRAVA_CLIENT_ID = '256087';  // only this one stays in the frontend
+const STRAVA_CLIENT_ID = 'YOUR_CLIENT_ID';  // only this one stays in the frontend
 const REDIRECT_URI     = 'https://glowing-sunshine-5f84df.netlify.app/';
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -630,6 +630,8 @@ Return ONLY valid JSON (no markdown, no backticks):
     })
   });
   const data = await r.json();
+  console.log('Claude API response:', JSON.stringify(data));
+  if (!data.content) throw new Error('No content in response: ' + JSON.stringify(data));
   const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
   return JSON.parse(text.replace(/```json|```/g, '').trim());
 }
