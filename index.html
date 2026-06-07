@@ -466,10 +466,10 @@ body {
   <div class="login-logo">TrainCoach</div>
   <h1 class="login-headline">Your races.<br><span>Your data.</span><br>Every morning.</h1>
   <p class="login-sub">Daily AI coaching toward your Olympic Tri on July 26 and Chicago Marathon on October 11.</p>
-  <a href="#" class="strava-btn" id="strava-connect-btn" onclick="connectStrava(event)">
+  <button class="strava-btn" id="strava-connect-btn" onclick="connectStrava()">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
     Connect with Strava
-  </a>
+  </button>
   <p class="login-note">
     You'll be redirected to Strava to authorize read access to your activities. No data is stored — everything runs in your browser.
   </p>
@@ -526,16 +526,15 @@ function sportEmoji(s) {
 }
 
 // ── STRAVA OAUTH ──────────────────────────────────────────────────────────
-function connectStrava(e) {
-  e.preventDefault();
-  const url = `https://www.strava.com/oauth/authorize?client_id=${STRAVA_CLIENT_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&approval_prompt=auto&scope=activity:read_all`;
+function connectStrava() {
+  const url = 'https://www.strava.com/oauth/authorize?client_id=' + STRAVA_CLIENT_ID + '&redirect_uri=' + encodeURIComponent(REDIRECT_URI) + '&response_type=code&approval_prompt=auto&scope=activity:read_all';
   window.location.href = url;
 }
 
 async function exchangeToken(code) {
   // NOTE: In production, do this server-side to keep client_secret safe.
   // For a personal-use PWA, this pattern is acceptable.
-  const STRAVA_CLIENT_SECRET = '0c940c6b6e6345d2a578f220f5e4c7f40f2759d8'; // ← fill in
+  const STRAVA_CLIENT_SECRET = 'YOUR_CLIENT_SECRET'; // ← fill in
   const r = await fetch('https://www.strava.com/oauth/token', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
@@ -550,7 +549,7 @@ async function exchangeToken(code) {
 }
 
 async function refreshToken(refresh_token) {
-  const STRAVA_CLIENT_SECRET = 'YOUR_CLIENT_SECRET';
+  const STRAVA_CLIENT_SECRET = '0c940c6b6e6345d2a578f220f5e4c7f40f2759d8';
   const r = await fetch('https://www.strava.com/oauth/token', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
