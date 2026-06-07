@@ -499,8 +499,8 @@ body {
 
 <script>
 // ── CONFIG — FILL THESE IN ────────────────────────────────────────────────
-const STRAVA_CLIENT_ID     = 256087256087;       // from strava.com/settings/api
-const ANTHROPIC_API_KEY    = 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;   // from console.anthropic.com
+const STRAVA_CLIENT_ID     = '256087256087';       // from strava.com/settings/api
+const ANTHROPIC_API_KEY    = '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';   // from console.anthropic.com
 const REDIRECT_URI         = window.location.origin + window.location.pathname;
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -550,7 +550,7 @@ async function exchangeToken(code) {
 }
 
 async function refreshToken(refresh_token) {
-  const STRAVA_CLIENT_SECRET = 'YOUR_CLIENT_SECRET';
+  const STRAVA_CLIENT_SECRET = '0c940c6b6e6345d2a578f220f5e4c7f40f2759d8T';
   const r = await fetch('https://www.strava.com/oauth/token', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
