@@ -388,13 +388,18 @@ body {
 <!-- APP -->
 <div id="app-screen">
   <div class="app-header">
-    <div class="app-logo">BRB <span>Training</span></div>
+    <div>
+      <div class="app-logo">BRB <span>Training</span></div>
+      <div id="last-updated-banner" style="font-size:10px;color:var(--dim);margin-top:2px"></div>
+    </div>
     <div class="header-right">
-      <div class="race-chips">
+      <div class="race-chips" id="header-race-chips">
         <div class="chip chip-tri">Tri <span id="hdr-tri-days">—</span>d</div>
         <div class="chip chip-mar">Chi <span id="hdr-mar-days">—</span>d</div>
       </div>
-      <button class="refresh-btn" id="refresh-btn" onclick="refreshData()" aria-label="Refresh">↺</button>
+      <button class="refresh-btn" id="refresh-btn" onclick="refreshData()" aria-label="Sync Strava" title="Sync latest Strava data" style="width:auto;padding:0 10px;font-size:11px;font-family:var(--font-display);font-weight:600;gap:5px;display:flex;align-items:center;">
+        <span id="refresh-icon" style="font-size:14px">↺</span> Sync
+      </button>
     </div>
   </div>
 
@@ -473,7 +478,7 @@ body {
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────────────────────
-const STRAVA_CLIENT_ID = '256087';
+const STRAVA_CLIENT_ID = 'YOUR_CLIENT_ID';
 const REDIRECT_URI     = 'https://glowing-sunshine-5f84df.netlify.app/';
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -661,12 +666,9 @@ function renderDashboard(d) {
     </div>`).join('');
 
   document.getElementById('dashboard-content').innerHTML = `
-    <div class="date-banner">
+    <div class="date-banner" onclick="scrollToRaces()" style="cursor:pointer">
       <div><div class="date-greeting">${getGreeting()}</div><div class="date-sub">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})}</div></div>
-      <div class="date-races">
-        <div class="race-countdown"><span style="color:var(--tri)">Tri</span><span class="days" style="color:var(--tri)">${daysUntil(TRI_DATE)}d</span></div>
-        <div class="race-countdown"><span style="color:var(--mar)">Chi</span><span class="days" style="color:var(--mar)">${daysUntil(MAR_DATE)}d</span></div>
-      </div>
+      <div class="date-races" id="banner-races">${buildBannerRaces()}</div>
     </div>
     <div class="section">
       <div class="section-label">This week</div>
@@ -843,6 +845,62 @@ function autoResize(el) {
 
 // ── RACE PLANNER ──────────────────────────────────────────────────────────
 let races = JSON.parse(localStorage.getItem('brb_races') || '[]');
+
+// Build race countdowns for the banner — uses saved races, falls back to hardcoded
+function buildBannerRaces() {
+  const upcoming = races.filter(r => daysUntil(new Date(r.date)) >= 0)
+    .sort((a,b) => new Date(a.date) - new Date(b.date))
+    .slice(0, 2);
+  if (!upcoming.length) {
+    // Fallback to hardcoded races if none added yet
+    return `<div class="race-countdown"><span style="color:var(--tri)">Tri</span><span class="days" style="color:var(--tri)">${daysUntil(TRI_DATE)}d</span></div>
+            <div class="race-countdown"><span style="color:var(--mar)">Chi</span><span class="days" style="color:var(--mar)">${daysUntil(MAR_DATE)}d</span></div>`;
+  }
+  const colors = ['var(--tri)','var(--mar)','var(--ok)'];
+  return upcoming.map((r,i) => {
+    const label = r.name.length > 10 ? r.subtype : r.name;
+    return `<div class="race-countdown"><span style="color:${colors[i]}">${label}</span><span class="days" style="color:${colors[i]}">${daysUntil(new Date(r.date))}d</span></div>`;
+  }).join('');
+}
+
+// Update just the banner and header chips without re-rendering the whole dashboard
+function updateRaceCountdowns() {
+  const bannerEl = document.getElementById('banner-races');
+  if (bannerEl) bannerEl.innerHTML = buildBannerRaces();
+  // Update header chips
+  const chipsEl = document.getElementById('header-race-chips');
+  if (chipsEl) {
+    const upcoming = races.filter(r => daysUntil(new Date(r.date)) >= 0)
+      .sort((a,b) => new Date(a.date) - new Date(b.date))
+      .slice(0, 2);
+    if (upcoming.length >= 2) {
+      chipsEl.innerHTML = upcoming.map((r,i) => {
+        const cls = i === 0 ? 'chip-tri' : 'chip-mar';
+        const label = r.name.length > 8 ? r.subtype : r.name;
+        return `<div class="chip ${cls}">${label} <span>${daysUntil(new Date(r.date))}d</span></div>`;
+      }).join('');
+    } else if (upcoming.length === 1) {
+      const r = upcoming[0];
+      chipsEl.innerHTML = `<div class="chip chip-tri">${r.subtype} <span>${daysUntil(new Date(r.date))}d</span></div>`;
+    } else {
+      chipsEl.innerHTML = `<div class="chip chip-tri">Tri <span id="hdr-tri-days">${daysUntil(TRI_DATE)}</span>d</div><div class="chip chip-mar">Chi <span id="hdr-mar-days">${daysUntil(MAR_DATE)}</span>d</div>`;
+    }
+  }
+}
+
+function scrollToRaces() {
+  const el = document.getElementById('race-planner');
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Auto-open the planner
+    const body = document.getElementById('race-planner-body');
+    const toggle = document.getElementById('race-planner-toggle');
+    if (body && !body.classList.contains('open')) {
+      body.classList.add('open');
+      if (toggle) toggle.classList.add('open');
+    }
+  }
+}
 let selectedRaceType = 'triathlon';
 let selectedSubtype = '';
 
@@ -909,6 +967,7 @@ function deleteRace(id) {
 }
 
 function renderRaces() {
+  updateRaceCountdowns();
   const list = document.getElementById('race-list');
   const badge = document.getElementById('race-count');
   if (badge) badge.textContent = races.length;
@@ -951,40 +1010,117 @@ async function generateRaceInsight(id) {
 }
 
 function initRacePlanner() {
+  // Preserve open/closed state across re-renders
+  const wasOpen = document.getElementById('race-planner-body') && 
+                  document.getElementById('race-planner-body').classList.contains('open');
   renderSubtypes();
   renderRaces();
+  if (wasOpen) {
+    const body = document.getElementById('race-planner-body');
+    const toggle = document.getElementById('race-planner-toggle');
+    if (body) body.classList.add('open');
+    if (toggle) toggle.classList.add('open');
+  }
+  updateRaceCountdowns();
   // Generate insights for races that don't have one yet
   races.forEach(r => { if (!r.insight && activitySummary) generateRaceInsight(r.id); });
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
+const CACHE_KEY_ANALYSIS  = 'brb_last_analysis';
+const CACHE_KEY_ACTIVITIES = 'brb_last_activities';
+const CACHE_KEY_SUMMARY   = 'brb_last_summary';
+const CACHE_KEY_TIMESTAMP = 'brb_last_updated';
+
+function saveCache(analysis, acts, summary) {
+  try {
+    localStorage.setItem(CACHE_KEY_ANALYSIS,   JSON.stringify(analysis));
+    localStorage.setItem(CACHE_KEY_ACTIVITIES,  JSON.stringify(acts));
+    localStorage.setItem(CACHE_KEY_SUMMARY,     summary);
+    localStorage.setItem(CACHE_KEY_TIMESTAMP,   new Date().toISOString());
+  } catch(e) { console.warn('Cache save failed', e); }
+}
+
+function loadCache() {
+  try {
+    const analysis   = JSON.parse(localStorage.getItem(CACHE_KEY_ANALYSIS) || 'null');
+    const acts       = JSON.parse(localStorage.getItem(CACHE_KEY_ACTIVITIES) || 'null');
+    const summary    = localStorage.getItem(CACHE_KEY_SUMMARY) || '';
+    const timestamp  = localStorage.getItem(CACHE_KEY_TIMESTAMP) || null;
+    if (analysis && acts) return { analysis, acts, summary, timestamp };
+  } catch(e) { console.warn('Cache load failed', e); }
+  return null;
+}
+
+function formatCacheAge(iso) {
+  if (!iso) return 'never';
+  const diff = Math.floor((Date.now() - new Date(iso)) / 60000);
+  if (diff < 1)  return 'just now';
+  if (diff < 60) return diff + 'm ago';
+  const h = Math.floor(diff / 60);
+  if (h < 24)    return h + 'h ago';
+  return Math.floor(h / 24) + 'd ago';
+}
+
+function updateRefreshBanner(iso) {
+  const el = document.getElementById('last-updated-banner');
+  if (el) el.textContent = iso ? 'Last updated ' + formatCacheAge(iso) : '';
+}
+
 async function refreshData() {
   const btn = document.getElementById('refresh-btn');
   btn.classList.add('spinning');
-  document.getElementById('dashboard-content').innerHTML = `<div class="loading-state"><div class="loading-dots"><span></span><span></span><span></span></div><div class="loading-text" id="loading-msg">Fetching your Strava activities…</div></div>`;
+  btn.disabled = true;
+
+  // Show subtle loading indicator over existing content if cache is present
+  const hasCache = !!localStorage.getItem(CACHE_KEY_ANALYSIS);
+  if (!hasCache) {
+    document.getElementById('dashboard-content').innerHTML = `<div class="loading-state"><div class="loading-dots"><span></span><span></span><span></span></div><div class="loading-text" id="loading-msg">Fetching your Strava activities…</div></div>`;
+  } else {
+    const banner = document.getElementById('last-updated-banner');
+    if (banner) banner.textContent = 'Refreshing…';
+  }
 
   try {
-    document.getElementById('loading-msg') && (document.getElementById('loading-msg').textContent = 'Getting Strava token…');
     const token = await getValidToken();
-    if (!token) { showError('Strava session expired. Please reload and reconnect.'); btn.classList.remove('spinning'); return; }
+    if (!token) { showError('Strava session expired. Please reload and reconnect.'); btn.classList.remove('spinning'); btn.disabled = false; return; }
 
-    document.getElementById('loading-msg') && (document.getElementById('loading-msg').textContent = 'Fetching activities…');
     const acts = await fetchActivities(token);
-    if (!Array.isArray(acts)) throw new Error('Bad response');
+    if (!Array.isArray(acts)) throw new Error('Bad Strava response');
 
     allActivities = acts.sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
     activitySummary = buildSummary(allActivities);
 
-    document.getElementById('loading-msg') && (document.getElementById('loading-msg').textContent = 'Running AI analysis…');
+    if (!hasCache) {
+      const msgEl = document.getElementById('loading-msg');
+      if (msgEl) msgEl.textContent = 'Running AI analysis…';
+    }
+
     const analysis = await runAnalysis(activitySummary);
+    saveCache(analysis, allActivities, activitySummary);
     renderDashboard(analysis);
+    updateRefreshBanner(new Date().toISOString());
 
     if (currentTab === 'activities') renderActivities(allActivities);
   } catch(e) {
-    showError('Something went wrong. ' + e.message);
+    if (!hasCache) showError('Something went wrong. ' + e.message);
+    else updateRefreshBanner(localStorage.getItem(CACHE_KEY_TIMESTAMP));
     console.error(e);
   }
+
   btn.classList.remove('spinning');
+  btn.disabled = false;
+}
+
+function loadFromCache() {
+  const cache = loadCache();
+  if (!cache) return false;
+  allActivities  = cache.acts;
+  activitySummary = cache.summary;
+  renderDashboard(cache.analysis);
+  updateRefreshBanner(cache.timestamp);
+  if (currentTab === 'activities') renderActivities(allActivities);
+  return true;
 }
 
 async function init() {
@@ -1010,7 +1146,13 @@ async function init() {
   if (auth) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-screen').style.display = 'flex';
-    await refreshData();
+    // Load from cache instantly, then refresh in background if data is older than 3 hours
+    const loaded = loadFromCache();
+    const timestamp = localStorage.getItem(CACHE_KEY_TIMESTAMP);
+    const ageHours = timestamp ? (Date.now() - new Date(timestamp)) / 3600000 : 999;
+    if (!loaded || ageHours > 3) {
+      await refreshData();
+    }
   }
 }
 
