@@ -93,7 +93,7 @@ body {
 .login-note { margin-top: 1.5rem; font-size: 11px; color: var(--dim); line-height: 1.6; max-width: 280px; }
 
 /* ── APP SHELL ── */
-#app-screen { display: none; flex-direction: column; height: 100vh; }
+#app-screen { display: none; flex-direction: column; height: 100vh; overflow: hidden; position: relative; }
 .app-header {
   position: sticky; top: 0; z-index: 100;
   background: rgba(10,10,15,0.9);
@@ -131,7 +131,6 @@ body {
 .page.active { display: block; }
 .page-inner { padding: 20px 16px 0; max-width: 480px; margin: 0 auto; }
 
-/* ── BOTTOM NAV ── */
 /* ── HAMBURGER DRAWER ── */
 .hamburger-btn {
   background: none; border: none; cursor: pointer; padding: 6px;
