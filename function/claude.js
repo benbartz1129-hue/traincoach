@@ -1,4 +1,4 @@
-export async function onRequestPost(context) {
+export async functions onRequestPost(context) {
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
