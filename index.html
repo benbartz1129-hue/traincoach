@@ -412,6 +412,49 @@ body {
           <div class="loading-text" id="loading-msg">Fetching your Strava activities…</div>
         </div>
       </div>
+      <!-- Race planner lives here permanently — outside dashboard-content so it never gets wiped -->
+      <div class="page-inner" style="padding-top:0">
+        <div class="section">
+          <div class="section-label">Race planner</div>
+          <div class="race-planner" id="race-planner">
+            <div class="race-planner-header" onclick="toggleRacePlanner()">
+              <div class="race-planner-title">&#127937; My Races <span class="race-count-badge" id="race-count">0</span></div>
+              <span class="race-planner-toggle" id="race-planner-toggle">&#9660;</span>
+            </div>
+            <div class="race-planner-body" id="race-planner-body">
+              <div class="race-list" id="race-list"></div>
+              <div class="add-race-form">
+                <div class="form-field">
+                  <div class="form-label">Race name</div>
+                  <input class="form-input" id="race-name" placeholder="e.g. Chicago Sprint Tri" />
+                </div>
+                <div class="form-row">
+                  <div class="form-field">
+                    <div class="form-label">Date</div>
+                    <input class="form-input" id="race-date" type="date" />
+                  </div>
+                  <div class="form-field">
+                    <div class="form-label">Goal time</div>
+                    <input class="form-input" id="race-goal" placeholder="e.g. 2:30:00" />
+                  </div>
+                </div>
+                <div class="form-field">
+                  <div class="form-label">Type</div>
+                  <div class="type-selector">
+                    <button class="type-btn active-tri" id="type-tri" onclick="selectRaceType('triathlon')">&#127946; Triathlon</button>
+                    <button class="type-btn" id="type-run" onclick="selectRaceType('running')">&#127939; Running</button>
+                  </div>
+                </div>
+                <div class="form-field" id="subtype-field">
+                  <div class="form-label">Distance</div>
+                  <div class="subtype-row" id="subtype-row"></div>
+                </div>
+                <button class="add-race-btn" onclick="addRace()">+ Add Race</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ACTIVITIES -->
@@ -710,48 +753,8 @@ function renderDashboard(d) {
       <div class="section-label">Today's insights</div>
       <div class="insights-stack">${insightCards}</div>
     </div>
-    <div class="section">
-      <div class="section-label">Race planner</div>
-      <div class="race-planner" id="race-planner">
-        <div class="race-planner-header" onclick="toggleRacePlanner()">
-          <div class="race-planner-title">&#127937; My Races <span class="race-count-badge" id="race-count">0</span></div>
-          <span class="race-planner-toggle" id="race-planner-toggle">&#9660;</span>
-        </div>
-        <div class="race-planner-body" id="race-planner-body">
-          <div class="race-list" id="race-list"></div>
-          <div class="add-race-form">
-            <div class="form-field">
-              <div class="form-label">Race name</div>
-              <input class="form-input" id="race-name" placeholder="e.g. Chicago Sprint Tri" />
-            </div>
-            <div class="form-row">
-              <div class="form-field">
-                <div class="form-label">Date</div>
-                <input class="form-input" id="race-date" type="date" />
-              </div>
-              <div class="form-field">
-                <div class="form-label">Goal time</div>
-                <input class="form-input" id="race-goal" placeholder="e.g. 2:30:00" />
-              </div>
-            </div>
-            <div class="form-field">
-              <div class="form-label">Type</div>
-              <div class="type-selector">
-                <button class="type-btn active-tri" id="type-tri" onclick="selectRaceType(\'triathlon\')">&#127946; Triathlon</button>
-                <button class="type-btn" id="type-run" onclick="selectRaceType(\'running\')">&#127939; Running</button>
-              </div>
-            </div>
-            <div class="form-field" id="subtype-field">
-              <div class="form-label">Distance</div>
-              <div class="subtype-row" id="subtype-row"></div>
-            </div>
-            <button class="add-race-btn" onclick="addRace()">+ Add Race</button>
-          </div>
-        </div>
-      </div>
-    </div>
     <div class="app-footer">Last updated ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} · BRB Training</div>`;
-  setTimeout(initRacePlanner, 0);
+  updateRaceCountdowns();
 }
 
 function showError(msg) {
@@ -1010,19 +1013,9 @@ async function generateRaceInsight(id) {
 }
 
 function initRacePlanner() {
-  // Preserve open/closed state across re-renders
-  const wasOpen = document.getElementById('race-planner-body') && 
-                  document.getElementById('race-planner-body').classList.contains('open');
   renderSubtypes();
   renderRaces();
-  if (wasOpen) {
-    const body = document.getElementById('race-planner-body');
-    const toggle = document.getElementById('race-planner-toggle');
-    if (body) body.classList.add('open');
-    if (toggle) toggle.classList.add('open');
-  }
   updateRaceCountdowns();
-  // Generate insights for races that don't have one yet
   races.forEach(r => { if (!r.insight && activitySummary) generateRaceInsight(r.id); });
 }
 
@@ -1146,6 +1139,8 @@ async function init() {
   if (auth) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-screen').style.display = 'flex';
+    // Init race planner immediately so races show before data loads
+    initRacePlanner();
     // Load from cache instantly, then refresh in background if data is older than 3 hours
     const loaded = loadFromCache();
     const timestamp = localStorage.getItem(CACHE_KEY_TIMESTAMP);
