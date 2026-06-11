@@ -1119,8 +1119,6 @@ function loadFromCache() {
 async function init() {
   const params = new URLSearchParams(window.location.search);
   const code = params.get('code');
-  document.getElementById('hdr-tri-days').textContent = daysUntil(TRI_DATE);
-  document.getElementById('hdr-mar-days').textContent = daysUntil(MAR_DATE);
 
   if (code) {
     window.history.replaceState({}, '', window.location.pathname);
