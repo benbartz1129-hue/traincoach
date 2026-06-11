@@ -672,7 +672,7 @@ body {
 <script>
 // ── CONFIG ────────────────────────────────────────────────────────────────
 const STRAVA_CLIENT_ID = 'YOUR_CLIENT_ID';
-const REDIRECT_URI     = 'https://glowing-sunshine-5f84df.netlify.app/';
+const REDIRECT_URI     = 'https://YOUR-CF-SUBDOMAIN.pages.dev/';
 // ─────────────────────────────────────────────────────────────────────────
 
 const TRI_DATE = new Date('2026-07-26');
@@ -719,7 +719,7 @@ function connectStrava() {
 }
 
 async function exchangeToken(code) {
-  const r = await fetch('/.netlify/functions/strava-token', {
+  const r = await fetch('https://YOUR-CF-SUBDOMAIN.pages.dev/functions/strava-token', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ code, grant_type: 'authorization_code' })
   });
@@ -727,7 +727,7 @@ async function exchangeToken(code) {
 }
 
 async function refreshStravaToken(refresh_token) {
-  const r = await fetch('/.netlify/functions/strava-token', {
+  const r = await fetch('https://YOUR-CF-SUBDOMAIN.pages.dev/functions/strava-token', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ refresh_token, grant_type: 'refresh_token' })
   });
@@ -804,7 +804,7 @@ function buildSummary(acts) {
 }
 
 async function callClaude(payload) {
-  const r = await fetch('/.netlify/functions/claude', {
+  const r = await fetch('https://YOUR-CF-SUBDOMAIN.pages.dev/functions/claude', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify(payload)
   });
