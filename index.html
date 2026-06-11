@@ -286,6 +286,65 @@ body {
 .add-race-btn:active { opacity: 0.8; }
 .add-race-btn:disabled { opacity: 0.4; cursor: default; }
 
+
+/* ── CALENDAR ── */
+.cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+.cal-month-label { font-family:var(--font-display); font-size:16px; font-weight:700; }
+.cal-nav-btn { background:none; border:1px solid var(--border2); border-radius:8px; color:var(--text); width:32px; height:32px; font-size:20px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.cal-nav-btn:active { background:var(--surface2); }
+.cal-weekdays { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; margin-bottom:4px; }
+.cal-weekdays span { font-size:10px; font-family:var(--font-display); color:var(--dim); text-align:center; padding:4px 0; }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-bottom:12px; }
+.cal-cell {
+  aspect-ratio:1; border-radius:8px; padding:3px;
+  display:flex; flex-direction:column; align-items:center;
+  cursor:pointer; position:relative; background:var(--surface);
+  border:1px solid var(--border); transition:border-color 0.15s;
+  -webkit-tap-highlight-color:transparent;
+}
+.cal-cell:active { border-color:var(--tri); }
+.cal-cell.empty { background:transparent; border-color:transparent; cursor:default; }
+.cal-cell.today { border-color:var(--tri); }
+.cal-cell.today .cal-day-num { color:var(--tri); font-weight:700; }
+.cal-cell.past { opacity:0.5; }
+.cal-cell.has-race { background:rgba(240,160,80,0.1); border-color:var(--mar-border); }
+.cal-cell.has-plan { background:rgba(79,196,168,0.06); }
+.cal-day-num { font-size:10px; color:var(--muted); line-height:1; margin-bottom:2px; }
+.cal-dots { display:flex; gap:2px; flex-wrap:wrap; justify-content:center; }
+.cal-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
+.cal-dot.run { background:var(--run); }
+.cal-dot.swim { background:var(--swim); }
+.cal-dot.ride { background:var(--ride); }
+.cal-dot.strength { background:var(--info); }
+.cal-dot.rest { background:var(--dim); }
+.cal-dot.race { background:var(--mar); width:7px; height:7px; }
+.cal-legend { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+.cal-legend-item { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--muted); }
+.cal-day-detail {
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:14px; padding:14px 16px; margin-bottom:16px;
+}
+.cal-detail-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.cal-detail-date { font-family:var(--font-display); font-size:14px; font-weight:700; }
+.cal-detail-close { background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer; }
+.cal-plan-item { display:flex; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); align-items:flex-start; }
+.cal-plan-item:last-child { border-bottom:none; padding-bottom:0; }
+.cal-plan-icon { width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+.cal-plan-icon.run { background:rgba(109,186,109,0.12); }
+.cal-plan-icon.swim { background:rgba(79,196,168,0.12); }
+.cal-plan-icon.ride { background:rgba(240,160,80,0.12); }
+.cal-plan-icon.rest { background:var(--surface2); }
+.cal-plan-icon.strength { background:rgba(106,158,245,0.12); }
+.cal-plan-icon.race { background:rgba(240,160,80,0.15); }
+.cal-plan-body { flex:1; }
+.cal-plan-title { font-size:13px; font-weight:500; font-family:var(--font-display); }
+.cal-plan-detail { font-size:11px; color:var(--muted); margin-top:2px; line-height:1.5; }
+.cal-strava-item { display:flex; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); align-items:center; }
+.cal-strava-item:last-child { border-bottom:none; }
+.cal-strava-label { font-size:12px; flex:1; }
+.cal-strava-dist { font-size:13px; font-weight:500; color:var(--text); }
+.cal-updating { font-size:12px; color:var(--dim); font-style:italic; padding:8px 0; }
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -476,6 +535,46 @@ body {
       </div>
     </div>
 
+    <!-- CALENDAR -->
+    <div class="page" id="page-calendar">
+      <div class="page-inner">
+        <div class="cal-header">
+          <button class="cal-nav-btn" onclick="calPrevMonth()">&#8249;</button>
+          <div class="cal-month-label" id="cal-month-label"></div>
+          <button class="cal-nav-btn" onclick="calNextMonth()">&#8250;</button>
+        </div>
+        <div class="cal-weekdays">
+          <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+        <div class="cal-legend">
+          <div class="cal-legend-item"><div class="cal-dot run"></div>Run</div>
+          <div class="cal-legend-item"><div class="cal-dot swim"></div>Swim</div>
+          <div class="cal-legend-item"><div class="cal-dot ride"></div>Ride</div>
+          <div class="cal-legend-item"><div class="cal-dot strength"></div>Strength</div>
+          <div class="cal-legend-item"><div class="cal-dot race"></div>Race</div>
+        </div>
+        <div class="cal-day-detail" id="cal-day-detail" style="display:none">
+          <div class="cal-detail-header">
+            <div class="cal-detail-date" id="cal-detail-date"></div>
+            <button class="cal-detail-close" onclick="closeCalDetail()">✕</button>
+          </div>
+          <div id="cal-detail-content"></div>
+        </div>
+        <div style="margin-top:16px">
+          <div class="section-label">Training plan</div>
+          <div class="card" style="padding:14px 16px;margin-bottom:10px">
+            <div style="font-size:12px;color:var(--muted);line-height:1.6" id="cal-plan-summary">
+              Ask your Coach to generate or update your training plan — it will appear on the calendar automatically.
+            </div>
+          </div>
+          <button class="add-race-btn" style="margin-bottom:20px" onclick="switchTab('coach');setTimeout(()=>{ document.getElementById('chat-input').value='Generate a full training plan on the calendar leading up to my next race based on my Strava data'; document.getElementById('chat-input').focus(); },200)">
+            &#128197; Generate training plan in Coach
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- COACH CHAT -->
     <div class="page" id="page-coach">
       <div class="chat-wrap">
@@ -493,6 +592,8 @@ body {
           <button class="suggestion-btn" onclick="sendSuggestion(this)">What should I focus on?</button>
           <button class="suggestion-btn" onclick="sendSuggestion(this)">Chicago marathon strategy</button>
           <button class="suggestion-btn" onclick="sendSuggestion(this)">Recovery advice</button>
+          <button class="suggestion-btn" onclick="sendSuggestion(this)">Generate my training calendar to race day</button>
+          <button class="suggestion-btn" onclick="sendSuggestion(this)">Update my plan for next 2 weeks</button>
         </div>
         <div class="chat-input-row">
           <textarea class="chat-input" id="chat-input" placeholder="Ask your coach…" rows="1" onkeydown="handleChatKey(event)" oninput="autoResize(this)"></textarea>
@@ -511,6 +612,10 @@ body {
     <button class="nav-item" id="nav-activities" onclick="switchTab('activities')">
       <span class="nav-icon">📋</span>
       <span class="nav-label">Activities</span>
+    </button>
+    <button class="nav-item" id="nav-calendar" onclick="switchTab('calendar')">
+      <span class="nav-icon">📅</span>
+      <span class="nav-label">Calendar</span>
     </button>
     <button class="nav-item" id="nav-coach" onclick="switchTab('coach')">
       <span class="nav-icon">🏅</span>
@@ -548,6 +653,7 @@ function switchTab(tab) {
   document.getElementById('nav-' + tab).classList.add('active');
   currentTab = tab;
   if (tab === 'activities' && allActivities.length > 0) renderActivities(allActivities);
+  if (tab === 'calendar') renderCalendar();
 }
 
 // ── STRAVA OAUTH ──────────────────────────────────────────────────────────
@@ -803,23 +909,45 @@ async function sendChat() {
   try {
     const triDays = daysUntil(TRI_DATE), marDays = daysUntil(MAR_DATE);
     const today = new Date().toISOString().split('T')[0];
+    const today2 = new Date().toISOString().split('T')[0];
+    const planSummary = trainingPlan.length ? trainingPlan.filter(p=>p.date>=today2).slice(0,10).map(p=>p.date+':'+p.sport+' '+p.title).join('; ') : 'none yet';
     const systemPrompt = `You are an expert, friendly triathlon and marathon coach for BRB Training. Today is ${today}.
 Athlete profile: father of 2 young kids, full-time job, early morning training only (~5-6am).
 Goals: Olympic Triathlon July 26 2026 (${triDays} days away), Chicago Marathon October 11 2026 (${marDays} days away).
 Boston Marathon April 2026: 3:38:18. Strong run base. Swim volume critically low. Needs brick sessions.
 Recent activity data: ${activitySummary || 'Not yet loaded.'}
 Upcoming races: ${races.length ? races.map(r => r.name + ' (' + r.subtype + ' ' + r.type + ', ' + r.date + ', goal: ' + (r.goal||'none') + ')').join('; ') : 'none added'}
-Be concise, specific, and actionable. Reference their actual data when relevant. Use miles not km.`;
+Current calendar plan (upcoming): ${planSummary}
+Be concise, specific, and actionable. Reference their actual data when relevant. Use miles not km.
 
-    const reply = await callClaude({
-      model: 'claude-sonnet-4-6', max_tokens: 500,
+CALENDAR UPDATES: If the user asks you to generate, update, or modify their training plan or calendar, respond conversationally AND include a plan block in this exact format at the end of your message:
+<<<PLAN>>>
+[{"date":"2026-07-01","sport":"run","title":"Easy 5mi","detail":"Zone 2, conversational pace. 50min.","id":1},...]
+<<<END>>>
+sport must be one of: run, swim, ride, rest, strength. date must be YYYY-MM-DD format. Include 'detail' with duration/intensity. Only include dates from today onward. For 'Add a session for DATE: DESCRIPTION' requests, just add that single session.`;
+
+    const rawReply = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 1000,
       system: systemPrompt,
       messages: chatHistory
     });
 
     typing.remove();
+
+    // Check if reply contains a calendar plan (JSON block wrapped in <<<PLAN>>>...<<<END>>>)
+    const planMatch = rawReply.match(/<<<PLAN>>>([\s\S]*?)<<<END>>>/);
+    let reply = rawReply;
+    if (planMatch) {
+      try {
+        const planItems = JSON.parse(planMatch[1].trim());
+        const applied = applyPlanUpdates(planItems);
+        reply = rawReply.replace(/<<<PLAN>>>[\s\S]*?<<<END>>>/, '').trim();
+        if (applied) reply += '\n\n📅 *Training plan updated — check your Calendar tab.*';
+      } catch(e) { console.warn('Plan parse error', e); }
+    }
+
     addMessage('assistant', reply);
-    chatHistory.push({ role: 'assistant', content: reply });
+    chatHistory.push({ role: 'assistant', content: rawReply });
     // Keep history manageable
     if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
   } catch(e) {
@@ -1019,6 +1147,191 @@ function initRacePlanner() {
   races.forEach(r => { if (!r.insight && activitySummary) generateRaceInsight(r.id); });
 }
 
+
+// ── CALENDAR ──────────────────────────────────────────────────────────────
+const CACHE_KEY_PLAN = 'brb_training_plan';
+let trainingPlan = JSON.parse(localStorage.getItem(CACHE_KEY_PLAN) || '[]');
+// trainingPlan = [{ date:'2026-07-01', sport:'run', title:'Easy 5mi', detail:'Zone 2, conversational pace' }, ...]
+
+let calViewDate = new Date();
+calViewDate.setDate(1);
+
+function savePlan() { localStorage.setItem(CACHE_KEY_PLAN, JSON.stringify(trainingPlan)); }
+
+function isoDate(d) { return d.toISOString().split('T')[0]; }
+
+function calPrevMonth() { calViewDate.setMonth(calViewDate.getMonth()-1); renderCalendar(); }
+function calNextMonth() { calViewDate.setMonth(calViewDate.getMonth()+1); renderCalendar(); }
+
+function closeCalDetail() {
+  document.getElementById('cal-day-detail').style.display = 'none';
+}
+
+function renderCalendar() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const year = calViewDate.getFullYear();
+  const month = calViewDate.getMonth();
+  document.getElementById('cal-month-label').textContent =
+    new Date(year, month, 1).toLocaleDateString('en-US', {month:'long', year:'numeric'});
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+
+  // Build lookup maps
+  const stravaByDate = {};
+  allActivities.forEach(a => {
+    const d = a.start_date_local.split('T')[0];
+    if (!stravaByDate[d]) stravaByDate[d] = [];
+    stravaByDate[d].push(a);
+  });
+
+  const planByDate = {};
+  trainingPlan.forEach(p => {
+    if (!planByDate[p.date]) planByDate[p.date] = [];
+    planByDate[p.date].push(p);
+  });
+
+  const raceByDate = {};
+  races.forEach(r => { raceByDate[r.date] = r; });
+
+  let html = '';
+  // Empty cells before first day
+  for (let i = 0; i < firstDay; i++) html += '<div class="cal-cell empty"></div>';
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month, day);
+    const dateStr = isoDate(date);
+    const isToday = isoDate(date) === isoDate(today);
+    const isPast = date < today && !isToday;
+    const hasRace = !!raceByDate[dateStr];
+    const hasPlan = planByDate[dateStr] && planByDate[dateStr].length > 0;
+    const stravaActs = stravaByDate[dateStr] || [];
+
+    let dots = '';
+    // Strava dots first (completed)
+    const sportsSeen = new Set();
+    stravaActs.forEach(a => {
+      const s = a.type.toLowerCase();
+      const cls = ['run','swim','ride'].includes(s) ? s : s === 'weighttraining' ? 'strength' : null;
+      if (cls && !sportsSeen.has(cls)) { dots += `<div class="cal-dot ${cls}"></div>`; sportsSeen.add(cls); }
+    });
+    // Plan dots (future)
+    if (!isPast && hasPlan) {
+      planByDate[dateStr].forEach(p => {
+        if (!sportsSeen.has(p.sport)) { dots += `<div class="cal-dot ${p.sport}"></div>`; sportsSeen.add(p.sport); }
+      });
+    }
+    if (hasRace) dots += '<div class="cal-dot race"></div>';
+
+    const classes = ['cal-cell', isToday?'today':'', isPast?'past':'', hasRace?'has-race':'', (!isPast&&hasPlan&&!stravaActs.length)?'has-plan':''].filter(Boolean).join(' ');
+    html += `<div class="${classes}" onclick="showCalDay('${dateStr}')">
+      <div class="cal-day-num">${day}</div>
+      <div class="cal-dots">${dots}</div>
+    </div>`;
+  }
+
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+function showCalDay(dateStr) {
+  const detail = document.getElementById('cal-day-detail');
+  const dateLabel = document.getElementById('cal-detail-date');
+  const content = document.getElementById('cal-detail-content');
+
+  const date = new Date(dateStr + 'T12:00:00');
+  dateLabel.textContent = date.toLocaleDateString('en-US', {weekday:'long', month:'long', day:'numeric'});
+
+  const stravaActs = allActivities.filter(a => a.start_date_local.startsWith(dateStr));
+  const planItems = trainingPlan.filter(p => p.date === dateStr);
+  const race = races.find(r => r.date === dateStr);
+
+  let html = '';
+
+  if (race) {
+    html += `<div class="cal-plan-item">
+      <div class="cal-plan-icon race">🏁</div>
+      <div class="cal-plan-body"><div class="cal-plan-title">${race.name}</div>
+      <div class="cal-plan-detail">${race.subtype} ${race.type}${race.goal ? ' · Goal: '+race.goal : ''}</div></div>
+    </div>`;
+  }
+
+  if (stravaActs.length) {
+    html += `<div style="font-size:10px;font-family:var(--font-display);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:8px 0 4px">Completed</div>`;
+    stravaActs.forEach(a => {
+      const mi = mToMi(a.distance);
+      html += `<div class="cal-strava-item">
+        <span style="font-size:16px">${sportEmoji(a.type)}</span>
+        <span class="cal-strava-label">${a.name}</span>
+        ${mi > 0.1 ? `<span class="cal-strava-dist">${mi.toFixed(1)}mi</span>` : ''}
+      </div>`;
+    });
+  }
+
+  if (planItems.length) {
+    html += `<div style="font-size:10px;font-family:var(--font-display);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:8px 0 4px">Planned</div>`;
+    planItems.forEach(p => {
+      html += `<div class="cal-plan-item">
+        <div class="cal-plan-icon ${p.sport}">${sportEmoji(p.sport)}</div>
+        <div class="cal-plan-body">
+          <div class="cal-plan-title">${p.title}</div>
+          ${p.detail ? `<div class="cal-plan-detail">${p.detail}</div>` : ''}
+        </div>
+        <button onclick="deletePlanItem('${dateStr}','${p.id}')" style="background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;padding:0;flex-shrink:0">✕</button>
+      </div>`;
+    });
+  }
+
+  if (!html) {
+    html = `<div style="font-size:12px;color:var(--dim);padding:8px 0">Rest day — nothing scheduled.</div>`;
+  }
+
+  // Add to plan button
+  html += `<button class="add-race-btn" style="margin-top:12px;font-size:12px;padding:8px" onclick="promptAddPlanItem('${dateStr}')">+ Add session for this day</button>`;
+
+  content.innerHTML = html;
+  detail.style.display = 'block';
+  detail.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function deletePlanItem(dateStr, id) {
+  trainingPlan = trainingPlan.filter(p => !(p.date === dateStr && String(p.id) === String(id)));
+  savePlan();
+  renderCalendar();
+  showCalDay(dateStr);
+}
+
+function promptAddPlanItem(dateStr) {
+  const date = new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'});
+  switchTab('coach');
+  setTimeout(() => {
+    document.getElementById('chat-input').value = `Add a training session to my calendar for ${date}: `;
+    document.getElementById('chat-input').focus();
+  }, 200);
+}
+
+// Parse AI-generated plan JSON and merge into trainingPlan
+function applyPlanUpdates(planItems) {
+  if (!Array.isArray(planItems) || !planItems.length) return false;
+  let added = 0;
+  planItems.forEach(item => {
+    if (!item.date || !item.sport || !item.title) return;
+    // Remove existing plan for same date+sport to avoid duplicates
+    trainingPlan = trainingPlan.filter(p => !(p.date === item.date && p.sport === item.sport));
+    trainingPlan.push({ ...item, id: Date.now() + Math.random() });
+    added++;
+  });
+  if (added > 0) {
+    savePlan();
+    // Update plan summary
+    const upcoming = trainingPlan.filter(p => new Date(p.date) >= new Date()).length;
+    const el = document.getElementById('cal-plan-summary');
+    if (el) el.textContent = `${upcoming} sessions planned. Last updated by Coach ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})}.`;
+    if (currentTab === 'calendar') renderCalendar();
+    return true;
+  }
+  return false;
+}
+
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
 const CACHE_KEY_ANALYSIS  = 'brb_last_analysis';
 const CACHE_KEY_ACTIVITIES = 'brb_last_activities';
@@ -1137,8 +1450,15 @@ async function init() {
   if (auth) {
     document.getElementById('login-screen').style.display = 'none';
     document.getElementById('app-screen').style.display = 'flex';
-    // Init race planner immediately so races show before data loads
+    // Init race planner and calendar immediately so they show before data loads
     initRacePlanner();
+    renderCalendar();
+    // Restore plan summary if exists
+    const upcoming = trainingPlan.filter(p => p.date >= new Date().toISOString().split('T')[0]).length;
+    if (upcoming > 0) {
+      const el = document.getElementById('cal-plan-summary');
+      if (el) el.textContent = upcoming + ' sessions planned. Open Coach to update your plan.';
+    }
     // Load from cache instantly, then refresh in background if data is older than 3 hours
     const loaded = loadFromCache();
     const timestamp = localStorage.getItem(CACHE_KEY_TIMESTAMP);
