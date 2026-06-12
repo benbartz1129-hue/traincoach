@@ -671,7 +671,7 @@ body {
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────────────────────
-const STRAVA_CLIENT_ID = '256087';
+const STRAVA_CLIENT_ID = 'YOUR_CLIENT_ID';
 const REDIRECT_URI     = 'https://brbtraining.pages.dev/';
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -1493,10 +1493,11 @@ async function init() {
     document.getElementById('app-screen').style.display = 'flex';
     try {
       const auth = await exchangeToken(code);
-      if (!auth.access_token) throw new Error('No token');
+      console.log('Auth response:', JSON.stringify(auth));
+      if (!auth.access_token) throw new Error('No token: ' + JSON.stringify(auth));
       localStorage.setItem('strava_auth', JSON.stringify(auth));
       await refreshData();
-    } catch(e) { showError('Could not connect to Strava. Check credentials.'); }
+    } catch(e) { showError('Could not connect to Strava: ' + e.message); console.error('Auth error:', e); }
     return;
   }
 
