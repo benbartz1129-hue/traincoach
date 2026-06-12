@@ -8,7 +8,16 @@ export async function onRequestPost(context) {
   try {
     const { code, refresh_token, grant_type } = await context.request.json();
     const env = context.env;
-    console.log('CLIENT_ID from env:', env.STRAVA_CLIENT_ID, typeof env.STRAVA_CLIENT_ID);
+
+    // DEBUG - remove after fixing
+    if (!env.STRAVA_CLIENT_ID) {
+      return new Response(JSON.stringify({ 
+        debug: true,
+        client_id_value: env.STRAVA_CLIENT_ID,
+        client_id_type: typeof env.STRAVA_CLIENT_ID,
+        env_keys: Object.keys(env)
+      }), { headers: corsHeaders });
+    }
 
     const body = {
       client_id: parseInt(env.STRAVA_CLIENT_ID),
