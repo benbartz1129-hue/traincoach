@@ -7,23 +7,11 @@ export async function onRequestPost(context) {
 
   try {
     const { code, refresh_token, grant_type } = await context.request.json();
-    const env = context.env;
 
-    // DEBUG - remove after fixing
-    if (!env.STRAVA_CLIENT_ID) {
-      return new Response(JSON.stringify({ 
-        debug: true,
-        client_id_value: env.STRAVA_CLIENT_ID,
-        client_id_type: typeof env.STRAVA_CLIENT_ID,
-        env_keys: Object.keys(env)
-      }), { headers: corsHeaders });
-    }
+    const clientId = context.env.STRAVA_CLIENT_ID ? parseInt(context.env.STRAVA_CLIENT_ID) : 256087;
+    const clientSecret = context.env.STRAVA_CLIENT_SECRET || 'Yf3771eff46d075aa8fc86e6585f948395c564555';
 
-    const body = {
-      client_id: parseInt(env.STRAVA_CLIENT_ID),
-      client_secret: env.STRAVA_CLIENT_SECRET,
-      grant_type
-    };
+    const body = { client_id: clientId, client_secret: clientSecret, grant_type };
     if (grant_type === 'authorization_code') body.code = code;
     if (grant_type === 'refresh_token') body.refresh_token = refresh_token;
 
