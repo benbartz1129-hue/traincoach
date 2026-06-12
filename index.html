@@ -377,6 +377,45 @@ body {
 .cal-strava-dist { font-size:13px; font-weight:500; color:var(--text); }
 .cal-updating { font-size:12px; color:var(--dim); font-style:italic; padding:8px 0; }
 
+/* ── RECOVERY PAGE ── */
+.stretch-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px 16px; margin-bottom: 10px;
+  display: flex; gap: 14px; align-items: flex-start;
+}
+.stretch-num {
+  width: 28px; height: 28px; border-radius: 8px;
+  background: var(--tri-dim); color: var(--tri);
+  font-family: var(--font-display); font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.stretch-body { flex: 1; }
+.stretch-name { font-family: var(--font-display); font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+.stretch-detail { font-size: 12px; color: var(--muted); line-height: 1.6; }
+.stretch-meta { display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+.stretch-tag {
+  font-size: 10px; font-family: var(--font-display); font-weight: 600;
+  padding: 2px 8px; border-radius: 6px; letter-spacing: 0.04em;
+  background: var(--surface2); color: var(--muted);
+}
+.stretch-tag.focus { background: var(--tri-dim); color: var(--tri); }
+.stretch-timer {
+  font-size: 11px; color: var(--mar); font-weight: 500;
+  display: flex; align-items: center; gap: 4px;
+}
+.tip-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--info);
+  border-radius: 14px; padding: 12px 14px; margin-bottom: 8px;
+  font-size: 12px; color: var(--muted); line-height: 1.6;
+}
+.tip-card strong { color: var(--text); font-weight: 500; }
+.recovery-generating {
+  text-align: center; padding: 2.5rem 1rem;
+  color: var(--muted); font-size: 13px;
+}
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -499,6 +538,9 @@ body {
       </button>
       <button class="nav-item" id="nav-coach" onclick="switchTab('coach')">
         <span class="nav-icon">🏅</span>Coach
+      </button>
+      <button class="nav-item" id="nav-recovery" onclick="switchTab('recovery')">
+        <span class="nav-icon">🧘</span>Recovery
       </button>
     </nav>
     <div class="drawer-footer">BRB Training · Track. Train. Triumph.</div>
@@ -638,6 +680,56 @@ body {
       </div>
     </div>
 
+    <!-- RECOVERY -->
+    <div class="page" id="page-recovery">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:20px">
+          <div>
+            <div class="date-greeting" style="font-size:16px">🧘 Recovery</div>
+            <div class="date-sub">Personalized stretching based on your recent training</div>
+          </div>
+          <button class="refresh-btn" id="recovery-refresh-btn" onclick="generateRecovery()" style="width:auto;padding:0 10px;font-size:11px;font-family:var(--font-display);font-weight:600;gap:5px;display:flex;align-items:center;">
+            <span style="font-size:14px">↺</span> Refresh
+          </button>
+        </div>
+
+        <!-- Recovery score -->
+        <div class="metrics-grid" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:20px" id="recovery-metrics">
+          <div class="metric-card load">
+            <div class="metric-label">Load</div>
+            <div class="load-badge" id="rec-load" style="font-size:12px;color:var(--ok)">—</div>
+            <div class="metric-sub">this week</div>
+          </div>
+          <div class="metric-card run">
+            <div class="metric-label">Last run</div>
+            <div class="metric-value" id="rec-last-run" style="font-size:16px">—</div>
+            <div class="metric-sub" id="rec-last-run-sub"></div>
+          </div>
+          <div class="metric-card swim">
+            <div class="metric-label">Rest days</div>
+            <div class="metric-value" id="rec-rest-days" style="font-size:20px">—</div>
+            <div class="metric-sub">this week</div>
+          </div>
+        </div>
+
+        <!-- Stretch routine -->
+        <div class="section-label">Today's stretch routine</div>
+        <div id="recovery-content">
+          <div class="card" style="padding:2rem;text-align:center">
+            <div style="font-size:32px;margin-bottom:12px">🧘</div>
+            <div style="font-size:13px;color:var(--muted);line-height:1.7">Tap refresh to generate a personalized 5–10 min stretch routine based on your recent Strava activity.</div>
+            <button class="add-race-btn" style="margin-top:16px" onclick="generateRecovery()">Generate stretch routine</button>
+          </div>
+        </div>
+
+        <!-- Tips -->
+        <div id="recovery-tips" style="margin-top:20px;display:none">
+          <div class="section-label">Recovery tips</div>
+          <div id="recovery-tips-content"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- COACH CHAT -->
     <div class="page" id="page-coach">
       <div class="chat-wrap">
@@ -671,7 +763,7 @@ body {
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────────────────────
-const STRAVA_CLIENT_ID = '256087';
+const STRAVA_CLIENT_ID = 'YOUR_CLIENT_ID';
 const REDIRECT_URI     = 'https://brbtraining.pages.dev/';
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -708,6 +800,7 @@ function switchTab(tab) {
   currentTab = tab;
   if (tab === 'activities' && allActivities.length > 0) renderActivities(allActivities);
   if (tab === 'calendar') renderCalendar();
+  if (tab === 'recovery') { updateRecoveryMetrics(); }
 }
 
 // ── STRAVA OAUTH ──────────────────────────────────────────────────────────
@@ -1386,6 +1479,154 @@ function applyPlanUpdates(planItems) {
   return false;
 }
 
+
+// ── RECOVERY PAGE ──────────────────────────────────────────────────────────
+const CACHE_KEY_RECOVERY = 'brb_recovery';
+
+function updateRecoveryMetrics() {
+  if (!allActivities.length) return;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() - today.getDay() + (today.getDay()===0?-6:1));
+
+  const thisWeek = allActivities.filter(a => new Date(a.start_date_local) >= startOfWeek);
+  const activeDays = new Set(thisWeek.map(a => a.start_date_local.split('T')[0])).size;
+  const weekDays = Math.min(7, Math.ceil((today - startOfWeek) / 86400000) + 1);
+  const restDays = Math.max(0, weekDays - activeDays);
+
+  // Weekly load
+  const totalMi = thisWeek.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
+  const load = totalMi > 30 ? 'very high' : totalMi > 20 ? 'high' : totalMi > 10 ? 'moderate' : 'low';
+  const loadColors = { low:'var(--ok)', moderate:'var(--mar)', high:'var(--warn)', 'very high':'var(--warn)' };
+
+  const loadEl = document.getElementById('rec-load');
+  if (loadEl) { loadEl.textContent = load; loadEl.style.color = loadColors[load]; }
+
+  // Last run
+  const lastRun = allActivities.find(a => a.type === 'Run');
+  const lastRunEl = document.getElementById('rec-last-run');
+  const lastRunSub = document.getElementById('rec-last-run-sub');
+  if (lastRun && lastRunEl) {
+    const daysAgo = Math.floor((today - new Date(lastRun.start_date_local)) / 86400000);
+    lastRunEl.textContent = mToMi(lastRun.distance).toFixed(1) + 'mi';
+    if (lastRunSub) lastRunSub.textContent = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : daysAgo + 'd ago';
+  }
+
+  const restEl = document.getElementById('rec-rest-days');
+  if (restEl) restEl.textContent = restDays;
+}
+
+async function generateRecovery() {
+  const btn = document.getElementById('recovery-refresh-btn');
+  if (btn) btn.classList.add('spinning');
+
+  document.getElementById('recovery-content').innerHTML = `
+    <div class="recovery-generating">
+      <div class="loading-dots" style="justify-content:center;margin-bottom:12px"><span></span><span></span><span></span></div>
+      Generating your personalized stretch routine…
+    </div>`;
+  document.getElementById('recovery-tips').style.display = 'none';
+
+  try {
+    const recentActs = allActivities.slice(0, 10).map(a => {
+      const d = new Date(a.start_date_local);
+      const daysAgo = Math.floor((Date.now() - d) / 86400000);
+      return daysAgo + 'd ago: ' + a.type + ' ' + mToMi(a.distance).toFixed(1) + 'mi' + (a.moving_time ? ' ' + secToTime(a.moving_time) : '');
+    }).join(', ');
+
+    const text = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 1200,
+      system: `You are a triathlon and running recovery coach. Generate a personalized 5-10 minute light stretching routine based on the athlete's recent training. 
+Return ONLY valid JSON, no markdown:
+{
+  "intro": "1 sentence about why these stretches based on their training",
+  "totalTime": "5-10 min",
+  "stretches": [
+    {
+      "name": "stretch name",
+      "duration": "30 sec each side",
+      "focus": "quads|hamstrings|calves|hips|back|shoulders|glutes|IT band",
+      "detail": "how to do it in 1-2 sentences",
+      "why": "why it helps given their recent training"
+    }
+  ],
+  "tips": [
+    {"title": "tip title", "detail": "1 sentence tip"},
+    {"title": "tip title", "detail": "1 sentence tip"},
+    {"title": "tip title", "detail": "1 sentence tip"}
+  ]
+}
+Include 6-8 stretches. Focus on areas most stressed by their recent activity mix.`,
+      messages: [{ role: 'user', content: `Recent training (last 10 activities): ${recentActs}. Generate a recovery stretch routine.` }]
+    });
+
+    const data = JSON.parse(text.replace(/```json|```/g,'').trim());
+
+    // Cache it
+    localStorage.setItem(CACHE_KEY_RECOVERY, JSON.stringify({ data, timestamp: new Date().toISOString() }));
+    renderRecovery(data);
+  } catch(e) {
+    document.getElementById('recovery-content').innerHTML = `
+      <div class="card" style="padding:1.5rem;text-align:center">
+        <div style="font-size:13px;color:var(--warn)">Could not generate routine. Try again.</div>
+        <button class="add-race-btn" style="margin-top:12px" onclick="generateRecovery()">Retry</button>
+      </div>`;
+    console.error('Recovery error:', e);
+  }
+
+  if (btn) btn.classList.remove('spinning');
+}
+
+function renderRecovery(data) {
+  // Intro
+  let html = `<div class="card" style="padding:12px 16px;margin-bottom:16px;border-left:3px solid var(--tri)">
+    <div style="font-size:12px;color:var(--muted);line-height:1.6">${data.intro}</div>
+    <div style="font-size:11px;color:var(--tri);margin-top:6px;font-family:var(--font-display);font-weight:600">⏱ ${data.totalTime} total</div>
+  </div>`;
+
+  // Stretches
+  data.stretches.forEach((s, i) => {
+    html += `<div class="stretch-card">
+      <div class="stretch-num">${i+1}</div>
+      <div class="stretch-body">
+        <div class="stretch-name">${s.name}</div>
+        <div class="stretch-detail">${s.detail}</div>
+        <div class="stretch-meta">
+          <span class="stretch-timer">⏱ ${s.duration}</span>
+          <span class="stretch-tag focus">${s.focus}</span>
+        </div>
+        <div style="font-size:11px;color:var(--dim);margin-top:5px;font-style:italic">${s.why}</div>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('recovery-content').innerHTML = html;
+
+  // Tips
+  if (data.tips && data.tips.length) {
+    let tipsHtml = data.tips.map(t =>
+      `<div class="tip-card"><strong>${t.title}:</strong> ${t.detail}</div>`
+    ).join('');
+    document.getElementById('recovery-tips-content').innerHTML = tipsHtml;
+    document.getElementById('recovery-tips').style.display = 'block';
+  }
+}
+
+function initRecovery() {
+  updateRecoveryMetrics();
+  // Load cached recovery if available and less than 12 hours old
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY_RECOVERY) || 'null');
+    if (cached && cached.data) {
+      const ageHours = (Date.now() - new Date(cached.timestamp)) / 3600000;
+      if (ageHours < 12) {
+        renderRecovery(cached.data);
+        return;
+      }
+    }
+  } catch(e) {}
+}
+
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
 const CACHE_KEY_ANALYSIS  = 'brb_last_analysis';
 const CACHE_KEY_ACTIVITIES = 'brb_last_activities';
@@ -1508,6 +1749,7 @@ async function init() {
     // Init race planner and calendar immediately so they show before data loads
     initRacePlanner();
     renderCalendar();
+    initRecovery();
     // Restore plan summary if exists
     const upcoming = trainingPlan.filter(p => p.date >= new Date().toISOString().split('T')[0]).length;
     if (upcoming > 0) {
