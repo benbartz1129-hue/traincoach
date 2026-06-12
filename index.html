@@ -1067,14 +1067,14 @@ Upcoming races: ${races.length ? races.map(r => r.name + ' (' + r.subtype + ' ' 
 Current calendar plan (upcoming): ${planSummary}
 Be concise, specific, and actionable. Reference their actual data when relevant. Use miles not km.
 
-CALENDAR UPDATES: If the user asks you to generate, update, or modify their training plan or calendar, respond conversationally AND include a plan block in this exact format at the end of your message:
+CALENDAR UPDATES: If the user asks you to generate, update, or modify their training plan or calendar, you MUST include a plan block. First give a short 2-3 sentence conversational response, then ALWAYS end with this exact format — the <<<PLAN>>> and <<<END>>> markers are required:
 <<<PLAN>>>
-[{"date":"2026-07-01","sport":"run","title":"Easy 5mi","detail":"Zone 2, conversational pace. 50min.","id":1},...]
+[{"date":"2026-06-13","sport":"run","title":"Easy 4mi run","detail":"Zone 2, conversational pace. 40min.","id":1},{"date":"2026-06-14","sport":"swim","title":"Pool swim 1mi","detail":"Easy pace, focus on form. 30min.","id":2}]
 <<<END>>>
-sport must be one of: run, swim, ride, rest, strength. date must be YYYY-MM-DD format. Include 'detail' with duration/intensity. Only include dates from today onward. For 'Add a session for DATE: DESCRIPTION' requests, just add that single session.`;
+Rules: sport must be one of: run, swim, ride, rest, strength. date must be YYYY-MM-DD. Always include 'detail' with duration and intensity. Only dates from today onward. Generate enough sessions to cover the full plan period requested. The <<<PLAN>>> block must be valid JSON array.`;
 
     const rawReply = await callClaude({
-      model: 'claude-sonnet-4-6', max_tokens: 1000,
+      model: 'claude-sonnet-4-6', max_tokens: 4000,
       system: systemPrompt,
       messages: chatHistory
     });
@@ -1082,15 +1082,22 @@ sport must be one of: run, swim, ride, rest, strength. date must be YYYY-MM-DD f
     typing.remove();
 
     // Check if reply contains a calendar plan (JSON block wrapped in <<<PLAN>>>...<<<END>>>)
-    const planMatch = rawReply.match(/<<<PLAN>>>([\s\S]*?)<<<END>>>/);
+    const planMatch = rawReply.match(/<<<PLAN>>>([\s\S]*?)<<<END>>>/s);
     let reply = rawReply;
     if (planMatch) {
       try {
-        const planItems = JSON.parse(planMatch[1].trim());
+        const jsonStr = planMatch[1].trim();
+        console.log('Plan JSON found, length:', jsonStr.length);
+        const planItems = JSON.parse(jsonStr);
         const applied = applyPlanUpdates(planItems);
-        reply = rawReply.replace(/<<<PLAN>>>[\s\S]*?<<<END>>>/, '').trim();
-        if (applied) reply += '\n\n📅 *Training plan updated — check your Calendar tab.*';
-      } catch(e) { console.warn('Plan parse error', e); }
+        reply = rawReply.replace(/<<<PLAN>>>[\s\S]*?<<<END>>>/s, '').trim();
+        if (applied) reply += '\n\n📅 Training plan updated — check your Calendar tab.';
+        else reply += '\n\n⚠ Plan was generated but could not be applied.';
+      } catch(e) {
+        console.warn('Plan parse error:', e, planMatch[1].slice(0,200));
+      }
+    } else {
+      console.log('No plan block found in reply. Reply length:', rawReply.length);
     }
 
     addMessage('assistant', reply);
