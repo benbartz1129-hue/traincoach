@@ -671,7 +671,7 @@ body {
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────────────────────
-const STRAVA_CLIENT_ID = '256087';
+const STRAVA_CLIENT_ID = 'YOUR_CLIENT_ID';
 const REDIRECT_URI     = 'https://traincoach.benbartz1129.workers.dev/';
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -719,7 +719,7 @@ function connectStrava() {
 }
 
 async function exchangeToken(code) {
-  const r = await fetch('https://traincoach.benbartz1129.workers.dev/functions/strava-token', {
+  const r = await fetch('/functions/strava-token', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ code, grant_type: 'authorization_code' })
   });
@@ -727,7 +727,7 @@ async function exchangeToken(code) {
 }
 
 async function refreshStravaToken(refresh_token) {
-  const r = await fetch('https://Ytraincoach.benbartz1129.workers.dev/functions/strava-token', {
+  const r = await fetch('/functions/strava-token', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ refresh_token, grant_type: 'refresh_token' })
   });
@@ -804,7 +804,7 @@ function buildSummary(acts) {
 }
 
 async function callClaude(payload) {
-  const r = await fetch('https://YOUR-CF-SUBDOMAIN.pages.dev/functions/claude', {
+  const r = await fetch('/functions/claude', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify(payload)
   });
