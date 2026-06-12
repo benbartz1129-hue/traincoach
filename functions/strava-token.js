@@ -8,6 +8,7 @@ export async function onRequestPost(context) {
   try {
     const { code, refresh_token, grant_type } = await context.request.json();
     const env = context.env;
+    console.log('CLIENT_ID from env:', env.STRAVA_CLIENT_ID, typeof env.STRAVA_CLIENT_ID);
 
     const body = {
       client_id: parseInt(env.STRAVA_CLIENT_ID),
