@@ -418,6 +418,65 @@ body {
   color: var(--muted); font-size: 13px;
 }
 
+/* ── PR WALL ── */
+.pr-distance-section { margin-bottom: 24px; }
+.pr-distance-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 10px;
+}
+.pr-distance-icon {
+  width: 36px; height: 36px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.pr-distance-icon.run { background: rgba(109,186,109,0.12); }
+.pr-distance-icon.ride { background: rgba(240,160,80,0.12); }
+.pr-distance-icon.swim { background: rgba(79,196,168,0.12); }
+.pr-distance-name {
+  font-family: var(--font-display); font-size: 15px; font-weight: 700;
+}
+.pr-distance-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.pr-cards { display: flex; flex-direction: column; gap: 8px; }
+.pr-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 12px 16px;
+  display: flex; align-items: center; gap: 14px;
+  position: relative; overflow: hidden;
+}
+.pr-card.gold   { border-color: rgba(255,215,0,0.35); background: rgba(255,215,0,0.04); }
+.pr-card.silver { border-color: rgba(192,192,192,0.35); background: rgba(192,192,192,0.04); }
+.pr-card.bronze { border-color: rgba(205,127,50,0.35); background: rgba(205,127,50,0.04); }
+.pr-rank {
+  font-size: 22px; flex-shrink: 0; width: 32px; text-align: center; line-height: 1;
+}
+.pr-body { flex: 1; min-width: 0; }
+.pr-time {
+  font-family: var(--font-display); font-size: 22px; font-weight: 800;
+  letter-spacing: -0.02em; line-height: 1;
+}
+.pr-time.gold   { color: #FFD700; }
+.pr-time.silver { color: #C0C0C0; }
+.pr-time.bronze { color: #CD7F32; }
+.pr-date { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.pr-name { font-size: 12px; color: var(--dim); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pr-dist-badge {
+  font-size: 12px; font-weight: 500; color: var(--text);
+  text-align: right; flex-shrink: 0;
+}
+.pr-dist-badge span { font-size: 10px; color: var(--muted); display: block; }
+.pr-empty {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px;
+  font-size: 12px; color: var(--dim); text-align: center;
+}
+.pr-shimmer {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 14px; height: 72px; margin-bottom: 8px;
+}
+@keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -543,6 +602,9 @@ body {
       </button>
       <button class="nav-item" id="nav-recovery" onclick="switchTab('recovery')">
         <span class="nav-icon">🧘</span>Recovery
+      </button>
+      <button class="nav-item" id="nav-prs" onclick="switchTab('prs')">
+        <span class="nav-icon">🏆</span>PR Wall
       </button>
     </nav>
     <div class="drawer-footer">BRB Training · Track. Train. Triumph.</div>
@@ -682,6 +744,25 @@ body {
       </div>
     </div>
 
+    <!-- PR WALL -->
+    <div class="page" id="page-prs">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:20px">
+          <div>
+            <div class="date-greeting" style="font-size:16px">🏆 PR Wall</div>
+            <div class="date-sub">Your top 3 performances by distance</div>
+          </div>
+          <div id="pr-total-badge" style="font-size:11px;color:var(--tri);font-family:var(--font-display);font-weight:700;text-align:right"></div>
+        </div>
+        <div id="pr-content">
+          <div class="loading-state">
+            <div class="loading-dots"><span></span><span></span><span></span></div>
+            <div class="loading-text">Loading your PRs…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- RECOVERY -->
     <div class="page" id="page-recovery">
       <div class="page-inner">
@@ -803,6 +884,7 @@ function switchTab(tab) {
   if (tab === 'activities' && allActivities.length > 0) renderActivities(allActivities);
   if (tab === 'calendar') renderCalendar();
   if (tab === 'recovery') { updateRecoveryMetrics(); }
+  if (tab === 'prs') initPRWall();
 }
 
 // ── STRAVA OAUTH ──────────────────────────────────────────────────────────
@@ -1654,6 +1736,119 @@ function initRecovery() {
       }
     }
   } catch(e) {}
+}
+
+
+// ── PR WALL ───────────────────────────────────────────────────────────────
+
+// Distance buckets in miles with tolerance ranges
+const PR_DISTANCES = [
+  { key: '5k',         label: '5K',           miles: 3.107,  tol: 0.12, icon: '🏃', type: 'run'  },
+  { key: '10k',        label: '10K',          miles: 6.214,  tol: 0.20, icon: '🏃', type: 'run'  },
+  { key: 'half',       label: 'Half Marathon', miles: 13.109, tol: 0.30, icon: '🏃', type: 'run'  },
+  { key: 'marathon',   label: 'Marathon',     miles: 26.219, tol: 0.50, icon: '🏃', type: 'run'  },
+  { key: 'sprint_tri', label: 'Sprint Tri Run', miles: 3.107, tol: 0.15, icon: '🏃', type: 'run', note: 'tri run leg' },
+  { key: 'ride_25',    label: '25mi Ride',    miles: 25.0,   tol: 1.5,  icon: '🚴', type: 'ride' },
+  { key: 'ride_40',    label: '40mi Ride',    miles: 40.0,   tol: 2.0,  icon: '🚴', type: 'ride' },
+  { key: 'swim_1mi',   label: '1mi Swim',     miles: 1.0,    tol: 0.08, icon: '🏊', type: 'swim' },
+];
+
+function secToHMS(s) {
+  if (!s) return '—';
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  return `${m}:${String(sec).padStart(2,'0')}`;
+}
+
+function pacePerMile(movingTime, distMi) {
+  if (!movingTime || !distMi) return '';
+  const secPerMile = movingTime / distMi;
+  const m = Math.floor(secPerMile / 60);
+  const s = Math.round(secPerMile % 60);
+  return m + ':' + String(s).padStart(2,'0') + '/mi';
+}
+
+function buildPRs() {
+  const rankEmoji = ['🥇','🥈','🥉'];
+  const rankClass = ['gold','silver','bronze'];
+
+  // Group activities by type
+  const runs  = allActivities.filter(a => a.type === 'Run'  && a.moving_time && a.distance > 0);
+  const rides = allActivities.filter(a => a.type === 'Ride' && a.moving_time && a.distance > 0);
+  const swims = allActivities.filter(a => a.type === 'Swim' && a.moving_time && a.distance > 0);
+
+  let totalPRs = 0;
+  let html = '';
+  let hasAny = false;
+
+  PR_DISTANCES.forEach(dist => {
+    const pool = dist.type === 'run' ? runs : dist.type === 'ride' ? rides : swims;
+    const matches = pool
+      .filter(a => {
+        const mi = mToMi(a.distance);
+        return Math.abs(mi - dist.miles) <= dist.tol;
+      })
+      .sort((a, b) => a.moving_time - b.moving_time)
+      .slice(0, 3);
+
+    if (!matches.length) return;
+    hasAny = true;
+    totalPRs += matches.length;
+
+    html += `<div class="pr-distance-section">
+      <div class="pr-distance-header">
+        <div class="pr-distance-icon ${dist.type}">${dist.icon}</div>
+        <div>
+          <div class="pr-distance-name">${dist.label}</div>
+          <div class="pr-distance-sub">${dist.miles.toFixed(1)} mi · top ${matches.length} of ${pool.filter(a => Math.abs(mToMi(a.distance) - dist.miles) <= dist.tol).length} efforts</div>
+        </div>
+      </div>
+      <div class="pr-cards">`;
+
+    matches.forEach((act, i) => {
+      const date = new Date(act.start_date_local).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+      const mi = mToMi(act.distance);
+      const pace = dist.type === 'run' ? pacePerMile(act.moving_time, mi) : '';
+      html += `<div class="pr-card ${rankClass[i]}">
+          <div class="pr-rank">${rankEmoji[i]}</div>
+          <div class="pr-body">
+            <div class="pr-time ${rankClass[i]}">${secToHMS(act.moving_time)}</div>
+            <div class="pr-date">${date}</div>
+            <div class="pr-name">${act.name}</div>
+          </div>
+          <div class="pr-dist-badge">
+            ${pace ? pace : mi.toFixed(1) + ' mi'}
+            <span>${pace ? mi.toFixed(2) + ' mi' : secToTime(act.moving_time)}</span>
+          </div>
+        </div>`;
+    });
+
+    html += `</div></div>`;
+  });
+
+  if (!hasAny) {
+    html = `<div class="pr-empty" style="padding:2rem">
+      <div style="font-size:32px;margin-bottom:12px">🏆</div>
+      <div>No matching activities found yet. Keep training and your PRs will appear here as Strava data loads.</div>
+    </div>`;
+  }
+
+  document.getElementById('pr-content').innerHTML = html;
+  const badge = document.getElementById('pr-total-badge');
+  if (badge && totalPRs > 0) badge.textContent = totalPRs + ' PRs tracked';
+}
+
+function initPRWall() {
+  if (!allActivities.length) {
+    document.getElementById('pr-content').innerHTML = `<div class="pr-empty" style="padding:2rem;text-align:center">
+      <div style="font-size:32px;margin-bottom:12px">🏆</div>
+      Sync your Strava data to load your PRs.
+    </div>`;
+    return;
+  }
+  buildPRs();
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
