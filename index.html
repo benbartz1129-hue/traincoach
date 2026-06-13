@@ -534,6 +534,9 @@ body {
 .seven-day-card.today-strip { border-color: var(--tri); background: var(--tri-dim); }
 .seven-day-card.race-strip { border-color: var(--mar-border); background: var(--mar-dim); }
 .seven-day-card.rest-strip { opacity: 0.5; }
+.seven-day-card.selected-strip { border-color: var(--tri); border-width: 2px; background: var(--tri-dim); }
+.seven-day-card.selected-strip .seven-day-dow { color: var(--tri); }
+.seven-day-card.selected-strip .seven-day-num { color: var(--tri); }
 .seven-day-dow {
   font-size: 9px; font-family: var(--font-display); font-weight: 700;
   letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
@@ -812,6 +815,13 @@ body {
           </div>
           <div id="cal-detail-content"></div>
         </div>
+        <!-- 7-day strip -->
+        <div style="margin-top:16px">
+          <div class="section-label">Next 7 days</div>
+          <div id="seven-day-strip" class="seven-day-strip"></div>
+        </div>
+
+        <!-- Training plan -->
         <div style="margin-top:16px">
           <div class="section-label">Training plan</div>
           <div class="card" style="padding:14px 16px;margin-bottom:10px">
@@ -822,12 +832,6 @@ body {
           <button class="add-race-btn" style="margin-bottom:20px" onclick="switchTab('coach');setTimeout(()=>{ document.getElementById('chat-input').value='Generate a full training plan on the calendar leading up to my next race based on my Strava data'; document.getElementById('chat-input').focus(); },200)">
             &#128197; Generate training plan in Coach
           </button>
-        </div>
-
-        <!-- 7-day strip -->
-        <div style="margin-top:4px">
-          <div class="section-label">Next 7 days</div>
-          <div id="seven-day-strip" class="seven-day-strip"></div>
         </div>
       </div>
     </div>
@@ -2264,7 +2268,7 @@ function renderSevenDayStrip() {
 
     const todayClass = d.getTime() === today.getTime() ? 'today-strip' : '';
 
-    return `<div class="seven-day-card ${todayClass} ${cardClass}" onclick="showCalDay('${dateStr}');scrollToCalDay()">
+    return `<div class="seven-day-card ${todayClass} ${cardClass}" onclick="selectStripDay('${dateStr}')">
       <div class="seven-day-dow">${dow}</div>
       <div class="seven-day-num">${dayNum}</div>
       <div class="seven-day-emoji">${emoji}</div>
@@ -2278,6 +2282,20 @@ function renderSevenDayStrip() {
 function scrollToCalDay() {
   const detail = document.getElementById('cal-day-detail');
   if (detail) setTimeout(() => detail.scrollIntoView({ behavior:'smooth', block:'nearest' }), 100);
+}
+
+function selectStripDay(dateStr) {
+  // Remove selected from all strip cards
+  document.querySelectorAll('.seven-day-card').forEach(c => c.classList.remove('selected-strip'));
+  // Add selected to clicked card
+  const cards = document.querySelectorAll('.seven-day-card');
+  cards.forEach(c => {
+    if (c.getAttribute('onclick') && c.getAttribute('onclick').includes(dateStr)) {
+      c.classList.add('selected-strip');
+    }
+  });
+  showCalDay(dateStr);
+  scrollToCalDay();
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
