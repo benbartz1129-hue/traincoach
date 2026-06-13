@@ -1292,7 +1292,7 @@ Rules: sport must be one of: run, swim, ride, rest, strength. date must be YYYY-
     typing.remove();
 
     // Check if reply contains a calendar plan (JSON block wrapped in <<<PLAN>>>...<<<END>>>)
-    const planMatch = rawReply.match(/<<<PLAN>>>([\s\S]*?)<<<END>>>/s);
+    const planMatch = rawReply.match(/<<<PLAN>>>([\s\S]*?)<<<END>>>/);
     let reply = rawReply;
     if (planMatch) {
       try {
@@ -1300,7 +1300,7 @@ Rules: sport must be one of: run, swim, ride, rest, strength. date must be YYYY-
         console.log('Plan JSON found, length:', jsonStr.length);
         const planItems = JSON.parse(jsonStr);
         const applied = applyPlanUpdates(planItems);
-        reply = rawReply.replace(/<<<PLAN>>>[\s\S]*?<<<END>>>/s, '').trim();
+        reply = rawReply.replace(/<<<PLAN>>>[\s\S]*?<<<END>>>/, '').trim();
         if (applied) reply += '\n\n📅 Training plan updated — check your Calendar tab.';
         else reply += '\n\n⚠ Plan was generated but could not be applied.';
       } catch(e) {
