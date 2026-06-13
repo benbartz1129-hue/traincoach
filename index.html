@@ -562,6 +562,18 @@ body {
   background: var(--ok);
 }
 
+/* ── STATS PAGE ── */
+.weight-log-row {
+  display: flex; align-items: center; padding: 10px 16px;
+  border-bottom: 1px solid var(--border); gap: 12px;
+}
+.weight-log-row:last-child { border-bottom: none; }
+.weight-log-date { font-size: 12px; color: var(--muted); flex: 1; font-family: var(--font-display); }
+.weight-log-val { font-size: 15px; font-weight: 500; color: var(--text); }
+.weight-log-change { font-size: 11px; width: 44px; text-align: right; flex-shrink: 0; }
+.weight-log-delete { background: none; border: none; color: var(--dim); font-size: 14px; cursor: pointer; padding: 0 0 0 8px; flex-shrink: 0; }
+.weight-log-delete:active { color: var(--warn); }
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -690,6 +702,9 @@ body {
       </button>
       <button class="nav-item" id="nav-prs" onclick="switchTab('prs')">
         <span class="nav-icon">🏆</span>PR Wall
+      </button>
+      <button class="nav-item" id="nav-stats" onclick="switchTab('stats')">
+        <span class="nav-icon">⚖️</span>Stats
       </button>
     </nav>
     <div class="drawer-footer">BRB Training · Track. Train. Triumph.</div>
@@ -916,6 +931,85 @@ body {
       </div>
     </div>
 
+    <!-- STATS -->
+    <div class="page" id="page-stats">
+      <div class="page-inner">
+
+        <div class="date-banner" style="margin-bottom:20px">
+          <div>
+            <div class="date-greeting" style="font-size:16px">⚖️ Body Stats</div>
+            <div class="date-sub">Weight and body metrics over time</div>
+          </div>
+          <div id="stats-latest-badge" style="text-align:right">
+            <div style="font-family:var(--font-display);font-size:22px;font-weight:800;letter-spacing:-0.02em" id="stats-current-weight">—</div>
+            <div style="font-size:10px;color:var(--muted)" id="stats-weight-date"></div>
+          </div>
+        </div>
+
+        <!-- Quick log -->
+        <div class="card" style="padding:14px 16px;margin-bottom:20px">
+          <div class="section-label" style="margin-bottom:10px">Log today's weight</div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <input class="form-input" id="weight-input" type="number" step="0.1" min="50" max="500"
+              placeholder="e.g. 178.5" style="flex:1;font-size:18px;text-align:center" />
+            <select class="form-select" id="weight-unit" style="width:70px;flex-shrink:0">
+              <option value="lbs">lbs</option>
+              <option value="kg">kg</option>
+            </select>
+            <button class="add-race-btn" style="width:auto;padding:10px 16px;flex-shrink:0" onclick="logWeight()">Save</button>
+          </div>
+          <div id="weight-save-msg" style="font-size:11px;color:var(--tri);margin-top:8px;min-height:16px"></div>
+        </div>
+
+        <!-- Weight trend chart -->
+        <div class="section-label">Weight trend</div>
+        <div class="card" style="padding:14px 16px;margin-bottom:20px">
+          <div style="display:flex;gap:8px;margin-bottom:12px" id="stats-range-btns">
+            <button class="filter-btn active" onclick="setStatsRange(30,this)">30d</button>
+            <button class="filter-btn" onclick="setStatsRange(60,this)">60d</button>
+            <button class="filter-btn" onclick="setStatsRange(90,this)">90d</button>
+            <button class="filter-btn" onclick="setStatsRange(0,this)">All</button>
+          </div>
+          <div style="position:relative;height:180px">
+            <canvas id="weight-chart" role="img" aria-label="Weight over time chart"></canvas>
+          </div>
+          <div id="stats-chart-empty" style="display:none;text-align:center;padding:2rem;font-size:12px;color:var(--dim)">
+            No weight entries yet — log your first one above.
+          </div>
+        </div>
+
+        <!-- Stats summary -->
+        <div class="section-label">Summary</div>
+        <div class="metrics-grid" style="margin-bottom:20px" id="stats-summary-grid">
+          <div class="metric-card load">
+            <div class="metric-label">Current</div>
+            <div class="metric-value" id="stat-current" style="font-size:20px">—</div>
+            <div class="metric-sub" id="stat-current-unit">lbs</div>
+          </div>
+          <div class="metric-card run">
+            <div class="metric-label">7-day change</div>
+            <div class="metric-value" id="stat-7d" style="font-size:20px">—</div>
+            <div class="metric-sub">vs last week</div>
+          </div>
+          <div class="metric-card swim">
+            <div class="metric-label">30-day change</div>
+            <div class="metric-value" id="stat-30d" style="font-size:20px">—</div>
+            <div class="metric-sub">vs 30 days ago</div>
+          </div>
+          <div class="metric-card bike">
+            <div class="metric-label">All-time low</div>
+            <div class="metric-value" id="stat-low" style="font-size:20px">—</div>
+            <div class="metric-sub" id="stat-low-date"></div>
+          </div>
+        </div>
+
+        <!-- Weight log table -->
+        <div class="section-label">History</div>
+        <div class="card" style="padding:0;margin-bottom:20px;overflow:hidden" id="weight-log-table"></div>
+
+      </div>
+    </div>
+
     <!-- PR WALL -->
     <div class="page" id="page-prs">
       <div class="page-inner">
@@ -1060,6 +1154,7 @@ function switchTab(tab) {
   if (tab === 'recovery') { updateRecoveryMetrics(); }
   if (tab === 'prs') initPRWall();
   if (tab === 'load') initLoadPage();
+  if (tab === 'stats') renderStatsPage();
 }
 
 // ── STRAVA OAUTH ──────────────────────────────────────────────────────────
@@ -2297,6 +2392,211 @@ function selectStripDay(dateStr) {
   });
   showCalDay(dateStr);
   scrollToCalDay();
+}
+
+
+// ── STATS / WEIGHT TRACKING ───────────────────────────────────────────────
+const CACHE_KEY_WEIGHT = 'brb_weight_log';
+let weightLog = JSON.parse(localStorage.getItem(CACHE_KEY_WEIGHT) || '[]');
+// weightLog = [{ date:'2026-06-13', value:178.5, unit:'lbs' }, ...]
+let statsRange = 30;
+let weightChartInstance = null;
+
+function saveWeightLog() { localStorage.setItem(CACHE_KEY_WEIGHT, JSON.stringify(weightLog)); }
+
+function logWeight() {
+  const input = document.getElementById('weight-input');
+  const unit = document.getElementById('weight-unit').value;
+  const val = parseFloat(input.value);
+  if (!val || val < 50 || val > 500) {
+    document.getElementById('weight-save-msg').textContent = 'Please enter a valid weight.';
+    return;
+  }
+  const today = new Date().toISOString().split('T')[0];
+  // Replace existing entry for today
+  weightLog = weightLog.filter(e => e.date !== today);
+  weightLog.push({ date: today, value: val, unit });
+  weightLog.sort((a,b) => a.date.localeCompare(b.date));
+  saveWeightLog();
+  input.value = '';
+  const msg = document.getElementById('weight-save-msg');
+  msg.textContent = 'Saved ' + val + ' ' + unit + ' for today.';
+  setTimeout(() => { msg.textContent = ''; }, 3000);
+  renderStatsPage();
+}
+
+function deleteWeightEntry(date) {
+  weightLog = weightLog.filter(e => e.date !== date);
+  saveWeightLog();
+  renderStatsPage();
+}
+
+function setStatsRange(days, btn) {
+  statsRange = days;
+  document.querySelectorAll('#stats-range-btns .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderStatsChart();
+}
+
+function getFilteredLog() {
+  if (statsRange === 0) return weightLog;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - statsRange);
+  const cutoffStr = cutoff.toISOString().split('T')[0];
+  return weightLog.filter(e => e.date >= cutoffStr);
+}
+
+function renderStatsChart() {
+  const filtered = getFilteredLog();
+  const canvas = document.getElementById('weight-chart');
+  const empty = document.getElementById('stats-chart-empty');
+  if (!canvas) return;
+
+  if (!filtered.length) {
+    canvas.style.display = 'none';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  canvas.style.display = 'block';
+  if (empty) empty.style.display = 'none';
+
+  const labels = filtered.map(e => {
+    const d = new Date(e.date + 'T12:00:00');
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  });
+  const values = filtered.map(e => e.value);
+  const unit = filtered[filtered.length-1]?.unit || 'lbs';
+
+  // Trendline (linear regression)
+  const n = values.length;
+  const xMean = (n-1)/2;
+  const yMean = values.reduce((s,v)=>s+v,0)/n;
+  const slope = values.reduce((s,v,i)=>s+(i-xMean)*(v-yMean),0) /
+                values.reduce((s,_,i)=>s+(i-xMean)**2, 0.001);
+  const intercept = yMean - slope * xMean;
+  const trendData = values.map((_,i) => +(intercept + slope*i).toFixed(1));
+
+  if (weightChartInstance) { weightChartInstance.destroy(); weightChartInstance = null; }
+
+  weightChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Weight',
+          data: values,
+          borderColor: 'var(--tri)',
+          backgroundColor: 'rgba(79,196,168,0.08)',
+          borderWidth: 2,
+          pointRadius: filtered.length > 30 ? 0 : 4,
+          pointBackgroundColor: 'var(--tri)',
+          tension: 0.3, fill: true, order: 2
+        },
+        {
+          label: 'Trend',
+          data: trendData,
+          borderColor: 'rgba(240,160,80,0.6)',
+          borderWidth: 2,
+          borderDash: [4,3],
+          pointRadius: 0,
+          tension: 0, fill: false, order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ctx.parsed.y + ' ' + unit } }
+      },
+      scales: {
+        x: { ticks: { font:{size:10}, maxRotation:45, autoSkip:true, maxTicksLimit:8 }, grid:{display:false} },
+        y: {
+          ticks: { font:{size:10}, callback: v => v + ' ' + unit },
+          grid: { color:'rgba(128,128,128,0.08)' }
+        }
+      }
+    }
+  });
+}
+
+function renderStatsPage() {
+  if (!weightLog.length) {
+    document.getElementById('stat-current').textContent = '—';
+    document.getElementById('stat-7d').textContent = '—';
+    document.getElementById('stat-30d').textContent = '—';
+    document.getElementById('stat-low').textContent = '—';
+    document.getElementById('weight-log-table').innerHTML =
+      '<div style="padding:2rem;text-align:center;font-size:12px;color:var(--dim)">No entries yet. Log your first weight above.</div>';
+    renderStatsChart();
+    return;
+  }
+
+  const latest = weightLog[weightLog.length-1];
+  const unit = latest.unit;
+
+  // Current weight display in banner
+  const curEl = document.getElementById('stats-current-weight');
+  const curDate = document.getElementById('stats-weight-date');
+  if (curEl) curEl.textContent = latest.value + ' ' + unit;
+  if (curDate) {
+    const d = new Date(latest.date + 'T12:00:00');
+    curDate.textContent = d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  }
+
+  document.getElementById('stat-current').textContent = latest.value;
+  document.getElementById('stat-current-unit').textContent = unit;
+
+  // 7-day change
+  const d7 = new Date(); d7.setDate(d7.getDate()-7);
+  const d7str = d7.toISOString().split('T')[0];
+  const entry7 = [...weightLog].reverse().find(e => e.date <= d7str);
+  const stat7El = document.getElementById('stat-7d');
+  if (entry7) {
+    const diff = (latest.value - entry7.value).toFixed(1);
+    stat7El.textContent = (diff > 0 ? '+' : '') + diff;
+    stat7El.style.color = diff > 0 ? 'var(--warn)' : diff < 0 ? 'var(--ok)' : 'var(--text)';
+  } else { stat7El.textContent = '—'; stat7El.style.color = 'var(--text)'; }
+
+  // 30-day change
+  const d30 = new Date(); d30.setDate(d30.getDate()-30);
+  const d30str = d30.toISOString().split('T')[0];
+  const entry30 = [...weightLog].reverse().find(e => e.date <= d30str);
+  const stat30El = document.getElementById('stat-30d');
+  if (entry30) {
+    const diff = (latest.value - entry30.value).toFixed(1);
+    stat30El.textContent = (diff > 0 ? '+' : '') + diff;
+    stat30El.style.color = diff > 0 ? 'var(--warn)' : diff < 0 ? 'var(--ok)' : 'var(--text)';
+  } else { stat30El.textContent = '—'; stat30El.style.color = 'var(--text)'; }
+
+  // All-time low
+  const low = weightLog.reduce((min,e) => e.value < min.value ? e : min, weightLog[0]);
+  document.getElementById('stat-low').textContent = low.value;
+  const lowDate = new Date(low.date + 'T12:00:00');
+  document.getElementById('stat-low-date').textContent =
+    lowDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+  // History table (newest first)
+  const table = document.getElementById('weight-log-table');
+  const sorted = [...weightLog].reverse();
+  let prev = null;
+  table.innerHTML = sorted.map(e => {
+    const diff = prev !== null ? (e.value - prev).toFixed(1) : null;
+    const diffColor = diff > 0 ? 'var(--warn)' : diff < 0 ? 'var(--ok)' : 'var(--dim)';
+    const diffStr = diff !== null ? (diff > 0 ? '+' : '') + diff : '—';
+    prev = e.value;
+    const d = new Date(e.date + 'T12:00:00');
+    const label = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
+    return `<div class="weight-log-row">
+      <span class="weight-log-date">${label}</span>
+      <span class="weight-log-val">${e.value} ${e.unit}</span>
+      <span class="weight-log-change" style="color:${diffColor}">${diffStr}</span>
+      <button class="weight-log-delete" onclick="deleteWeightEntry('${e.date}')">✕</button>
+    </div>`;
+  }).join('');
+
+  renderStatsChart();
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
