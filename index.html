@@ -1947,7 +1947,14 @@ Include 6-8 stretches. Focus on areas most stressed by their recent activity mix
       messages: [{ role: 'user', content: `Recent training (last 10 activities): ${recentActs}. Generate a recovery stretch routine.` }]
     });
 
-    const data = JSON.parse(text.replace(/```json|```/g,'').trim());
+    // Clean up common JSON-breaking characters before parsing
+    const cleaned = text
+      .replace(/```json|```/g,'')
+      .replace(/[‘’]/g, "'")   // curly single quotes
+      .replace(/[“”]/g, '"')   // curly double quotes
+      .replace(/[–—]/g, '-')   // em/en dashes
+      .trim();
+    const data = JSON.parse(cleaned);
 
     // Cache it
     localStorage.setItem(CACHE_KEY_RECOVERY, JSON.stringify({ data, timestamp: new Date().toISOString() }));
