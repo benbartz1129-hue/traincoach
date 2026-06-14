@@ -1445,15 +1445,28 @@ Rules: sport must be one of: run, swim, ride, rest, strength. date must be YYYY-
     let reply = rawReply;
     if (planMatch) {
       try {
-        const jsonStr = planMatch[1].trim();
-        console.log('Plan JSON found, length:', jsonStr.length);
+        const jsonStr = planMatch[1]
+          .trim()
+          .replace(/[‘’ʼ]/g, '')
+          .replace(/[“”]/g, '"')
+          .replace(/[–—]/g, '-')
+          .replace(/\n/g, ' ');
+        console.log('Plan JSON found, length:', jsonStr.length, 'preview:', jsonStr.slice(0,100));
         const planItems = JSON.parse(jsonStr);
+        console.log('Plan items parsed:', planItems.length);
         const applied = applyPlanUpdates(planItems);
+        console.log('Plan applied:', applied);
         reply = rawReply.replace(/<<<PLAN>>>[\s\S]*?<<<END>>>/, '').trim();
-        if (applied) reply += '\n\n📅 Training plan updated — check your Calendar tab.';
-        else reply += '\n\n⚠ Plan was generated but could not be applied.';
+        if (applied) {
+          reply += '\n\n📅 Training plan updated — check your Calendar tab.';
+          renderCalendar();
+          renderSevenDayStrip();
+        } else {
+          reply += '\n\n⚠ Plan was generated but could not be applied.';
+        }
       } catch(e) {
-        console.warn('Plan parse error:', e, planMatch[1].slice(0,200));
+        console.warn('Plan parse error:', e.message, '\nJSON preview:', planMatch[1].slice(0,300));
+        reply += '\n\n⚠ Could not parse the training plan. Try asking again.';
       }
     } else {
       console.log('No plan block found in reply. Reply length:', rawReply.length);
