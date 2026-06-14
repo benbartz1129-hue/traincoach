@@ -2629,37 +2629,34 @@ async function kvSyncAll() {
 
     let changed = false;
 
+    // Always use KV data if it exists — it's the source of truth
     if (data.brb_races && Array.isArray(data.brb_races) && data.brb_races.length > 0) {
-      // Only update if KV has MORE data than local
-      if (data.brb_races.length >= races.length) {
-        races = data.brb_races;
-        localStorage.setItem('brb_races', JSON.stringify(races));
-        changed = true;
-        console.log('KV: updated races, count:', races.length);
-      }
+      races = data.brb_races;
+      localStorage.setItem('brb_races', JSON.stringify(races));
+      changed = true;
+      console.log('KV: updated races, count:', races.length);
     }
-    if (data.brb_training_plan && Array.isArray(data.brb_training_plan)) {
-      if (data.brb_training_plan.length >= trainingPlan.length) {
-        trainingPlan = data.brb_training_plan;
-        localStorage.setItem('brb_training_plan', JSON.stringify(trainingPlan));
-        changed = true;
-        console.log('KV: updated plan, count:', trainingPlan.length);
-      }
+    if (data.brb_training_plan && Array.isArray(data.brb_training_plan) && data.brb_training_plan.length > 0) {
+      trainingPlan = data.brb_training_plan;
+      localStorage.setItem('brb_training_plan', JSON.stringify(trainingPlan));
+      changed = true;
+      console.log('KV: updated plan, count:', trainingPlan.length);
     }
-    if (data.brb_weight_log && Array.isArray(data.brb_weight_log)) {
-      if (data.brb_weight_log.length >= weightLog.length) {
-        weightLog = data.brb_weight_log;
-        localStorage.setItem('brb_weight_log', JSON.stringify(weightLog));
-        changed = true;
-        console.log('KV: updated weight log, count:', weightLog.length);
-      }
+    if (data.brb_weight_log && Array.isArray(data.brb_weight_log) && data.brb_weight_log.length > 0) {
+      weightLog = data.brb_weight_log;
+      localStorage.setItem('brb_weight_log', JSON.stringify(weightLog));
+      changed = true;
+      console.log('KV: updated weight log, count:', weightLog.length);
     }
 
     if (changed) {
       updateRaceCountdowns();
       initRacePlanner();
-      if (currentTab === 'calendar') renderCalendar();
+      renderCalendar();
       if (currentTab === 'stats') renderStatsPage();
+      if (currentTab === 'calendar') renderCalendar();
+      if (currentTab === 'prs') initPRWall();
+      console.log('KV: UI refreshed');
     }
 
     console.log('KV sync complete, changed:', changed);
