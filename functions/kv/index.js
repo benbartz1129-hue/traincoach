@@ -1,3 +1,8 @@
+// Uses Cloudflare KV REST API directly - no binding needed
+const CF_ACCOUNT_ID = '23846f97f2d5dde9557f21aabbc3f3e9';
+const KV_NAMESPACE_ID = 'ce44f82dceff46a6bd16563a2f3a3b1c';
+const BASE = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${KV_NAMESPACE_ID}`;
+
 export async function onRequestPost(context) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -6,19 +11,23 @@ export async function onRequestPost(context) {
 
   try {
     const { action, key, value } = await context.request.json();
-    const kv = context.env.BRB_KV;
+    const CF_API_TOKEN = context.env.CF_API_TOKEN;
 
-    if (!kv) {
-      return new Response(JSON.stringify({ error: 'KV namespace not bound' }), { status: 500, headers });
+    if (!CF_API_TOKEN) {
+      return new Response(JSON.stringify({ error: 'CF_API_TOKEN not set' }), { status: 500, headers });
     }
 
-    if (action === 'get') {
-      const val = await kv.get(key);
-      return new Response(JSON.stringify({ key, value: val ? JSON.parse(val) : null }), { headers });
-    }
+    const authHeaders = {
+      'Authorization': `Bearer ${CF_API_TOKEN}`,
+      'Content-Type': 'application/json'
+    };
 
     if (action === 'set') {
-      await kv.put(key, JSON.stringify(value));
+      await fetch(`${BASE}/values/${key}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${CF_API_TOKEN}`, 'Content-Type': 'text/plain' },
+        body: JSON.stringify(value)
+      });
       return new Response(JSON.stringify({ ok: true }), { headers });
     }
 
@@ -26,8 +35,15 @@ export async function onRequestPost(context) {
       const keys = ['brb_races', 'brb_training_plan', 'brb_weight_log'];
       const results = {};
       await Promise.all(keys.map(async k => {
-        const v = await kv.get(k);
-        results[k] = v ? JSON.parse(v) : null;
+        const r = await fetch(`${BASE}/values/${k}`, {
+          headers: { 'Authorization': `Bearer ${CF_API_TOKEN}` }
+        });
+        if (r.ok) {
+          try { results[k] = await r.json(); }
+          catch { results[k] = null; }
+        } else {
+          results[k] = null;
+        }
       }));
       return new Response(JSON.stringify(results), { headers });
     }
