@@ -1857,23 +1857,35 @@ function promptAddPlanItem(dateStr) {
 }
 
 // Parse AI-generated plan JSON and merge into trainingPlan
-function applyPlanUpdates(planItems) {
+function applyPlanUpdates(planItems, replaceAll=false) {
   if (!Array.isArray(planItems) || !planItems.length) return false;
+
+  // If the plan covers more than 7 days, treat as a full replacement
+  const dates = [...new Set(planItems.map(p => p.date))];
+  const isFullPlan = dates.length > 7;
+
+  if (isFullPlan || replaceAll) {
+    // Full replacement — clear all future sessions and replace
+    const today = new Date().toISOString().split('T')[0];
+    trainingPlan = trainingPlan.filter(p => p.date < today);
+  }
+
   let added = 0;
   planItems.forEach(item => {
     if (!item.date || !item.sport || !item.title) return;
-    // Remove existing plan for same date+sport to avoid duplicates
-    trainingPlan = trainingPlan.filter(p => !(p.date === item.date && p.sport === item.sport));
+    // Remove ALL existing plan for same date (not just same sport) to prevent doubles
+    trainingPlan = trainingPlan.filter(p => p.date !== item.date);
     trainingPlan.push({ ...item, id: Date.now() + Math.random() });
     added++;
   });
+
   if (added > 0) {
     savePlan();
-    // Update plan summary
     const upcoming = trainingPlan.filter(p => new Date(p.date) >= new Date()).length;
     const el = document.getElementById('cal-plan-summary');
     if (el) el.textContent = `${upcoming} sessions planned. Last updated by Coach ${new Date().toLocaleDateString('en-US',{month:'short',day:'numeric'})}.`;
-    if (currentTab === 'calendar') renderCalendar();
+    renderCalendar();
+    renderSevenDayStrip();
     return true;
   }
   return false;
