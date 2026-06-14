@@ -1551,7 +1551,7 @@ let selectedSubtype = '';
 const TRI_SUBTYPES = ['Sprint','Olympic','70.3 Half','140.6 Full'];
 const RUN_SUBTYPES = ['5K','10K','Half Marathon','Marathon','Ultra'];
 
-function saveRaces() { localStorage.setItem('brb_races', JSON.stringify(races)); }
+function saveRaces() { kvSet('brb_races', races); }
 
 function toggleRacePlanner() {
   const body = document.getElementById('race-planner-body');
@@ -1669,7 +1669,7 @@ let trainingPlan = JSON.parse(localStorage.getItem(CACHE_KEY_PLAN) || '[]');
 let calViewDate = new Date();
 calViewDate.setDate(1);
 
-function savePlan() { localStorage.setItem(CACHE_KEY_PLAN, JSON.stringify(trainingPlan)); }
+function savePlan() { kvSet('brb_training_plan', trainingPlan); }
 
 function isoDate(d) { return d.toISOString().split('T')[0]; }
 
@@ -2393,7 +2393,7 @@ let weightLog = JSON.parse(localStorage.getItem(CACHE_KEY_WEIGHT) || '[]');
 let statsRange = 30;
 let weightChartInstance = null;
 
-function saveWeightLog() { localStorage.setItem(CACHE_KEY_WEIGHT, JSON.stringify(weightLog)); }
+function saveWeightLog() { kvSet('brb_weight_log', weightLog); }
 
 function logWeight() {
   const input = document.getElementById('weight-input');
@@ -2499,12 +2499,12 @@ function renderStatsChart() {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
-        tooltip: { callbacks: { label: ctx => ctx.parsed.y + ' ' + unit } }
+        tooltip: { callbacks: { label: ctx => (+ctx.parsed.y).toFixed(1) + ' ' + unit } }
       },
       scales: {
         x: { ticks: { font:{size:10}, maxRotation:45, autoSkip:true, maxTicksLimit:8 }, grid:{display:false} },
         y: {
-          ticks: { font:{size:10}, callback: v => v + ' ' + unit },
+          ticks: { font:{size:10}, callback: v => (+v).toFixed(1) + ' ' + unit },
           grid: { color:'rgba(128,128,128,0.08)' }
         }
       }
@@ -2588,6 +2588,67 @@ function renderStatsPage() {
   }).join('');
 
   renderStatsChart();
+}
+
+
+// ── KV SYNC ───────────────────────────────────────────────────────────────
+// Syncs races, training plan and weight log to Cloudflare KV
+// so data is consistent across phone and desktop
+
+async function kvSet(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    await fetch('/kv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set', key, value })
+    });
+  } catch(e) { console.warn('KV set failed:', e); }
+}
+
+async function kvSyncAll() {
+  try {
+    const r = await fetch('/kv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'getAll' })
+    });
+    const data = await r.json();
+
+    let changed = false;
+
+    if (data.brb_races && Array.isArray(data.brb_races)) {
+      races = data.brb_races;
+      localStorage.setItem('brb_races', JSON.stringify(races));
+      changed = true;
+    }
+    if (data.brb_training_plan && Array.isArray(data.brb_training_plan)) {
+      trainingPlan = data.brb_training_plan;
+      localStorage.setItem('brb_training_plan', JSON.stringify(trainingPlan));
+      changed = true;
+    }
+    if (data.brb_weight_log && Array.isArray(data.brb_weight_log)) {
+      weightLog = data.brb_weight_log;
+      localStorage.setItem('brb_weight_log', JSON.stringify(weightLog));
+      changed = true;
+    }
+
+    if (changed) {
+      // Refresh any visible pages
+      updateRaceCountdowns();
+      if (currentTab === 'calendar') renderCalendar();
+      if (currentTab === 'stats') renderStatsPage();
+      if (currentTab === 'prs') initPRWall();
+    }
+
+    console.log('KV sync complete');
+  } catch(e) { console.warn('KV sync failed (offline?):', e); }
+}
+
+// Show sync status in header
+function showSyncStatus(msg, color) {
+  const el = document.getElementById('last-updated-banner');
+  if (el) { el.textContent = msg; el.style.color = color || 'var(--dim)'; }
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
@@ -2726,6 +2787,12 @@ async function init() {
     if (!loaded || ageHours > 3) {
       await refreshData();
     }
+    // Sync races, plan and weight from KV in background
+    kvSyncAll().then(() => {
+      initRacePlanner();
+      renderCalendar();
+      updateRefreshBanner(localStorage.getItem(CACHE_KEY_TIMESTAMP));
+    });
   }
 }
 
