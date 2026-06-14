@@ -3,4 +3,4 @@ compatibility_date = "2024-01-01"
 
 [[kv_namespaces]]
 binding = "BRB_KV"
-id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+id = "ce44f82dceff46a6bd16563a2f3a3b1c"
