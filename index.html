@@ -1922,37 +1922,21 @@ async function generateRecovery() {
     }).join(', ');
 
     const text = await callClaude({
-      model: 'claude-sonnet-4-6', max_tokens: 1200,
-      system: `You are a triathlon and running recovery coach. Generate a personalized 5-10 minute light stretching routine based on the athlete's recent training. 
-Return ONLY valid JSON, no markdown:
-{
-  "intro": "1 sentence about why these stretches based on their training",
-  "totalTime": "5-10 min",
-  "stretches": [
-    {
-      "name": "stretch name",
-      "duration": "30 sec each side",
-      "focus": "quads|hamstrings|calves|hips|back|shoulders|glutes|IT band",
-      "detail": "how to do it in 1-2 sentences",
-      "why": "why it helps given their recent training"
-    }
-  ],
-  "tips": [
-    {"title": "tip title", "detail": "1 sentence tip"},
-    {"title": "tip title", "detail": "1 sentence tip"},
-    {"title": "tip title", "detail": "1 sentence tip"}
-  ]
-}
-Include 6-8 stretches. Focus on areas most stressed by their recent activity mix.`,
-      messages: [{ role: 'user', content: `Recent training (last 10 activities): ${recentActs}. Generate a recovery stretch routine.` }]
+      model: 'claude-sonnet-4-6', max_tokens: 2500,
+      system: `You are a triathlon and running recovery coach. Generate a personalized 5-10 minute stretching routine. Keep each field SHORT — under 20 words per string.
+Return ONLY valid JSON, no markdown, no special characters, no apostrophes in values (use plain text only):
+{"intro":"1 short sentence","totalTime":"8 min","stretches":[{"name":"name","duration":"30 sec","focus":"quads","detail":"Short instruction under 15 words.","why":"Short reason under 12 words."}],"tips":[{"title":"title","detail":"Short tip."},{"title":"title","detail":"Short tip."},{"title":"title","detail":"Short tip."}]}
+Include exactly 6 stretches. No curly quotes, no apostrophes, no em-dashes — plain ASCII only.`,
+      messages: [{ role: 'user', content: `Recent training (last 10 activities): ${recentActs}. Generate recovery stretches.` }]
     });
 
-    // Clean up common JSON-breaking characters before parsing
+    // Clean and parse
     const cleaned = text
       .replace(/```json|```/g,'')
-      .replace(/[‘’]/g, "'")   // curly single quotes
-      .replace(/[“”]/g, '"')   // curly double quotes
-      .replace(/[–—]/g, '-')   // em/en dashes
+      .replace(/[‘’ʼ]/g, '')
+      .replace(/[“”]/g, '"')
+      .replace(/[–—―]/g, '-')
+      .replace(/\n/g, ' ')
       .trim();
     const data = JSON.parse(cleaned);
 
