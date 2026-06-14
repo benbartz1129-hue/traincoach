@@ -2598,51 +2598,72 @@ function renderStatsPage() {
 async function kvSet(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
-    await fetch('/kv', {
+    const r = await fetch('/kv', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'set', key, value })
     });
+    const result = await r.json();
+    console.log('KV set', key, ':', result);
   } catch(e) { console.warn('KV set failed:', e); }
 }
 
 async function kvSyncAll() {
   try {
+    console.log('KV sync starting...');
     const r = await fetch('/kv', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'getAll' })
     });
-    const data = await r.json();
+    console.log('KV response status:', r.status);
+    const text = await r.text();
+    console.log('KV raw response:', text.slice(0,500));
+    let data;
+    try { data = JSON.parse(text); } catch(e) { console.warn('KV parse error:', e); return; }
+
+    if (data.error) {
+      console.warn('KV error:', data.error);
+      return;
+    }
 
     let changed = false;
 
-    if (data.brb_races && Array.isArray(data.brb_races)) {
-      races = data.brb_races;
-      localStorage.setItem('brb_races', JSON.stringify(races));
-      changed = true;
+    if (data.brb_races && Array.isArray(data.brb_races) && data.brb_races.length > 0) {
+      // Only update if KV has MORE data than local
+      if (data.brb_races.length >= races.length) {
+        races = data.brb_races;
+        localStorage.setItem('brb_races', JSON.stringify(races));
+        changed = true;
+        console.log('KV: updated races, count:', races.length);
+      }
     }
     if (data.brb_training_plan && Array.isArray(data.brb_training_plan)) {
-      trainingPlan = data.brb_training_plan;
-      localStorage.setItem('brb_training_plan', JSON.stringify(trainingPlan));
-      changed = true;
+      if (data.brb_training_plan.length >= trainingPlan.length) {
+        trainingPlan = data.brb_training_plan;
+        localStorage.setItem('brb_training_plan', JSON.stringify(trainingPlan));
+        changed = true;
+        console.log('KV: updated plan, count:', trainingPlan.length);
+      }
     }
     if (data.brb_weight_log && Array.isArray(data.brb_weight_log)) {
-      weightLog = data.brb_weight_log;
-      localStorage.setItem('brb_weight_log', JSON.stringify(weightLog));
-      changed = true;
+      if (data.brb_weight_log.length >= weightLog.length) {
+        weightLog = data.brb_weight_log;
+        localStorage.setItem('brb_weight_log', JSON.stringify(weightLog));
+        changed = true;
+        console.log('KV: updated weight log, count:', weightLog.length);
+      }
     }
 
     if (changed) {
-      // Refresh any visible pages
       updateRaceCountdowns();
+      initRacePlanner();
       if (currentTab === 'calendar') renderCalendar();
       if (currentTab === 'stats') renderStatsPage();
-      if (currentTab === 'prs') initPRWall();
     }
 
-    console.log('KV sync complete');
-  } catch(e) { console.warn('KV sync failed (offline?):', e); }
+    console.log('KV sync complete, changed:', changed);
+  } catch(e) { console.warn('KV sync failed:', e); }
 }
 
 // Show sync status in header
