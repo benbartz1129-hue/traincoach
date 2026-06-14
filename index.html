@@ -2603,8 +2603,8 @@ async function kvSet(key, value) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'set', key, value })
     });
-    const result = await r.json();
-    console.log('KV set', key, ':', result);
+    const text = await r.text();
+    console.log('KV set', key, 'status:', r.status, 'response:', text);
   } catch(e) { console.warn('KV set failed:', e); }
 }
 
