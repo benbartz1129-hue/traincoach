@@ -576,17 +576,16 @@ body {
 
 /* ── STRETCH TIMER ── */
 .stretch-timer-wrap {
-  display: flex; justify-content: center;
   margin-bottom: 20px;
 }
 .stretch-timer-display {
-  width: 180px; height: 180px; border-radius: 50%;
-  background: var(--surface); border: 3px solid var(--border);
+  width: 100%; border-radius: 14px;
+  background: var(--surface); border: 1px solid var(--border);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   cursor: pointer; user-select: none; -webkit-user-select: none;
-  transition: border-color 0.2s, background 0.2s;
+  transition: border-color 0.15s, background 0.15s;
   -webkit-tap-highlight-color: transparent;
-  position: relative;
+  padding: 24px 0;
 }
 .stretch-timer-display.running {
   border-color: var(--tri);
@@ -597,7 +596,7 @@ body {
 }
 #stretch-timer-seconds {
   font-family: var(--font-display);
-  font-size: 64px;
+  font-size: 80px;
   font-weight: 800;
   letter-spacing: -0.04em;
   line-height: 1;
@@ -611,7 +610,7 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-top: 6px;
+  margin-top: 8px;
 }
 
 /* ── ACTIVITIES PAGE ── */
@@ -2778,27 +2777,18 @@ function timerTap() {
   const display = document.getElementById('stretch-timer-display');
   const hint = document.getElementById('stretch-timer-hint');
 
-  if (!timerRunning && timerSeconds === 0) {
-    // Start from 0
-    timerRunning = true;
-    display.classList.add('running');
-    hint.textContent = 'tap to reset';
-    requestWakeLock();
-    timerInterval = setInterval(() => {
-      timerSeconds++;
-      document.getElementById('stretch-timer-seconds').textContent = timerSeconds;
-    }, 1000);
-  } else {
-    // Reset to 0 and stop
-    clearInterval(timerInterval);
-    timerInterval = null;
-    timerRunning = false;
-    timerSeconds = 0;
-    display.classList.remove('running');
-    document.getElementById('stretch-timer-seconds').textContent = '0';
-    hint.textContent = 'tap to start';
-    releaseWakeLock();
-  }
+  // Always restart from 0 and start counting
+  if (timerInterval) clearInterval(timerInterval);
+  timerSeconds = 0;
+  timerRunning = true;
+  display.classList.add('running');
+  hint.textContent = 'tap to restart';
+  document.getElementById('stretch-timer-seconds').textContent = '0';
+  requestWakeLock();
+  timerInterval = setInterval(() => {
+    timerSeconds++;
+    document.getElementById('stretch-timer-seconds').textContent = timerSeconds;
+  }, 1000);
 }
 
 function initTimer() {
