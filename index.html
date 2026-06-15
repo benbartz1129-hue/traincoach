@@ -574,6 +574,46 @@ body {
 .weight-log-delete { background: none; border: none; color: var(--dim); font-size: 14px; cursor: pointer; padding: 0 0 0 8px; flex-shrink: 0; }
 .weight-log-delete:active { color: var(--warn); }
 
+/* ── STRETCH TIMER ── */
+.stretch-timer-wrap {
+  display: flex; justify-content: center;
+  margin-bottom: 20px;
+}
+.stretch-timer-display {
+  width: 180px; height: 180px; border-radius: 50%;
+  background: var(--surface); border: 3px solid var(--border);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; user-select: none; -webkit-user-select: none;
+  transition: border-color 0.2s, background 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+.stretch-timer-display.running {
+  border-color: var(--tri);
+  background: var(--tri-dim);
+}
+.stretch-timer-display.running #stretch-timer-seconds {
+  color: var(--tri);
+}
+#stretch-timer-seconds {
+  font-family: var(--font-display);
+  font-size: 64px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--text);
+  transition: color 0.2s;
+}
+.stretch-timer-hint {
+  font-size: 11px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -1062,6 +1102,14 @@ body {
         </div>
 
         <!-- Stretch routine -->
+        <!-- Stretch Timer -->
+        <div class="stretch-timer-wrap" id="stretch-timer-wrap">
+          <div class="stretch-timer-display" id="stretch-timer-display" onclick="timerTap()">
+            <span id="stretch-timer-seconds">0</span>
+            <div class="stretch-timer-hint" id="stretch-timer-hint">tap to start</div>
+          </div>
+        </div>
+
         <div class="section-label">Today's stretch routine</div>
         <div id="recovery-content">
           <div class="card" style="padding:2rem;text-align:center">
@@ -1152,6 +1200,7 @@ function switchTab(tab) {
   if (tab === 'activities' && allActivities.length > 0) renderActivities(allActivities);
   if (tab === 'calendar') renderCalendar();
   if (tab === 'recovery') { updateRecoveryMetrics(); }
+  if (tab !== 'recovery') { initTimer(); }
   if (tab === 'prs') initPRWall();
   if (tab === 'load') initLoadPage();
   if (tab === 'stats') renderStatsPage();
@@ -2692,6 +2741,78 @@ async function kvSyncAll() {
 function showSyncStatus(msg, color) {
   const el = document.getElementById('last-updated-banner');
   if (el) { el.textContent = msg; el.style.color = color || 'var(--dim)'; }
+}
+
+
+// ── STRETCH TIMER ─────────────────────────────────────────────────────────
+let timerSeconds = 0;
+let timerInterval = null;
+let timerRunning = false;
+let wakeLock = null;
+
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      console.log('Wake lock acquired');
+    }
+  } catch(e) { console.warn('Wake lock failed:', e); }
+}
+
+function releaseWakeLock() {
+  if (wakeLock) {
+    wakeLock.release();
+    wakeLock = null;
+    console.log('Wake lock released');
+  }
+}
+
+// Re-acquire wake lock if page becomes visible again
+document.addEventListener('visibilitychange', async () => {
+  if (wakeLock !== null && document.visibilityState === 'visible' && timerRunning) {
+    await requestWakeLock();
+  }
+});
+
+function timerTap() {
+  const display = document.getElementById('stretch-timer-display');
+  const hint = document.getElementById('stretch-timer-hint');
+
+  if (!timerRunning && timerSeconds === 0) {
+    // Start from 0
+    timerRunning = true;
+    display.classList.add('running');
+    hint.textContent = 'tap to reset';
+    requestWakeLock();
+    timerInterval = setInterval(() => {
+      timerSeconds++;
+      document.getElementById('stretch-timer-seconds').textContent = timerSeconds;
+    }, 1000);
+  } else {
+    // Reset to 0 and stop
+    clearInterval(timerInterval);
+    timerInterval = null;
+    timerRunning = false;
+    timerSeconds = 0;
+    display.classList.remove('running');
+    document.getElementById('stretch-timer-seconds').textContent = '0';
+    hint.textContent = 'tap to start';
+    releaseWakeLock();
+  }
+}
+
+function initTimer() {
+  // Reset timer state when switching to recovery tab
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  timerRunning = false;
+  timerSeconds = 0;
+  const display = document.getElementById('stretch-timer-display');
+  const hint = document.getElementById('stretch-timer-hint');
+  if (display) display.classList.remove('running');
+  const secEl = document.getElementById('stretch-timer-seconds');
+  if (secEl) secEl.textContent = '0';
+  if (hint) hint.textContent = 'tap to start';
+  releaseWakeLock();
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
