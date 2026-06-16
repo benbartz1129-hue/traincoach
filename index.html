@@ -613,6 +613,42 @@ body {
   margin-top: 8px;
 }
 
+/* ── ACTIVITY TOTALS BAR ── */
+.act-totals-bar {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; margin-bottom: 16px; overflow: hidden;
+}
+.act-totals-tabs {
+  display: flex; border-bottom: 1px solid var(--border);
+}
+.act-totals-tab {
+  flex: 1; padding: 9px 4px; text-align: center;
+  font-size: 11px; font-family: var(--font-display); font-weight: 600;
+  letter-spacing: 0.04em; color: var(--muted); cursor: pointer;
+  background: none; border: none; border-bottom: 2px solid transparent;
+  transition: all 0.15s; -webkit-tap-highlight-color: transparent;
+}
+.act-totals-tab.active { color: var(--tri); border-bottom-color: var(--tri); }
+.act-totals-metrics {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 0; padding: 12px 0 8px;
+}
+.act-totals-metric {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 4px 8px; border-right: 1px solid var(--border);
+}
+.act-totals-metric:last-child { border-right: none; }
+.act-totals-metric-val {
+  font-family: var(--font-display); font-size: 16px; font-weight: 700;
+  letter-spacing: -0.02em; color: var(--text); line-height: 1;
+}
+.act-totals-metric-unit { font-size: 9px; color: var(--muted); margin-top: 1px; }
+.act-totals-metric-label {
+  font-size: 9px; font-family: var(--font-display); font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--dim); margin-top: 4px;
+}
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -834,6 +870,9 @@ body {
           <button class="filter-btn" onclick="filterActivities('Ride', this)">🚴 Rides</button>
           <button class="filter-btn" onclick="filterActivities('WeightTraining', this)">🏋️ Strength</button>
         </div>
+        <!-- Totals bar -->
+        <div id="act-totals" class="act-totals-bar"></div>
+
         <div class="act-list" id="act-list">
           <div class="loading-state">
             <div class="loading-dots"><span></span><span></span><span></span></div>
@@ -1261,6 +1300,7 @@ function filterActivities(type, btn) {
 
 function renderActivities(acts) {
   const filtered = activeFilter === 'all' ? acts : acts.filter(a => a.type === activeFilter);
+  renderTotalsBar(filtered);
   const list = document.getElementById('act-list');
   if (!filtered.length) { list.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);font-size:13px">No activities found</div>'; return; }
 
@@ -2803,6 +2843,93 @@ function initTimer() {
   if (secEl) secEl.textContent = '0';
   if (hint) hint.textContent = 'tap to start';
   releaseWakeLock();
+}
+
+
+// ── ACTIVITY TOTALS ───────────────────────────────────────────────────────
+let activeTotalsRange = 'week';
+
+function getDateRange(range) {
+  const now = new Date();
+  const start = new Date();
+  start.setHours(0,0,0,0);
+  if (range === 'week') {
+    const day = start.getDay();
+    start.setDate(start.getDate() - (day === 0 ? 6 : day - 1));
+  } else if (range === 'month') {
+    start.setDate(1);
+  } else if (range === 'year') {
+    start.setMonth(0,1);
+  } else {
+    return null; // all time
+  }
+  return start;
+}
+
+function calcTotals(acts, range) {
+  const start = getDateRange(range);
+  const filtered = start
+    ? acts.filter(a => new Date(a.start_date_local) >= start)
+    : acts;
+
+  const count = filtered.length;
+  const totalMi = filtered.reduce((s,a) => s + mToMi(a.distance), 0);
+  const totalSec = filtered.reduce((s,a) => s + (a.moving_time||0), 0);
+  const totalCal = filtered.reduce((s,a) => s + (a.calories||0), 0);
+
+  return { count, totalMi, totalSec, totalCal };
+}
+
+function renderTotalsBar(acts) {
+  const el = document.getElementById('act-totals');
+  if (!el || !acts.length) { if (el) el.innerHTML = ''; return; }
+
+  const ranges = ['week','month','year','all'];
+  const labels = ['Week','Month','Year','All'];
+
+  const t = calcTotals(acts, activeTotalsRange);
+
+  // Format time
+  const h = Math.floor(t.totalSec / 3600);
+  const m = Math.floor((t.totalSec % 3600) / 60);
+  const timeStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
+
+  el.innerHTML = `
+    <div class="act-totals-tabs">
+      ${ranges.map((r,i) => `<button class="act-totals-tab${activeTotalsRange===r?' active':''}"
+        onclick="setTotalsRange('${r}')">${labels[i]}</button>`).join('')}
+    </div>
+    <div class="act-totals-metrics">
+      <div class="act-totals-metric">
+        <div class="act-totals-metric-val">${t.count}</div>
+        <div class="act-totals-metric-unit">&nbsp;</div>
+        <div class="act-totals-metric-label">Activities</div>
+      </div>
+      <div class="act-totals-metric">
+        <div class="act-totals-metric-val">${t.totalMi.toFixed(1)}</div>
+        <div class="act-totals-metric-unit">mi</div>
+        <div class="act-totals-metric-label">Distance</div>
+      </div>
+      <div class="act-totals-metric">
+        <div class="act-totals-metric-val">${timeStr}</div>
+        <div class="act-totals-metric-unit">&nbsp;</div>
+        <div class="act-totals-metric-label">Time</div>
+      </div>
+      <div class="act-totals-metric">
+        <div class="act-totals-metric-val">${t.totalCal > 999 ? (t.totalCal/1000).toFixed(1)+'k' : t.totalCal}</div>
+        <div class="act-totals-metric-unit">cal</div>
+        <div class="act-totals-metric-label">Calories</div>
+      </div>
+    </div>`;
+}
+
+function setTotalsRange(range) {
+  activeTotalsRange = range;
+  // Get the currently filtered activities
+  const acts = activeFilter === 'all'
+    ? allActivities
+    : allActivities.filter(a => a.type === activeFilter);
+  renderTotalsBar(acts);
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
