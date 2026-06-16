@@ -1281,11 +1281,19 @@ async function getValidToken() {
 }
 
 async function fetchActivities(token) {
-  const after = Math.floor((Date.now() - 60 * 24 * 3600 * 1000) / 1000);
-  const r = await fetch('https://www.strava.com/api/v3/athlete/activities?after=' + after + '&per_page=80', {
-    headers: { Authorization: 'Bearer ' + token }
-  });
-  return r.json();
+  const after = Math.floor((Date.now() - 365 * 24 * 3600 * 1000) / 1000);
+  // Fetch up to 200 activities across two pages
+  const [page1, page2] = await Promise.all([
+    fetch('https://www.strava.com/api/v3/athlete/activities?after=' + after + '&per_page=100&page=1', {
+      headers: { Authorization: 'Bearer ' + token }
+    }).then(r => r.json()),
+    fetch('https://www.strava.com/api/v3/athlete/activities?after=' + after + '&per_page=100&page=2', {
+      headers: { Authorization: 'Bearer ' + token }
+    }).then(r => r.json())
+  ]);
+  const p1 = Array.isArray(page1) ? page1 : [];
+  const p2 = Array.isArray(page2) ? page2 : [];
+  return [...p1, ...p2];
 }
 
 // ── ACTIVITIES PAGE ───────────────────────────────────────────────────────
@@ -1331,7 +1339,7 @@ function renderActivities(acts) {
 // ── AI ANALYSIS ───────────────────────────────────────────────────────────
 function buildSummary(acts) {
   const filtered = acts.filter(a => !(a.type === 'Ride' && (!a.distance || a.distance === 0)));
-  return filtered.slice(0, 60).map(a => {
+  return filtered.slice(0, 30).map(a => {
     const date = new Date(a.start_date_local).toISOString().split('T')[0];
     const mi = mToMi(a.distance).toFixed(1);
     return `${date}: ${a.type} ${mi}mi${a.calories ? ' ' + a.calories + 'cal' : ''}${a.moving_time ? ' ' + secToTime(a.moving_time) : ''}${a.kudos_count ? ' ' + a.kudos_count + ' kudos' : ''}`;
@@ -2875,9 +2883,9 @@ function calcTotals(acts, range) {
   const count = filtered.length;
   const totalMi = filtered.reduce((s,a) => s + mToMi(a.distance), 0);
   const totalSec = filtered.reduce((s,a) => s + (a.moving_time||0), 0);
-  const totalCal = filtered.reduce((s,a) => s + (a.calories||0), 0);
+  const totalElevFt = Math.round(filtered.reduce((s,a) => s + ((a.total_elevation_gain||0) * 3.28084), 0));
 
-  return { count, totalMi, totalSec, totalCal };
+  return { count, totalMi, totalSec, totalElevFt };
 }
 
 function renderTotalsBar(acts) {
@@ -2916,9 +2924,9 @@ function renderTotalsBar(acts) {
         <div class="act-totals-metric-label">Time</div>
       </div>
       <div class="act-totals-metric">
-        <div class="act-totals-metric-val">${t.totalCal > 999 ? (t.totalCal/1000).toFixed(1)+'k' : t.totalCal}</div>
-        <div class="act-totals-metric-unit">cal</div>
-        <div class="act-totals-metric-label">Calories</div>
+        <div class="act-totals-metric-val">${t.totalElevFt > 999 ? (t.totalElevFt/1000).toFixed(1)+'k' : t.totalElevFt}</div>
+        <div class="act-totals-metric-unit">ft</div>
+        <div class="act-totals-metric-label">Elevation</div>
       </div>
     </div>`;
 }
