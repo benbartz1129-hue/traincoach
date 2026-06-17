@@ -3005,7 +3005,7 @@ async function refreshData() {
         body: JSON.stringify({ action: 'mergeActivities', value: acts })
       });
       const mergeResult = await mergeResp.json();
-      console.log('Activity archive updated, total:', mergeResult.total);
+      console.log('Merge result:', JSON.stringify(mergeResult));
 
       // Fetch full archive for local use
       const archiveResp = await fetch('/kv', {
