@@ -1281,19 +1281,12 @@ async function getValidToken() {
 }
 
 async function fetchActivities(token) {
-  const after = Math.floor((Date.now() - 365 * 24 * 3600 * 1000) / 1000);
-  // Fetch up to 200 activities across two pages
-  const [page1, page2] = await Promise.all([
-    fetch('https://www.strava.com/api/v3/athlete/activities?after=' + after + '&per_page=100&page=1', {
-      headers: { Authorization: 'Bearer ' + token }
-    }).then(r => r.json()),
-    fetch('https://www.strava.com/api/v3/athlete/activities?after=' + after + '&per_page=100&page=2', {
-      headers: { Authorization: 'Bearer ' + token }
-    }).then(r => r.json())
-  ]);
-  const p1 = Array.isArray(page1) ? page1 : [];
-  const p2 = Array.isArray(page2) ? page2 : [];
-  return [...p1, ...p2];
+  // Only fetch latest 100 — older activities are stored in KV
+  const r = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=100&page=1', {
+    headers: { Authorization: 'Bearer ' + token }
+  });
+  const acts = await r.json();
+  return Array.isArray(acts) ? acts : [];
 }
 
 // ── ACTIVITIES PAGE ───────────────────────────────────────────────────────
@@ -3002,7 +2995,32 @@ async function refreshData() {
     const acts = await fetchActivities(token);
     if (!Array.isArray(acts)) throw new Error('Bad Strava response');
 
-    allActivities = acts.sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+    // Merge latest 100 with KV archive and update archive
+    let merged = acts;
+    try {
+      // Push new activities to archive
+      const mergeResp = await fetch('/kv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'mergeActivities', value: acts })
+      });
+      const mergeResult = await mergeResp.json();
+      console.log('Activity archive updated, total:', mergeResult.total);
+
+      // Fetch full archive for local use
+      const archiveResp = await fetch('/kv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'getActivities' })
+      });
+      const archiveData = await archiveResp.json();
+      if (archiveData.activities && archiveData.activities.length > acts.length) {
+        merged = archiveData.activities;
+        console.log('Using full archive:', merged.length, 'activities');
+      }
+    } catch(e) { console.warn('Archive merge failed, using latest 100 only:', e); }
+
+    allActivities = merged.sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
     activitySummary = buildSummary(allActivities);
 
     if (!hasCache) {
@@ -3076,12 +3094,26 @@ async function init() {
     if (!loaded || ageHours > 3) {
       await refreshData();
     }
-    // Sync races, plan and weight from KV in background
+    // Sync races, plan, weight and activity archive from KV in background
     kvSyncAll().then(() => {
       initRacePlanner();
       renderCalendar();
       updateRefreshBanner(localStorage.getItem(CACHE_KEY_TIMESTAMP));
     });
+    // Load full activity archive from KV for complete totals
+    fetch('/kv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'getActivities' })
+    }).then(r => r.json()).then(data => {
+      if (data.activities && data.activities.length > allActivities.length) {
+        allActivities = data.activities.sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+        activitySummary = buildSummary(allActivities);
+        if (currentTab === 'activities') renderActivities(allActivities);
+        if (currentTab === 'prs') initPRWall();
+        console.log('Loaded full archive:', allActivities.length, 'activities');
+      }
+    }).catch(e => console.warn('Archive load failed:', e));
   }
 }
 
