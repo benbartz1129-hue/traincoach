@@ -1272,8 +1272,14 @@ async function getValidToken() {
   let auth = JSON.parse(localStorage.getItem('strava_auth') || 'null');
   if (!auth) return null;
   if (Date.now() / 1000 > auth.expires_at - 300) {
+    console.log('Token expired, refreshing...');
     const fresh = await refreshStravaToken(auth.refresh_token);
-    if (!fresh.access_token) return null;
+    console.log('Refresh response:', JSON.stringify(fresh));
+    if (!fresh.access_token) {
+      console.warn('Refresh failed, clearing stored auth so user can reconnect');
+      localStorage.removeItem('strava_auth');
+      return null;
+    }
     auth = { ...auth, ...fresh };
     localStorage.setItem('strava_auth', JSON.stringify(auth));
   }
@@ -1459,7 +1465,10 @@ function renderDashboard(d) {
 }
 
 function showError(msg) {
-  document.getElementById('dashboard-content').innerHTML = `<div class="error-card"><div style="font-size:24px">⚠</div><p>${msg}</p><button class="retry-btn" onclick="refreshData()">Try again</button></div>`;
+  const auth = JSON.parse(localStorage.getItem('strava_auth') || 'null');
+  const retryAction = auth ? 'refreshData()' : 'location.reload()';
+  const retryLabel = auth ? 'Try again' : 'Reconnect to Strava';
+  document.getElementById('dashboard-content').innerHTML = `<div class="error-card"><div style="font-size:24px">⚠</div><p>${msg}</p><button class="retry-btn" onclick="${retryAction}">${retryLabel}</button></div>`;
 }
 
 // ── CHAT ──────────────────────────────────────────────────────────────────
