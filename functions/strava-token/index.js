@@ -1,3 +1,41 @@
+const CF_ACCOUNT_ID = 'REPLACE_WITH_ACCOUNT_ID';
+const KV_NAMESPACE_ID = 'ce44f82dceff46a6bd16563a2f3a3b1c';
+const BASE = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${KV_NAMESPACE_ID}`;
+
+async function kvGet(key, token) {
+  const r = await fetch(`${BASE}/values/${key}`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  if (!r.ok) return null;
+  try { return await r.json(); } catch { return null; }
+}
+
+async function kvPut(key, value, token) {
+  const r = await fetch(`${BASE}/values/${key}`, {
+    method: 'PUT',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'text/plain' },
+    body: JSON.stringify(value)
+  });
+  const result = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, result };
+}
+
+// Strip activity down to only the fields the app actually uses — keeps KV value small
+function slimActivity(a) {
+  return {
+    id: a.id,
+    name: a.name,
+    type: a.type,
+    distance: a.distance,
+    moving_time: a.moving_time,
+    total_elevation_gain: a.total_elevation_gain,
+    start_date_local: a.start_date_local,
+    calories: a.calories || null,
+    kudos_count: a.kudos_count || 0,
+    average_speed: a.average_speed || null
+  };
+}
+
 export async function onRequestPost(context) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -5,25 +43,53 @@ export async function onRequestPost(context) {
   };
 
   try {
-    const body = await context.request.json();
+    const { action, key, value } = await context.request.json();
+    const CF_API_TOKEN = context.env.CF_API_TOKEN;
+    if (!CF_API_TOKEN) return new Response(JSON.stringify({ error: 'CF_API_TOKEN not set' }), { status: 500, headers });
 
-    const params = new URLSearchParams();
-    params.append('client_id', '256087');
-    params.append('client_secret', context.env.STRAVA_CLIENT_SECRET || '');
-    params.append('grant_type', body.grant_type);
-    if (body.code) params.append('code', body.code);
-    if (body.refresh_token) params.append('refresh_token', body.refresh_token);
+    if (action === 'set') {
+      const putResult = await kvPut(key, value, CF_API_TOKEN);
+      return new Response(JSON.stringify({ ok: putResult.ok, detail: putResult.result }), { headers });
+    }
 
-    const r = await fetch('https://www.strava.com/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params
-    });
+    if (action === 'getAll') {
+      const keys = ['brb_races', 'brb_training_plan', 'brb_weight_log'];
+      const results = {};
+      await Promise.all(keys.map(async k => { results[k] = await kvGet(k, CF_API_TOKEN); }));
+      return new Response(JSON.stringify(results), { headers });
+    }
 
-    const text = await r.text();
-    return new Response(text, { status: r.status, headers });
+    if (action === 'mergeActivities') {
+      const newActs = (value || []).map(slimActivity);
+      const stored = (await kvGet('brb_activity_archive', CF_API_TOKEN)) || [];
+
+      const map = {};
+      stored.forEach(a => { map[a.id] = a; });
+      newActs.forEach(a => { map[a.id] = a; });
+
+      const merged = Object.values(map)
+        .sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+
+      const sizeBytes = JSON.stringify(merged).length;
+      const putResult = await kvPut('brb_activity_archive', merged, CF_API_TOKEN);
+
+      return new Response(JSON.stringify({
+        ok: putResult.ok,
+        total: merged.length,
+        sizeKB: Math.round(sizeBytes / 1024),
+        putStatus: putResult.status,
+        putDetail: putResult.result
+      }), { headers });
+    }
+
+    if (action === 'getActivities') {
+      const archive = await kvGet('brb_activity_archive', CF_API_TOKEN) || [];
+      return new Response(JSON.stringify({ activities: archive, count: archive.length }), { headers });
+    }
+
+    return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400, headers });
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers });
+    return new Response(JSON.stringify({ error: e.message, stack: e.stack }), { status: 500, headers });
   }
 }
 
