@@ -1481,18 +1481,6 @@ function toggleAIInsights() {
         <div class="today-row"><div class="sport-icon ${d.tomorrowRec.sport}">${sportEmoji(d.tomorrowRec.sport)}</div><div class="today-content"><div class="today-title">${d.tomorrowRec.title}</div><div class="today-detail">${d.tomorrowRec.detail}</div></div><div class="day-badge tomorrow">Tomorrow</div></div>
       </div>
     </div>
-    <div class="section" style="margin-bottom:16px">
-      <div class="section-label">Week at a glance</div>
-      <div class="week-card">
-        <div class="week-cells">${window._weekCellsHtml}</div>
-        <div class="week-labels">${d.weekDays.map(day=>`<span>${day.day}</span>`).join('')}</div>
-        <div class="week-legend">
-          <div class="legend-item"><div class="legend-dot" style="background:var(--run)"></div>Run</div>
-          <div class="legend-item"><div class="legend-dot" style="background:var(--swim)"></div>Swim</div>
-          <div class="legend-item"><div class="legend-dot" style="background:var(--ride)"></div>Ride</div>
-        </div>
-      </div>
-    </div>
     <div class="section">
       <div class="section-label">Today's insights</div>
       <div class="insights-stack">${window._insightCardsHtml}</div>
