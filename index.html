@@ -649,6 +649,54 @@ body {
   color: var(--dim); margin-top: 4px;
 }
 
+/* ── QUICK WEIGHT WIDGET ── */
+.quick-weight-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+}
+.quick-weight-left { flex-shrink: 0; }
+.quick-weight-label {
+  font-size: 10px; font-family: var(--font-display); font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim);
+  margin-bottom: 3px;
+}
+.quick-weight-current {
+  font-family: var(--font-display); font-size: 20px; font-weight: 700;
+  color: var(--text); letter-spacing: -0.02em;
+}
+.quick-weight-right {
+  display: flex; align-items: center; gap: 6px; flex: 1; min-width: 180px;
+}
+.quick-weight-input {
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 8px; color: var(--text); padding: 8px 10px;
+  font-family: var(--font-mono); font-size: 14px; text-align: center;
+  width: 70px; outline: none; flex-shrink: 0;
+}
+.quick-weight-input:focus { border-color: var(--tri); }
+.quick-weight-unit {
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 8px; color: var(--text); padding: 8px 6px;
+  font-family: var(--font-mono); font-size: 12px; outline: none;
+  width: 52px; flex-shrink: 0;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a7990' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 6px center; padding-right: 18px;
+}
+.quick-weight-btn {
+  background: var(--tri); color: #0a0a0f; border: none;
+  border-radius: 8px; padding: 9px 16px; font-family: var(--font-display);
+  font-size: 12px; font-weight: 700; cursor: pointer; flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.quick-weight-btn:active { opacity: 0.8; }
+.quick-weight-msg {
+  width: 100%; font-size: 11px; color: var(--tri); margin-top: 8px;
+  text-align: center; min-height: 14px;
+}
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -1460,6 +1508,22 @@ function renderDashboard(d) {
       </div>
     </div>
     <div class="section">
+      <div class="quick-weight-card" id="quick-weight-card">
+        <div class="quick-weight-left">
+          <div class="quick-weight-label">Today's weight</div>
+          <div class="quick-weight-current" id="qw-current-display">—</div>
+        </div>
+        <div class="quick-weight-right">
+          <input class="quick-weight-input" id="qw-input" type="number" step="0.1" min="50" max="500" placeholder="0.0" />
+          <select class="quick-weight-unit" id="qw-unit">
+            <option value="lbs">lbs</option>
+            <option value="kg">kg</option>
+          </select>
+          <button class="quick-weight-btn" onclick="quickLogWeight()">Log</button>
+        </div>
+      </div>
+    </div>
+    <div class="section">
       <div class="section-label">Tri readiness</div>
       <div class="readiness-card">
         <div class="readiness-row"><span class="readiness-sport">Swim</span><div class="readiness-bar-bg"><div class="readiness-bar-fill" style="width:${d.swimReadiness}%;background:var(--swim)"></div></div><span class="readiness-pct">${d.swimReadiness}%</span></div>
@@ -1477,6 +1541,7 @@ function renderDashboard(d) {
     <div class="app-footer">Last updated ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} · BRB Training</div>`;
   updateRaceCountdowns();
   positionRacePlanner();
+  updateQuickWeightDisplay();
 }
 
 function toggleAIInsights() {
@@ -3187,6 +3252,57 @@ function renderPaceChart() {
       }
     }
   });
+}
+
+
+// ── QUICK WEIGHT (DASHBOARD) ─────────────────────────────────────────────
+function updateQuickWeightDisplay() {
+  const today = new Date().toISOString().split('T')[0];
+  const todayEntry = weightLog.find(e => e.date === today);
+  const display = document.getElementById('qw-current-display');
+  const input = document.getElementById('qw-input');
+  const unitSel = document.getElementById('qw-unit');
+  if (!display) return;
+
+  if (todayEntry) {
+    display.textContent = todayEntry.value + ' ' + todayEntry.unit;
+    display.style.color = 'var(--tri)';
+    if (input) input.value = todayEntry.value;
+    if (unitSel) unitSel.value = todayEntry.unit;
+  } else if (weightLog.length) {
+    const last = weightLog[weightLog.length - 1];
+    display.textContent = 'Last: ' + last.value + ' ' + last.unit;
+    display.style.color = 'var(--muted)';
+    if (unitSel) unitSel.value = last.unit;
+  } else {
+    display.textContent = 'Not logged';
+    display.style.color = 'var(--dim)';
+  }
+}
+
+function quickLogWeight() {
+  const input = document.getElementById('qw-input');
+  const unit = document.getElementById('qw-unit').value;
+  const val = parseFloat(input.value);
+  const card = document.getElementById('quick-weight-card');
+
+  if (!val || val < 50 || val > 500) {
+    input.style.borderColor = 'var(--warn)';
+    setTimeout(() => { input.style.borderColor = ''; }, 1500);
+    return;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  weightLog = weightLog.filter(e => e.date !== today);
+  weightLog.push({ date: today, value: val, unit });
+  weightLog.sort((a,b) => a.date.localeCompare(b.date));
+  saveWeightLog();
+
+  updateQuickWeightDisplay();
+
+  // Brief success flash
+  card.style.borderColor = 'var(--tri)';
+  setTimeout(() => { card.style.borderColor = ''; }, 800);
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
