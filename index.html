@@ -739,8 +739,8 @@ body {
   <div class="login-bg"></div>
   <div class="login-grid"></div>
   <div class="login-logo">BRB Training</div>
-  <h1 class="login-headline">Track.<br><span>Train.</span><br>Triumph.</h1>
-  <p class="login-sub">Daily AI coaching toward your Olympic Tri on July 26 and Chicago Marathon on October 11.</p>
+  <h1 class="login-headline">Train.<br><span>Track.</span><br>Triumph.</h1>
+  <p class="login-sub">Daily AI coaching toward your triathlon and marathon training.</p>
   <button class="strava-btn" onclick="connectStrava()">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
     Connect with Strava
@@ -812,14 +812,8 @@ body {
   <div class="pages">
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
-      <div class="page-inner" id="dashboard-content">
-        <div class="loading-state" id="loading-state">
-          <div class="loading-dots"><span></span><span></span><span></span></div>
-          <div class="loading-text" id="loading-msg">Fetching your Strava activities…</div>
-        </div>
-      </div>
       <!-- Race planner lives here permanently — outside dashboard-content so it never gets wiped -->
-      <div class="page-inner" style="padding-top:0">
+      <div class="page-inner" id="race-planner-wrap" style="display:block;padding-top:0">
         <div class="section">
           <div class="section-label">Race planner</div>
           <div class="race-planner" id="race-planner">
@@ -859,6 +853,12 @@ body {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+      <div class="page-inner" id="dashboard-content">
+        <div class="loading-state" id="loading-state">
+          <div class="loading-dots"><span></span><span></span><span></span></div>
+          <div class="loading-text" id="loading-msg">Fetching your Strava activities…</div>
         </div>
       </div>
     </div>
@@ -1455,6 +1455,7 @@ function renderDashboard(d) {
     </div>
     <div class="app-footer">Last updated ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} · BRB Training</div>`;
   updateRaceCountdowns();
+  positionRacePlanner();
 }
 
 function toggleAIInsights() {
@@ -1690,6 +1691,15 @@ const TRI_SUBTYPES = ['Sprint','Olympic','70.3 Half','140.6 Full'];
 const RUN_SUBTYPES = ['5K','10K','Half Marathon','Marathon','Ultra'];
 
 function saveRaces() { kvSet('brb_races', races); }
+
+// Move the permanent race-planner-wrap div to sit right before the AI Insights button
+function positionRacePlanner() {
+  const wrap = document.getElementById('race-planner-wrap');
+  const aiSection = document.getElementById('ai-insights-section');
+  if (wrap && aiSection && wrap.nextElementSibling !== aiSection) {
+    aiSection.parentNode.insertBefore(wrap, aiSection);
+  }
+}
 
 function toggleRacePlanner() {
   const body = document.getElementById('race-planner-body');
@@ -3189,6 +3199,7 @@ async function init() {
     document.getElementById('app-screen').style.display = 'flex';
     // Init race planner and calendar immediately so they show before data loads
     initRacePlanner();
+    positionRacePlanner();
     renderCalendar();
     initRecovery();
     // Restore plan summary if exists
