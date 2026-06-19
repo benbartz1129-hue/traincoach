@@ -739,8 +739,8 @@ body {
   <div class="login-bg"></div>
   <div class="login-grid"></div>
   <div class="login-logo">BRB Training</div>
-  <h1 class="login-headline">Train.<br><span>Track.</span><br>Triumph.</h1>
-  <p class="login-sub">Daily AI coaching toward your triathlon and marathon training.</p>
+  <h1 class="login-headline">Track.<br><span>Train.</span><br>Triumph.</h1>
+  <p class="login-sub">Daily AI coaching toward your Olympic Tri on July 26 and Chicago Marathon on October 11.</p>
   <button class="strava-btn" onclick="connectStrava()">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
     Connect with Strava
@@ -1107,6 +1107,27 @@ body {
           <div class="loading-state">
             <div class="loading-dots"><span></span><span></span><span></span></div>
             <div class="loading-text">Loading your PRs…</div>
+          </div>
+        </div>
+
+        <!-- Pace trend -->
+        <div class="section-label">Run pace trend</div>
+        <div class="card" style="padding:14px 16px;margin-bottom:20px">
+          <div style="display:flex;gap:8px;margin-bottom:12px" id="pace-range-btns">
+            <button class="filter-btn active" onclick="setPaceRange(90,this)">90d</button>
+            <button class="filter-btn" onclick="setPaceRange(180,this)">6mo</button>
+            <button class="filter-btn" onclick="setPaceRange(365,this)">1yr</button>
+            <button class="filter-btn" onclick="setPaceRange(0,this)">All</button>
+          </div>
+          <div style="position:relative;height:200px">
+            <canvas id="pace-chart" role="img" aria-label="Running pace trend over time chart"></canvas>
+          </div>
+          <div id="pace-chart-empty" style="display:none;text-align:center;padding:2rem;font-size:12px;color:var(--dim)">
+            Not enough run data yet to show a pace trend.
+          </div>
+          <div style="display:flex;gap:16px;margin-top:12px;font-size:11px;color:var(--muted);flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--run);display:inline-block"></span>Pace per run</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:2px;background:var(--mar);display:inline-block;border-top:2px dashed var(--mar);height:0"></span>Trend</span>
           </div>
         </div>
       </div>
@@ -2276,6 +2297,7 @@ function initPRWall() {
     return;
   }
   buildPRs();
+  renderPaceChart();
 }
 
 
@@ -3051,6 +3073,120 @@ async function importFullHistory() {
   btn.style.opacity = '1';
   btn.style.pointerEvents = 'auto';
   btn.textContent = 'Import full Strava history';
+}
+
+
+// ── PACE TREND CHART ──────────────────────────────────────────────────────
+let paceRangeDays = 90;
+let paceChartInstance = null;
+
+function setPaceRange(days, btn) {
+  paceRangeDays = days;
+  document.querySelectorAll('#pace-range-btns .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderPaceChart();
+}
+
+function renderPaceChart() {
+  const canvas = document.getElementById('pace-chart');
+  const empty = document.getElementById('pace-chart-empty');
+  if (!canvas) return;
+
+  let runs = allActivities.filter(a => a.type === 'Run' && a.distance > 0 && a.moving_time > 0);
+
+  if (paceRangeDays > 0) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - paceRangeDays);
+    runs = runs.filter(a => new Date(a.start_date_local) >= cutoff);
+  }
+
+  // Sort oldest first for chart progression
+  runs = runs.slice().sort((a,b) => new Date(a.start_date_local) - new Date(b.start_date_local));
+
+  // Filter out extreme outlier paces (e.g. accidental trainer walks) — keep 4:00-15:00/mi range
+  runs = runs.filter(a => {
+    const mi = mToMi(a.distance);
+    const paceSecPerMile = a.moving_time / mi;
+    return paceSecPerMile >= 240 && paceSecPerMile <= 900;
+  });
+
+  if (!runs.length) {
+    canvas.style.display = 'none';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  canvas.style.display = 'block';
+  if (empty) empty.style.display = 'none';
+
+  const labels = runs.map(a => {
+    const d = new Date(a.start_date_local);
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  });
+
+  const paces = runs.map(a => {
+    const mi = mToMi(a.distance);
+    return +(a.moving_time / mi / 60).toFixed(2); // minutes per mile, decimal
+  });
+
+  // Linear regression trendline
+  const n = paces.length;
+  const xMean = (n-1)/2;
+  const yMean = paces.reduce((s,v)=>s+v,0)/n;
+  const slope = paces.reduce((s,v,i)=>s+(i-xMean)*(v-yMean),0) /
+                paces.reduce((s,_,i)=>s+(i-xMean)**2, 0.001);
+  const intercept = yMean - slope * xMean;
+  const trendData = paces.map((_,i) => +(intercept + slope*i).toFixed(2));
+
+  function formatPace(decMin) {
+    const m = Math.floor(decMin);
+    const s = Math.round((decMin - m) * 60);
+    return m + ':' + String(s).padStart(2,'0');
+  }
+
+  if (paceChartInstance) { paceChartInstance.destroy(); paceChartInstance = null; }
+
+  paceChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Pace',
+          data: paces,
+          borderColor: 'var(--run)',
+          backgroundColor: 'rgba(109,186,109,0.08)',
+          borderWidth: 1.5,
+          pointRadius: runs.length > 40 ? 0 : 3,
+          pointBackgroundColor: 'var(--run)',
+          tension: 0.25, fill: true, order: 2
+        },
+        {
+          label: 'Trend',
+          data: trendData,
+          borderColor: 'rgba(240,160,80,0.7)',
+          borderWidth: 2,
+          borderDash: [4,3],
+          pointRadius: 0,
+          tension: 0, fill: false, order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => formatPace(ctx.parsed.y) + ' /mi' } }
+      },
+      scales: {
+        x: { ticks: { font:{size:10}, maxRotation:45, autoSkip:true, maxTicksLimit:8 }, grid:{display:false} },
+        y: {
+          reverse: true, // faster pace (lower number) shows higher on chart
+          ticks: { font:{size:10}, callback: v => formatPace(v) },
+          grid: { color: 'rgba(128,128,128,0.08)' }
+        }
+      }
+    }
+  });
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
