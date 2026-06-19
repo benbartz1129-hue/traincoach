@@ -873,6 +873,11 @@ body {
         <!-- Totals bar -->
         <div id="act-totals" class="act-totals-bar"></div>
 
+        <button class="add-race-btn" id="import-history-btn" style="margin-bottom:16px;font-size:12px" onclick="importFullHistory()">
+          &#128229; Import full Strava history
+        </button>
+        <div id="import-status" style="font-size:11px;color:var(--muted);margin-bottom:16px;text-align:center"></div>
+
         <div class="act-list" id="act-list">
           <div class="loading-state">
             <div class="loading-dots"><span></span><span></span><span></span></div>
@@ -2940,6 +2945,74 @@ function setTotalsRange(range) {
     ? allActivities
     : allActivities.filter(a => a.type === activeFilter);
   renderTotalsBar(acts);
+}
+
+
+// ── FULL HISTORY IMPORT ───────────────────────────────────────────────────
+async function importFullHistory() {
+  const btn = document.getElementById('import-history-btn');
+  const status = document.getElementById('import-status');
+  btn.disabled = true;
+  btn.textContent = 'Importing...';
+
+  try {
+    const token = await getValidToken();
+    if (!token) { status.textContent = 'Strava session expired. Reconnect first.'; btn.disabled = false; btn.textContent = '📥 Import full Strava history'; return; }
+
+    let allFetched = [];
+    let page = 1;
+    let keepGoing = true;
+    const maxPages = 15; // up to 1500 activities safety cap
+
+    while (keepGoing && page <= maxPages) {
+      status.textContent = `Fetching page ${page}... (${allFetched.length} activities so far)`;
+      const r = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=100&page=${page}`, {
+        headers: { Authorization: 'Bearer ' + token }
+      });
+      const batch = await r.json();
+      if (!Array.isArray(batch) || batch.length === 0) {
+        keepGoing = false;
+      } else {
+        allFetched = allFetched.concat(batch);
+        page++;
+        if (batch.length < 100) keepGoing = false; // last page
+      }
+    }
+
+    status.textContent = `Merging ${allFetched.length} activities into your archive...`;
+
+    const mergeResp = await fetch('/kv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'mergeActivities', value: allFetched })
+    });
+    const mergeResult = await mergeResp.json();
+    console.log('Full import merge result:', JSON.stringify(mergeResult));
+
+    if (mergeResult.ok) {
+      status.textContent = `Done! Archive now has ${mergeResult.total} total activities.`;
+      // Reload full archive locally
+      const archiveResp = await fetch('/kv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'getActivities' })
+      });
+      const archiveData = await archiveResp.json();
+      if (archiveData.activities) {
+        allActivities = archiveData.activities.sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+        activitySummary = buildSummary(allActivities);
+        renderActivities(allActivities);
+      }
+    } else {
+      status.textContent = 'Import completed but merge had an issue. Check console.';
+    }
+  } catch(e) {
+    status.textContent = 'Import failed: ' + e.message;
+    console.error('Import error:', e);
+  }
+
+  btn.disabled = false;
+  btn.textContent = '📥 Import full Strava history';
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
