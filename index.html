@@ -1416,6 +1416,10 @@ function renderDashboard(d) {
       </div>
     </div>`).join('');
 
+  window._lastDashboardData = d;
+  window._weekCellsHtml = weekCells;
+  window._insightCardsHtml = insightCards;
+
   document.getElementById('dashboard-content').innerHTML = `
     <div class="date-banner" onclick="scrollToRaces()" style="cursor:pointer">
       <div><div class="date-greeting">${getGreeting()}</div><div class="date-sub">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})}</div></div>
@@ -1435,16 +1439,52 @@ function renderDashboard(d) {
       </div>
     </div>
     <div class="section">
+      <div class="section-label">Tri readiness</div>
+      <div class="readiness-card">
+        <div class="readiness-row"><span class="readiness-sport">Swim</span><div class="readiness-bar-bg"><div class="readiness-bar-fill" style="width:${d.swimReadiness}%;background:var(--swim)"></div></div><span class="readiness-pct">${d.swimReadiness}%</span></div>
+        <div class="readiness-row"><span class="readiness-sport">Bike</span><div class="readiness-bar-bg"><div class="readiness-bar-fill" style="width:${d.bikeReadiness}%;background:var(--ride)"></div></div><span class="readiness-pct">${d.bikeReadiness}%</span></div>
+        <div class="readiness-row"><span class="readiness-sport">Run</span><div class="readiness-bar-bg"><div class="readiness-bar-fill" style="width:${d.runReadiness}%;background:var(--run)"></div></div><span class="readiness-pct">${d.runReadiness}%</span></div>
+      </div>
+    </div>
+    <div class="section" id="ai-insights-section">
+      <button class="add-race-btn" id="ai-insights-toggle-btn" onclick="toggleAIInsights()" style="display:flex;align-items:center;justify-content:center;gap:8px">
+        <span id="ai-insights-toggle-icon">✨</span>
+        <span id="ai-insights-toggle-label">Generate AI Insights</span>
+      </button>
+      <div id="ai-insights-content" style="display:none;margin-top:16px"></div>
+    </div>
+    <div class="app-footer">Last updated ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} · BRB Training</div>`;
+  updateRaceCountdowns();
+}
+
+function toggleAIInsights() {
+  const content = document.getElementById('ai-insights-content');
+  const icon = document.getElementById('ai-insights-toggle-icon');
+  const label = document.getElementById('ai-insights-toggle-label');
+  const isOpen = content.style.display !== 'none';
+
+  if (isOpen) {
+    content.style.display = 'none';
+    icon.textContent = '✨';
+    label.textContent = 'Generate AI Insights';
+    return;
+  }
+
+  const d = window._lastDashboardData;
+  if (!d) return;
+
+  content.innerHTML = `
+    <div class="section" style="margin-bottom:16px">
       <div class="section-label">Today & tomorrow</div>
       <div class="today-card">
         <div class="today-row"><div class="sport-icon ${d.todayRec.sport}">${sportEmoji(d.todayRec.sport)}</div><div class="today-content"><div class="today-title">${d.todayRec.title}</div><div class="today-detail">${d.todayRec.detail}</div></div><div class="day-badge today">Today</div></div>
         <div class="today-row"><div class="sport-icon ${d.tomorrowRec.sport}">${sportEmoji(d.tomorrowRec.sport)}</div><div class="today-content"><div class="today-title">${d.tomorrowRec.title}</div><div class="today-detail">${d.tomorrowRec.detail}</div></div><div class="day-badge tomorrow">Tomorrow</div></div>
       </div>
     </div>
-    <div class="section">
+    <div class="section" style="margin-bottom:16px">
       <div class="section-label">Week at a glance</div>
       <div class="week-card">
-        <div class="week-cells">${weekCells}</div>
+        <div class="week-cells">${window._weekCellsHtml}</div>
         <div class="week-labels">${d.weekDays.map(day=>`<span>${day.day}</span>`).join('')}</div>
         <div class="week-legend">
           <div class="legend-item"><div class="legend-dot" style="background:var(--run)"></div>Run</div>
@@ -1454,19 +1494,13 @@ function renderDashboard(d) {
       </div>
     </div>
     <div class="section">
-      <div class="section-label">Tri readiness</div>
-      <div class="readiness-card">
-        <div class="readiness-row"><span class="readiness-sport">Swim</span><div class="readiness-bar-bg"><div class="readiness-bar-fill" style="width:${d.swimReadiness}%;background:var(--swim)"></div></div><span class="readiness-pct">${d.swimReadiness}%</span></div>
-        <div class="readiness-row"><span class="readiness-sport">Bike</span><div class="readiness-bar-bg"><div class="readiness-bar-fill" style="width:${d.bikeReadiness}%;background:var(--ride)"></div></div><span class="readiness-pct">${d.bikeReadiness}%</span></div>
-        <div class="readiness-row"><span class="readiness-sport">Run</span><div class="readiness-bar-bg"><div class="readiness-bar-fill" style="width:${d.runReadiness}%;background:var(--run)"></div></div><span class="readiness-pct">${d.runReadiness}%</span></div>
-      </div>
-    </div>
-    <div class="section">
       <div class="section-label">Today's insights</div>
-      <div class="insights-stack">${insightCards}</div>
-    </div>
-    <div class="app-footer">Last updated ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} · BRB Training</div>`;
-  updateRaceCountdowns();
+      <div class="insights-stack">${window._insightCardsHtml}</div>
+    </div>`;
+
+  content.style.display = 'block';
+  icon.textContent = '▲';
+  label.textContent = 'Hide AI Insights';
 }
 
 function showError(msg) {
