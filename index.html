@@ -782,7 +782,10 @@ body {
         <span class="nav-icon">⚖️</span>Stats
       </button>
     </nav>
-    <div class="drawer-footer">BRB Training · Track. Train. Triumph.</div>
+    <div class="drawer-footer">
+      <div>BRB Training &middot; Track. Train. Triumph.</div>
+      <div id="import-history-btn" onclick="importFullHistory()" style="margin-top:8px;color:var(--tri);cursor:pointer;text-decoration:underline;font-size:11px">Import full Strava history</div>
+    </div>
   </div>
 
   <div class="app-header">
@@ -873,10 +876,7 @@ body {
         <!-- Totals bar -->
         <div id="act-totals" class="act-totals-bar"></div>
 
-        <button class="add-race-btn" id="import-history-btn" style="margin-bottom:16px;font-size:12px" onclick="importFullHistory()">
-          &#128229; Import full Strava history
-        </button>
-        <div id="import-status" style="font-size:11px;color:var(--muted);margin-bottom:16px;text-align:center"></div>
+        <div id="import-status" style="font-size:11px;color:var(--muted);margin-bottom:8px;text-align:center"></div>
 
         <div class="act-list" id="act-list">
           <div class="loading-state">
@@ -2952,12 +2952,16 @@ function setTotalsRange(range) {
 async function importFullHistory() {
   const btn = document.getElementById('import-history-btn');
   const status = document.getElementById('import-status');
-  btn.disabled = true;
+  if (btn.dataset.importing === 'true') return; // prevent double-tap
+  btn.dataset.importing = 'true';
+  btn.style.opacity = '0.5';
+  btn.style.pointerEvents = 'none';
   btn.textContent = 'Importing...';
+  switchTab('activities');
 
   try {
     const token = await getValidToken();
-    if (!token) { status.textContent = 'Strava session expired. Reconnect first.'; btn.disabled = false; btn.textContent = '📥 Import full Strava history'; return; }
+    if (!token) { status.textContent = 'Strava session expired. Reconnect first.'; btn.dataset.importing = 'false'; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; btn.textContent = 'Import full Strava history'; return; }
 
     let allFetched = [];
     let page = 1;
@@ -3011,8 +3015,10 @@ async function importFullHistory() {
     console.error('Import error:', e);
   }
 
-  btn.disabled = false;
-  btn.textContent = '📥 Import full Strava history';
+  btn.dataset.importing = 'false';
+  btn.style.opacity = '1';
+  btn.style.pointerEvents = 'auto';
+  btn.textContent = 'Import full Strava history';
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
