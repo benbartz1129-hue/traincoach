@@ -1022,6 +1022,49 @@ body {
       </div>
     </div>
 
+    <!-- SPORT DETAIL -->
+    <div class="page" id="page-sport-detail">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:20px">
+          <div>
+            <div class="date-greeting" style="font-size:16px" id="sport-detail-title">Sport Analysis</div>
+            <div class="date-sub" id="sport-detail-sub">Recent activity breakdown</div>
+          </div>
+          <button class="refresh-btn" onclick="switchTab('dashboard')" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Back</button>
+        </div>
+
+        <!-- Summary metrics -->
+        <div class="metrics-grid" id="sport-detail-metrics" style="margin-bottom:20px"></div>
+
+        <!-- Trend chart -->
+        <div class="section-label" id="sport-detail-chart-label">Pace trend</div>
+        <div class="card" style="padding:14px 16px;margin-bottom:20px">
+          <div style="display:flex;gap:8px;margin-bottom:12px" id="sport-detail-range-btns">
+            <button class="filter-btn active" onclick="setSportDetailRange(30,this)">30d</button>
+            <button class="filter-btn" onclick="setSportDetailRange(90,this)">90d</button>
+            <button class="filter-btn" onclick="setSportDetailRange(365,this)">1yr</button>
+            <button class="filter-btn" onclick="setSportDetailRange(0,this)">All</button>
+          </div>
+          <div style="position:relative;height:180px">
+            <canvas id="sport-detail-chart" role="img" aria-label="Sport trend chart"></canvas>
+          </div>
+          <div id="sport-detail-chart-empty" style="display:none;text-align:center;padding:2rem;font-size:12px;color:var(--dim)">
+            Not enough data yet for this chart.
+          </div>
+        </div>
+
+        <!-- AI Insights button -->
+        <button class="add-race-btn" id="sport-detail-ai-btn" style="margin-bottom:16px" onclick="generateSportInsights()">
+          ✨ Generate AI Insights
+        </button>
+        <div id="sport-detail-ai-content" style="display:none;margin-bottom:20px"></div>
+
+        <!-- Recent activities list -->
+        <div class="section-label">Recent activities</div>
+        <div class="act-list" id="sport-detail-list"></div>
+      </div>
+    </div>
+
     <!-- LOAD TRACKING -->
     <div class="page" id="page-load">
       <div class="page-inner">
@@ -1541,9 +1584,9 @@ function renderDashboard(d) {
     <div class="section">
       <div class="section-label">This week</div>
       <div class="metrics-grid">
-        <div class="metric-card swim"><div class="metric-label">Swim</div><div class="metric-value">${(d.weekSwimMi||0).toFixed(1)}<span>mi</span></div><div class="metric-sub">target 1.2 mi/wk</div></div>
-        <div class="metric-card bike"><div class="metric-label">Bike</div><div class="metric-value">${(d.weekBikeMi||0).toFixed(1)}<span>mi</span></div><div class="metric-sub">target 25 mi/wk</div></div>
-        <div class="metric-card run"><div class="metric-label">Run</div><div class="metric-value">${(d.weekRunMi||0).toFixed(1)}<span>mi</span></div><div class="metric-sub">target 15 mi/wk</div></div>
+        <div class="metric-card swim" onclick="openSportDetail('Swim')" style="cursor:pointer"><div class="metric-label">Swim <span style="font-size:9px;color:var(--tri)">↗</span></div><div class="metric-value">${(d.weekSwimMi||0).toFixed(1)}<span>mi</span></div><div class="metric-sub">target 1.2 mi/wk</div></div>
+        <div class="metric-card bike" onclick="openSportDetail('Ride')" style="cursor:pointer"><div class="metric-label">Bike <span style="font-size:9px;color:var(--tri)">↗</span></div><div class="metric-value">${(d.weekBikeMi||0).toFixed(1)}<span>mi</span></div><div class="metric-sub">target 25 mi/wk</div></div>
+        <div class="metric-card run" onclick="openSportDetail('Run')" style="cursor:pointer"><div class="metric-label">Run <span style="font-size:9px;color:var(--tri)">↗</span></div><div class="metric-value">${(d.weekRunMi||0).toFixed(1)}<span>mi</span></div><div class="metric-sub">target 15 mi/wk</div></div>
         <div class="metric-card load" onclick="switchTab('load')" style="cursor:pointer">
           <div class="metric-label">TLS Score <span style="font-size:9px;color:var(--tri)">↗ details</span></div>
           <div class="load-badge" style="color:${loadColors[d.weeklyLoad]||'var(--ok)'};font-size:18px;font-weight:500" id="tls-score-badge">${calcTLS(d.weekSwimMi||0,d.weekRunMi||0,d.weekBikeMi||0).toFixed(1)}</div>
@@ -3457,6 +3500,237 @@ function renderTaperBanner(race) {
           </div>`).join('')}
       </div>
     </div>`;
+}
+
+
+// ── SPORT DETAIL PAGE ─────────────────────────────────────────────────────
+let currentSportDetail = null;
+let sportDetailRangeDays = 30;
+let sportDetailChartInstance = null;
+
+const SPORT_LABELS = { Run: 'Run', Ride: 'Bike', Swim: 'Swim' };
+const SPORT_COLORS = { Run: 'var(--run)', Ride: 'var(--ride)', Swim: 'var(--swim)' };
+const SPORT_EMOJI_MAP = { Run: '🏃', Ride: '🚴', Swim: '🏊' };
+
+function openSportDetail(sportType) {
+  currentSportDetail = sportType;
+  sportDetailRangeDays = 30;
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-sport-detail').classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  currentTab = 'sport-detail';
+
+  document.getElementById('sport-detail-title').textContent = SPORT_EMOJI_MAP[sportType] + ' ' + SPORT_LABELS[sportType] + ' Analysis';
+  document.getElementById('sport-detail-sub').textContent = 'Recent ' + SPORT_LABELS[sportType].toLowerCase() + ' activity breakdown';
+  document.getElementById('sport-detail-chart-label').textContent = sportType === 'Run' ? 'Pace trend' : sportType === 'Ride' ? 'Speed trend' : 'Pace trend';
+
+  // Reset AI insights panel
+  document.getElementById('sport-detail-ai-content').style.display = 'none';
+  document.getElementById('sport-detail-ai-content').innerHTML = '';
+  document.getElementById('sport-detail-ai-btn').textContent = '✨ Generate AI Insights';
+  document.getElementById('sport-detail-ai-btn').disabled = false;
+
+  // Reset range buttons
+  document.querySelectorAll('#sport-detail-range-btns .filter-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+
+  renderSportDetailMetrics();
+  renderSportDetailChart();
+  renderSportDetailList();
+}
+
+function getSportActivities(sportType, rangeDays) {
+  let acts = allActivities.filter(a => a.type === sportType && a.distance > 0);
+  if (rangeDays > 0) {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - rangeDays);
+    acts = acts.filter(a => new Date(a.start_date_local) >= cutoff);
+  }
+  return acts.sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+}
+
+function renderSportDetailMetrics() {
+  const sportType = currentSportDetail;
+  const acts = getSportActivities(sportType, sportDetailRangeDays);
+  const allTimeActs = getSportActivities(sportType, 0);
+
+  const totalMi = acts.reduce((s,a) => s + mToMi(a.distance), 0);
+  const totalSec = acts.reduce((s,a) => s + (a.moving_time||0), 0);
+  const count = acts.length;
+  const avgPaceSec = totalMi > 0 ? totalSec / totalMi : 0;
+
+  function formatPace(secPerMi) {
+    if (!secPerMi) return '—';
+    const m = Math.floor(secPerMi / 60);
+    const s = Math.round(secPerMi % 60);
+    return m + ':' + String(s).padStart(2,'0');
+  }
+
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const timeStr = h > 0 ? h + 'h ' + m + 'm' : m + 'm';
+
+  document.getElementById('sport-detail-metrics').innerHTML = `
+    <div class="metric-card ${sportType==='Ride'?'bike':sportType.toLowerCase()}">
+      <div class="metric-label">Activities</div>
+      <div class="metric-value" style="font-size:20px">${count}</div>
+      <div class="metric-sub">last ${sportDetailRangeDays || 'all'} ${sportDetailRangeDays ? 'days' : 'time'}</div>
+    </div>
+    <div class="metric-card ${sportType==='Ride'?'bike':sportType.toLowerCase()}">
+      <div class="metric-label">Distance</div>
+      <div class="metric-value" style="font-size:20px">${totalMi.toFixed(1)}<span>mi</span></div>
+      <div class="metric-sub">total</div>
+    </div>
+    <div class="metric-card ${sportType==='Ride'?'bike':sportType.toLowerCase()}">
+      <div class="metric-label">Time</div>
+      <div class="metric-value" style="font-size:20px">${timeStr}</div>
+      <div class="metric-sub">total</div>
+    </div>
+    <div class="metric-card ${sportType==='Ride'?'bike':sportType.toLowerCase()}">
+      <div class="metric-label">${sportType === 'Ride' ? 'Avg Speed' : 'Avg Pace'}</div>
+      <div class="metric-value" style="font-size:20px">${sportType === 'Ride' ? (totalSec>0 ? (totalMi/(totalSec/3600)).toFixed(1) : '—') : formatPace(avgPaceSec)}</div>
+      <div class="metric-sub">${sportType === 'Ride' ? 'mph' : '/mi'}</div>
+    </div>`;
+}
+
+function setSportDetailRange(days, btn) {
+  sportDetailRangeDays = days;
+  document.querySelectorAll('#sport-detail-range-btns .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSportDetailMetrics();
+  renderSportDetailChart();
+  renderSportDetailList();
+}
+
+function renderSportDetailChart() {
+  const sportType = currentSportDetail;
+  const canvas = document.getElementById('sport-detail-chart');
+  const empty = document.getElementById('sport-detail-chart-empty');
+  if (!canvas) return;
+
+  let acts = getSportActivities(sportType, sportDetailRangeDays)
+    .slice().sort((a,b) => new Date(a.start_date_local) - new Date(b.start_date_local));
+
+  // Filter outliers for run pace
+  if (sportType === 'Run') {
+    acts = acts.filter(a => {
+      const mi = mToMi(a.distance);
+      const paceSec = a.moving_time / mi;
+      return paceSec >= 240 && paceSec <= 900;
+    });
+  }
+
+  if (!acts.length) {
+    canvas.style.display = 'none';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  canvas.style.display = 'block';
+  if (empty) empty.style.display = 'none';
+
+  const labels = acts.map(a => new Date(a.start_date_local).toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+
+  let values, yLabel, formatFn;
+  if (sportType === 'Ride') {
+    values = acts.map(a => +((mToMi(a.distance) / (a.moving_time/3600))).toFixed(1));
+    yLabel = 'mph';
+    formatFn = v => v.toFixed(1) + ' mph';
+  } else {
+    values = acts.map(a => +(a.moving_time / mToMi(a.distance) / 60).toFixed(2));
+    yLabel = 'min/mi';
+    formatFn = v => { const m=Math.floor(v), s=Math.round((v-m)*60); return m+':'+String(s).padStart(2,'0')+' /mi'; };
+  }
+
+  const n = values.length;
+  const xMean = (n-1)/2;
+  const yMean = values.reduce((s,v)=>s+v,0)/n;
+  const slope = values.reduce((s,v,i)=>s+(i-xMean)*(v-yMean),0) / values.reduce((s,_,i)=>s+(i-xMean)**2, 0.001);
+  const intercept = yMean - slope * xMean;
+  const trendData = values.map((_,i) => +(intercept + slope*i).toFixed(2));
+
+  if (sportDetailChartInstance) { sportDetailChartInstance.destroy(); sportDetailChartInstance = null; }
+
+  sportDetailChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: yLabel, data: values, borderColor: SPORT_COLORS[sportType], backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1.5, pointRadius: acts.length>40?0:3, pointBackgroundColor: SPORT_COLORS[sportType], tension: 0.25, fill: true, order: 2 },
+        { label: 'Trend', data: trendData, borderColor: 'rgba(240,160,80,0.7)', borderWidth: 2, borderDash:[4,3], pointRadius: 0, tension: 0, fill: false, order: 1 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => formatFn(ctx.parsed.y) } } },
+      scales: {
+        x: { ticks: { font:{size:10}, maxRotation:45, autoSkip:true, maxTicksLimit:8 }, grid:{display:false} },
+        y: { reverse: sportType !== 'Ride', ticks: { font:{size:10}, callback: v => formatFn(v) }, grid:{color:'rgba(128,128,128,0.08)'} }
+      }
+    }
+  });
+}
+
+function renderSportDetailList() {
+  const sportType = currentSportDetail;
+  const acts = getSportActivities(sportType, sportDetailRangeDays);
+  const list = document.getElementById('sport-detail-list');
+
+  if (!acts.length) { list.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:13px">No activities in this range</div>'; return; }
+
+  list.innerHTML = acts.map(a => {
+    const mi = mToMi(a.distance);
+    const date = new Date(a.start_date_local).toLocaleDateString('en-US', {weekday:'short',month:'short',day:'numeric'});
+    return `<div class="act-item">
+      <div class="act-icon ${sportType}">${SPORT_EMOJI_MAP[sportType]}</div>
+      <div class="act-body">
+        <div class="act-name">${a.name}</div>
+        <div class="act-date">${date}</div>
+        <div class="act-stats">
+          ${a.moving_time ? `<div class="act-stat"><strong>${secToTime(a.moving_time)}</strong></div>` : ''}
+          ${a.total_elevation_gain > 5 ? `<div class="act-stat">↑<strong>${Math.round(a.total_elevation_gain*3.281)}ft</strong></div>` : ''}
+          ${a.kudos_count > 0 ? `<div class="act-stat" style="color:var(--mar)">♥ <strong>${a.kudos_count}</strong></div>` : ''}
+        </div>
+      </div>
+      <div class="act-right"><div class="act-dist">${mi.toFixed(1)}<span>mi</span></div></div>
+    </div>`;
+  }).join('');
+}
+
+async function generateSportInsights() {
+  const sportType = currentSportDetail;
+  const btn = document.getElementById('sport-detail-ai-btn');
+  const content = document.getElementById('sport-detail-ai-content');
+
+  btn.disabled = true;
+  btn.textContent = 'Analyzing...';
+
+  try {
+    const acts = getSportActivities(sportType, sportDetailRangeDays).slice(0, 20);
+    const summary = acts.map(a => {
+      const mi = mToMi(a.distance);
+      const date = new Date(a.start_date_local).toISOString().split('T')[0];
+      return `${date}: ${mi.toFixed(1)}mi in ${secToTime(a.moving_time)}`;
+    }).join('\n');
+
+    const triDays = daysUntil(TRI_DATE), marDays = daysUntil(MAR_DATE);
+    const reply = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 500,
+      system: `You are an expert triathlon and marathon coach. Analyze the athlete's recent ${SPORT_LABELS[sportType]} activities. Olympic Tri in ${triDays} days, Chicago Marathon in ${marDays} days. Be specific, reference actual numbers from the data, and give 2-3 concise actionable observations. Keep it under 100 words total. Use miles not km.`,
+      messages: [{ role: 'user', content: `Recent ${SPORT_LABELS[sportType]} activities:\n${summary}\n\nWhat patterns or recommendations do you see?` }]
+    });
+
+    content.innerHTML = `<div class="card" style="padding:14px 16px;border-left:3px solid var(--tri)">
+      <div style="font-size:12px;color:var(--text);line-height:1.7">${reply.replace(/\n/g,'<br>')}</div>
+    </div>`;
+    content.style.display = 'block';
+    btn.style.display = 'none';
+  } catch(e) {
+    content.innerHTML = `<div class="card" style="padding:14px 16px;text-align:center;font-size:12px;color:var(--warn)">Could not generate insights. Try again.</div>`;
+    content.style.display = 'block';
+    console.error('Sport insights error:', e);
+  }
+
+  btn.disabled = false;
+  btn.textContent = '✨ Generate AI Insights';
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
