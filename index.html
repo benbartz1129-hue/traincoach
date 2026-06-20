@@ -2861,13 +2861,13 @@ function renderStatsPage() {
 
   // History table (newest first)
   const table = document.getElementById('weight-log-table');
-  const sorted = [...weightLog].reverse();
-  let prev = null;
-  table.innerHTML = sorted.map(e => {
-    const diff = prev !== null ? (e.value - prev).toFixed(1) : null;
+  const sorted = [...weightLog].reverse(); // newest first
+  table.innerHTML = sorted.map((e, i) => {
+    // Compare against the chronologically previous entry (next item in this newest-first array)
+    const prevEntry = sorted[i + 1];
+    const diff = prevEntry ? (e.value - prevEntry.value).toFixed(1) : null;
     const diffColor = diff > 0 ? 'var(--warn)' : diff < 0 ? 'var(--ok)' : 'var(--dim)';
     const diffStr = diff !== null ? (diff > 0 ? '+' : '') + diff : '—';
-    prev = e.value;
     const d = new Date(e.date + 'T12:00:00');
     const label = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
     return `<div class="weight-log-row">
