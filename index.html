@@ -3332,7 +3332,6 @@ function renderPaceChart() {
       scales: {
         x: { ticks: { font:{size:10}, maxRotation:45, autoSkip:true, maxTicksLimit:8 }, grid:{display:false} },
         y: {
-          reverse: true, // faster pace (lower number) shows higher on chart
           ticks: { font:{size:10}, callback: v => formatPace(v) },
           grid: { color: 'rgba(128,128,128,0.08)' }
         }
@@ -3663,7 +3662,7 @@ function renderSportDetailChart() {
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => formatFn(ctx.parsed.y) } } },
       scales: {
         x: { ticks: { font:{size:10}, maxRotation:45, autoSkip:true, maxTicksLimit:8 }, grid:{display:false} },
-        y: { reverse: sportType !== 'Ride', ticks: { font:{size:10}, callback: v => formatFn(v) }, grid:{color:'rgba(128,128,128,0.08)'} }
+        y: { ticks: { font:{size:10}, callback: v => formatFn(v) }, grid:{color:'rgba(128,128,128,0.08)'} }
       }
     }
   });
