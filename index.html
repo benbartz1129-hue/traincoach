@@ -697,6 +697,46 @@ body {
   text-align: center; min-height: 14px;
 }
 
+/* ── TAPER MODE BANNER ── */
+.taper-banner {
+  background: linear-gradient(135deg, rgba(240,160,80,0.12), rgba(232,112,112,0.08));
+  border: 1px solid var(--mar-border);
+  border-radius: 14px; padding: 16px;
+  margin-bottom: 20px;
+}
+.taper-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 8px;
+}
+.taper-phase {
+  font-size: 10px; font-family: var(--font-display); font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--mar);
+  margin-bottom: 4px;
+}
+.taper-race-name {
+  font-family: var(--font-display); font-size: 17px; font-weight: 700;
+  letter-spacing: -0.01em; color: var(--text);
+}
+.taper-countdown { text-align: right; flex-shrink: 0; }
+.taper-days {
+  font-family: var(--font-display); font-size: 32px; font-weight: 800;
+  letter-spacing: -0.03em; color: var(--mar); line-height: 1;
+}
+.taper-days-label {
+  font-size: 10px; font-family: var(--font-display); font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+}
+.taper-meta {
+  font-size: 12px; color: var(--muted); margin-bottom: 12px;
+  padding-bottom: 12px; border-bottom: 1px solid rgba(240,160,80,0.2);
+}
+.taper-checklist { display: flex; flex-direction: column; gap: 8px; }
+.taper-item {
+  display: flex; align-items: flex-start; gap: 10px;
+}
+.taper-item-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; line-height: 1.4; }
+.taper-item-text { font-size: 12px; color: var(--text); line-height: 1.5; }
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -1489,11 +1529,15 @@ function renderDashboard(d) {
   window._weekCellsHtml = weekCells;
   window._insightCardsHtml = insightCards;
 
-  document.getElementById('dashboard-content').innerHTML = `
+  const taperRace = getActiveTaperRace();
+  const bannerHtml = taperRace ? renderTaperBanner(taperRace) : `
     <div class="date-banner" onclick="scrollToRaces()" style="cursor:pointer">
       <div><div class="date-greeting">${getGreeting()}</div><div class="date-sub">${new Date().toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})}</div></div>
       <div class="date-races" id="banner-races">${buildBannerRaces()}</div>
-    </div>
+    </div>`;
+
+  document.getElementById('dashboard-content').innerHTML = `
+    ${bannerHtml}
     <div class="section">
       <div class="section-label">This week</div>
       <div class="metrics-grid">
@@ -3303,6 +3347,116 @@ function quickLogWeight() {
   // Brief success flash
   card.style.borderColor = 'var(--tri)';
   setTimeout(() => { card.style.borderColor = ''; }, 800);
+}
+
+
+// ── TAPER MODE ────────────────────────────────────────────────────────────
+function getActiveTaperRace() {
+  // Find the closest upcoming race within 14 days
+  const upcoming = races
+    .filter(r => daysUntil(new Date(r.date)) >= 0 && daysUntil(new Date(r.date)) <= 14)
+    .sort((a,b) => new Date(a.date) - new Date(b.date));
+  return upcoming.length ? upcoming[0] : null;
+}
+
+function getTaperChecklist(race, daysOut) {
+  const isTri = race.type === 'triathlon';
+
+  if (daysOut === 0) {
+    return {
+      phase: 'RACE DAY',
+      items: [
+        { icon: '⏰', text: 'Eat your usual pre-race breakfast 2-3hrs before start' },
+        { icon: '🎽', text: 'Lay out race kit the night before — check it twice' },
+        { icon: '💧', text: 'Sip water steadily, avoid chugging right before start' },
+        { icon: '🧠', text: 'Trust your training — today is just execution' },
+        isTri ? { icon: '🚲', text: 'Arrive early for transition setup and a short warmup' } : { icon: '🏃', text: 'Light 5-10min jog + dynamic stretches as warmup' }
+      ]
+    };
+  }
+  if (daysOut === 1) {
+    return {
+      phase: 'FINAL PREP',
+      items: [
+        { icon: '🎒', text: 'Pack your race bag completely tonight' },
+        { icon: '🍝', text: 'Carb-focused dinner, nothing new or risky' },
+        { icon: '😴', text: 'Get to bed on time — consistency matters more than extra hours' },
+        { icon: '📍', text: 'Confirm parking, start time, and packet pickup details' },
+        { icon: '🧘', text: 'Easy day — no workouts, just light movement if anything' }
+      ]
+    };
+  }
+  if (daysOut === 2) {
+    return {
+      phase: '2 DAYS OUT',
+      items: [
+        { icon: '🍚', text: 'Begin carb loading — increase carbs, keep fat/fiber moderate' },
+        { icon: '💧', text: 'Hydrate well today and tomorrow' },
+        { icon: '🛑', text: 'No hard efforts — short easy movement only' },
+        { icon: '🔋', text: 'Prioritize sleep the next two nights' }
+      ]
+    };
+  }
+  if (daysOut <= 4) {
+    return {
+      phase: 'SHARPEN',
+      items: [
+        { icon: '⚡', text: 'Short race-pace efforts okay — stay sharp, not tired' },
+        { icon: '🍚', text: 'Start increasing carbs, taper down fiber/fat' },
+        { icon: '😴', text: 'Protect your sleep — this is when fitness consolidates' },
+        { icon: '🎽', text: 'Test race-day kit on an easy session if you haven\'t already' }
+      ]
+    };
+  }
+  if (daysOut <= 7) {
+    return {
+      phase: 'TAPER WEEK',
+      items: [
+        { icon: '📉', text: 'Cut volume ~40-60% from peak week, keep some intensity' },
+        { icon: '🧠', text: 'Trust the taper — fatigue should be fading, not building' },
+        isTri ? { icon: '🔄', text: 'One short brick session is plenty this week' } : { icon: '🏃', text: 'Shorter runs with brief pickups, nothing exhausting' },
+        { icon: '🍽️', text: 'Maintain normal eating — save the carb load for race week' }
+      ]
+    };
+  }
+  // 8-14 days out
+  return {
+    phase: 'BEGIN TAPER',
+    items: [
+      { icon: '📉', text: 'Start reducing volume — keep intensity, cut total time' },
+      { icon: '🛌', text: 'Recovery quality matters as much as the work now' },
+      { icon: '📋', text: 'Review race logistics: travel, gear, nutrition plan' },
+      { icon: '🚫', text: 'Avoid new gear, new foods, or new routines this close in' }
+    ]
+  };
+}
+
+function renderTaperBanner(race) {
+  const daysOut = daysUntil(new Date(race.date));
+  const checklist = getTaperChecklist(race, daysOut);
+  const raceLabel = race.subtype + ' ' + (race.type === 'triathlon' ? 'Triathlon' : 'Run');
+
+  return `
+    <div class="taper-banner">
+      <div class="taper-header">
+        <div>
+          <div class="taper-phase">${checklist.phase}</div>
+          <div class="taper-race-name">${race.name}</div>
+        </div>
+        <div class="taper-countdown">
+          <div class="taper-days">${daysOut}</div>
+          <div class="taper-days-label">${daysOut === 1 ? 'day' : 'days'}</div>
+        </div>
+      </div>
+      <div class="taper-meta">${raceLabel}${race.goal ? ' · Goal: ' + race.goal : ''}</div>
+      <div class="taper-checklist">
+        ${checklist.items.map(item => `
+          <div class="taper-item">
+            <span class="taper-item-icon">${item.icon}</span>
+            <span class="taper-item-text">${item.text}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
