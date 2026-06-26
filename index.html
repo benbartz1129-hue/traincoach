@@ -1618,6 +1618,7 @@ function renderDashboard(d) {
         <div class="readiness-row"><span class="readiness-sport">Run</span><div class="readiness-bar-bg"><div class="readiness-bar-fill" style="width:${d.runReadiness}%;background:var(--run)"></div></div><span class="readiness-pct">${d.runReadiness}%</span></div>
       </div>
     </div>
+    ${renderBrickCard()}
     <div class="section" id="ai-insights-section">
       <button class="add-race-btn" id="ai-insights-toggle-btn" onclick="toggleAIInsights()" style="display:flex;align-items:center;justify-content:center;gap:8px">
         <span id="ai-insights-toggle-icon">✨</span>
@@ -3732,6 +3733,80 @@ async function generateSportInsights() {
   btn.textContent = '✨ Generate AI Insights';
 }
 
+
+// ── BRICK SESSION DETECTOR ───────────────────────────────────────────────
+// A brick = bike ride followed by a run within a short gap, same day
+function detectBrickSessions(acts, daysBack) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - daysBack);
+
+  const recent = acts
+    .filter(a => new Date(a.start_date_local) >= cutoff && (a.type === 'Ride' || a.type === 'Run') && a.distance > 0)
+    .sort((a,b) => new Date(a.start_date_local) - new Date(b.start_date_local));
+
+  const bricks = [];
+  for (let i = 0; i < recent.length - 1; i++) {
+    const a = recent[i];
+    const b = recent[i+1];
+    if (a.type === 'Ride' && b.type === 'Run') {
+      const aEnd = new Date(a.start_date_local).getTime() + (a.moving_time * 1000);
+      const bStart = new Date(b.start_date_local).getTime();
+      const gapMin = (bStart - aEnd) / 60000;
+      // Brick = run starts within 30 min of bike ending, same calendar day
+      const sameDay = a.start_date_local.split('T')[0] === b.start_date_local.split('T')[0];
+      if (sameDay && gapMin >= -2 && gapMin <= 30) {
+        bricks.push({ ride: a, run: b, gapMin: Math.max(0, Math.round(gapMin)), date: a.start_date_local.split('T')[0] });
+      }
+    }
+  }
+  return bricks;
+}
+
+function renderBrickCard() {
+  const bricks14 = detectBrickSessions(allActivities, 14);
+  const triRace = races.find(r => r.type === 'triathlon' && daysUntil(new Date(r.date)) >= 0);
+
+  // Only show this card if there's an upcoming triathlon — not relevant otherwise
+  if (!triRace) return '';
+
+  const count = bricks14.length;
+  const daysOut = daysUntil(new Date(triRace.date));
+
+  let status, color, message;
+  if (count === 0) {
+    status = 'No bricks yet';
+    color = 'var(--warn)';
+    message = daysOut <= 21
+      ? `No brick sessions in the last 14 days with ${daysOut} days to your tri — your legs need practice running off the bike. Try to fit at least one before race day.`
+      : `No brick sessions in the last 14 days. These become important as you approach race day — aim for 1-2 per week once you're within a month of your tri.`;
+  } else if (count === 1) {
+    status = '1 brick session';
+    color = 'var(--mar)';
+    message = `Nice — one brick in the last 14 days. ${daysOut <= 21 ? 'With ' + daysOut + ' days to go, try to fit in 1-2 more before race day.' : 'Keep building this habit as race day approaches.'}`;
+  } else {
+    status = count + ' brick sessions';
+    color = 'var(--ok)';
+    message = `Great consistency — ${count} brick sessions in the last 14 days. Your legs are getting used to the bike-to-run transition.`;
+  }
+
+  const latestBrick = bricks14[bricks14.length - 1];
+  const latestDetail = latestBrick
+    ? `Most recent: ${mToMi(latestBrick.ride.distance).toFixed(1)}mi ride → ${mToMi(latestBrick.run.distance).toFixed(1)}mi run (${latestBrick.gapMin}min transition)`
+    : '';
+
+  return `
+    <div class="section">
+      <div class="section-label">Brick sessions <span style="color:var(--dim)">(last 14 days)</span></div>
+      <div class="card" style="padding:14px 16px;border-left:3px solid ${color}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <div style="font-family:var(--font-display);font-size:15px;font-weight:700;color:${color}">${status}</div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6">${message}</div>
+        ${latestDetail ? `<div style="font-size:11px;color:var(--dim);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">${latestDetail}</div>` : ''}
+      </div>
+    </div>`;
+}
+
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
 const CACHE_KEY_ANALYSIS  = 'brb_last_analysis';
 const CACHE_KEY_ACTIVITIES = 'brb_last_activities';
@@ -3887,11 +3962,11 @@ async function init() {
       const el = document.getElementById('cal-plan-summary');
       if (el) el.textContent = upcoming + ' sessions planned. Open Coach to update your plan.';
     }
-    // Load from cache instantly, then refresh in background if data is older than 3 hours
+    // Load from cache instantly, then refresh in background if data is older than 8 hours
     const loaded = loadFromCache();
     const timestamp = localStorage.getItem(CACHE_KEY_TIMESTAMP);
     const ageHours = timestamp ? (Date.now() - new Date(timestamp)) / 3600000 : 999;
-    if (!loaded || ageHours > 3) {
+    if (!loaded || ageHours > 8) {
       await refreshData();
     }
     // Sync races, plan, weight and activity archive from KV in background
