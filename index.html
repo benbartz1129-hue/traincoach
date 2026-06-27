@@ -1,4 +1,4 @@
-const CF_ACCOUNT_ID = 'REPLACE_WITH_ACCOUNT_ID';
+const CF_ACCOUNT_ID = '23846f97f2d5dde9557f21aabbc3f3e9';
 const KV_NAMESPACE_ID = 'ce44f82dceff46a6bd16563a2f3a3b1c';
 const BASE = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${KV_NAMESPACE_ID}`;
 
