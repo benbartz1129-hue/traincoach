@@ -960,6 +960,7 @@ body {
           <button class="filter-btn" onclick="filterActivities('Swim', this)">🏊 Swims</button>
           <button class="filter-btn" onclick="filterActivities('Ride', this)">🚴 Rides</button>
           <button class="filter-btn" onclick="filterActivities('WeightTraining', this)">🏋️ Strength</button>
+          <button class="filter-btn" onclick="filterActivities('Bricks', this)">🔄 Bricks</button>
         </div>
         <!-- Totals bar -->
         <div id="act-totals" class="act-totals-bar"></div>
@@ -1285,7 +1286,7 @@ body {
             <div class="metric-sub">this week</div>
           </div>
           <div class="metric-card run">
-            <div class="metric-label">Last run</div>
+            <div class="metric-label">Last activity</div>
             <div class="metric-value" id="rec-last-run" style="font-size:16px">—</div>
             <div class="metric-sub" id="rec-last-run-sub"></div>
           </div>
@@ -1463,6 +1464,11 @@ function filterActivities(type, btn) {
 }
 
 function renderActivities(acts) {
+  if (activeFilter === 'Bricks') {
+    renderBrickActivities();
+    return;
+  }
+
   const filtered = activeFilter === 'all' ? acts : acts.filter(a => a.type === activeFilter);
   renderTotalsBar(filtered);
   const list = document.getElementById('act-list');
@@ -1487,6 +1493,50 @@ function renderActivities(acts) {
       </div>
       <div class="act-right">
         ${hasDist ? `<div class="act-dist">${mi.toFixed(1)}<span>mi</span></div>` : '<div class="act-dist" style="font-size:13px;color:var(--muted)">—</div>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderBrickActivities() {
+  const bricks = detectBrickSessions(allActivities, 365); // full archive
+  const list = document.getElementById('act-list');
+  const totalsEl = document.getElementById('act-totals');
+  if (totalsEl) totalsEl.innerHTML = '';
+
+  if (!bricks.length) {
+    list.innerHTML = `<div style="text-align:center;padding:3rem;color:var(--muted);font-size:13px">
+      No brick sessions found yet.<br><br>
+      <span style="font-size:11px;color:var(--dim)">A brick is a bike ride followed by a run within 30 minutes, same day.</span>
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = bricks.slice().reverse().map(brick => {
+    const date = new Date(brick.date + 'T12:00:00').toLocaleDateString('en-US', {weekday:'short',month:'short',day:'numeric'});
+    const rideMi = mToMi(brick.ride.distance);
+    const runMi = mToMi(brick.run.distance);
+    return `<div class="act-item" style="flex-direction:column;align-items:stretch;gap:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="act-date" style="font-weight:600;color:var(--text)">${date}</div>
+        <span class="i-tag both">brick</span>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div class="act-icon Ride" style="flex-shrink:0">🚴</div>
+        <div class="act-body">
+          <div class="act-name">${brick.ride.name}</div>
+          <div class="act-stats"><div class="act-stat"><strong>${secToTime(brick.ride.moving_time)}</strong></div></div>
+        </div>
+        <div class="act-right"><div class="act-dist">${rideMi.toFixed(1)}<span>mi</span></div></div>
+      </div>
+      <div style="text-align:center;font-size:10px;color:var(--dim);font-family:var(--font-display);font-weight:600">↓ ${brick.gapMin}min transition ↓</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div class="act-icon Run" style="flex-shrink:0">🏃</div>
+        <div class="act-body">
+          <div class="act-name">${brick.run.name}</div>
+          <div class="act-stats"><div class="act-stat"><strong>${secToTime(brick.run.moving_time)}</strong></div></div>
+        </div>
+        <div class="act-right"><div class="act-dist">${runMi.toFixed(1)}<span>mi</span></div></div>
       </div>
     </div>`;
   }).join('');
@@ -1618,7 +1668,6 @@ function renderDashboard(d) {
         <div class="readiness-row"><span class="readiness-sport">Run</span><div class="readiness-bar-bg"><div class="readiness-bar-fill" style="width:${d.runReadiness}%;background:var(--run)"></div></div><span class="readiness-pct">${d.runReadiness}%</span></div>
       </div>
     </div>
-    ${renderBrickCard()}
     <div class="section" id="ai-insights-section">
       <button class="add-race-btn" id="ai-insights-toggle-btn" onclick="toggleAIInsights()" style="display:flex;align-items:center;justify-content:center;gap:8px">
         <span id="ai-insights-toggle-icon">✨</span>
@@ -2208,29 +2257,34 @@ function updateRecoveryMetrics() {
   if (!allActivities.length) return;
   const today = new Date(); today.setHours(0,0,0,0);
   const startOfWeek = new Date(today);
-  startOfWeek.setDate(today.getDate() - today.getDay() + (today.getDay()===0?-6:1));
+  startOfWeek.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
 
   const thisWeek = allActivities.filter(a => new Date(a.start_date_local) >= startOfWeek);
   const activeDays = new Set(thisWeek.map(a => a.start_date_local.split('T')[0])).size;
-  const weekDays = Math.min(7, Math.ceil((today - startOfWeek) / 86400000) + 1);
-  const restDays = Math.max(0, weekDays - activeDays);
+  const daysSoFarThisWeek = Math.floor((today - startOfWeek) / 86400000) + 1;
+  const restDays = Math.max(0, daysSoFarThisWeek - activeDays);
 
-  // Weekly load
-  const totalMi = thisWeek.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
-  const load = totalMi > 30 ? 'very high' : totalMi > 20 ? 'high' : totalMi > 10 ? 'moderate' : 'low';
+  // Weekly load — use the same TLS formula as the rest of the app (swim x4, run x1, bike x0.25)
+  const swimMi = thisWeek.filter(a => a.type === 'Swim').reduce((s,a) => s + mToMi(a.distance), 0);
+  const runMi  = thisWeek.filter(a => a.type === 'Run').reduce((s,a) => s + mToMi(a.distance), 0);
+  const bikeMi = thisWeek.filter(a => a.type === 'Ride' && a.distance > 0).reduce((s,a) => s + mToMi(a.distance), 0);
+  const tls = calcTLS(swimMi, runMi, bikeMi);
+
+  const load = tls > 35 ? 'very high' : tls > 22 ? 'high' : tls > 10 ? 'moderate' : 'low';
   const loadColors = { low:'var(--ok)', moderate:'var(--mar)', high:'var(--warn)', 'very high':'var(--warn)' };
 
   const loadEl = document.getElementById('rec-load');
   if (loadEl) { loadEl.textContent = load; loadEl.style.color = loadColors[load]; }
 
-  // Last run
-  const lastRun = allActivities.find(a => a.type === 'Run');
+  // Last activity of ANY type (not just run) — more useful for recovery context
+  const lastAct = allActivities[0]; // already sorted newest-first
   const lastRunEl = document.getElementById('rec-last-run');
   const lastRunSub = document.getElementById('rec-last-run-sub');
-  if (lastRun && lastRunEl) {
-    const daysAgo = Math.floor((today - new Date(lastRun.start_date_local)) / 86400000);
-    lastRunEl.textContent = mToMi(lastRun.distance).toFixed(1) + 'mi';
-    if (lastRunSub) lastRunSub.textContent = daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : daysAgo + 'd ago';
+  if (lastAct && lastRunEl) {
+    const daysAgo = Math.floor((today - new Date(lastAct.start_date_local)) / 86400000);
+    const mi = mToMi(lastAct.distance);
+    lastRunEl.textContent = (mi > 0.1 ? mi.toFixed(1) + 'mi' : secToTime(lastAct.moving_time)) + ' ' + sportEmoji(lastAct.type);
+    if (lastRunSub) lastRunSub.textContent = (daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : daysAgo + 'd ago') + ' \u00b7 ' + lastAct.type;
   }
 
   const restEl = document.getElementById('rec-rest-days');
@@ -2249,19 +2303,40 @@ async function generateRecovery() {
   document.getElementById('recovery-tips').style.display = 'none';
 
   try {
-    const recentActs = allActivities.slice(0, 10).map(a => {
+    const recentActs = allActivities.slice(0, 15).map(a => {
       const d = new Date(a.start_date_local);
       const daysAgo = Math.floor((Date.now() - d) / 86400000);
-      return daysAgo + 'd ago: ' + a.type + ' ' + mToMi(a.distance).toFixed(1) + 'mi' + (a.moving_time ? ' ' + secToTime(a.moving_time) : '');
+      return daysAgo + 'd ago: ' + a.type + ' ' + mToMi(a.distance).toFixed(1) + 'mi' + (a.moving_time ? ' ' + secToTime(a.moving_time) : '') + (a.total_elevation_gain > 30 ? ' +' + Math.round(a.total_elevation_gain*3.281) + 'ft climb' : '');
     }).join(', ');
+
+    // Weekly load context (same TLS calc as dashboard/recovery metrics)
+    const today = new Date(); today.setHours(0,0,0,0);
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
+    const thisWeek = allActivities.filter(a => new Date(a.start_date_local) >= startOfWeek);
+    const swimMi = thisWeek.filter(a=>a.type==='Swim').reduce((s,a)=>s+mToMi(a.distance),0);
+    const runMi = thisWeek.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
+    const bikeMi = thisWeek.filter(a=>a.type==='Ride'&&a.distance>0).reduce((s,a)=>s+mToMi(a.distance),0);
+    const tls = calcTLS(swimMi, runMi, bikeMi);
+    const weekSummary = `This week so far: ${swimMi.toFixed(1)}mi swim, ${runMi.toFixed(1)}mi run, ${bikeMi.toFixed(1)}mi bike (TLS ${tls.toFixed(1)})`;
+
+    // Upcoming race context
+    const upcomingRace = races.filter(r => daysUntil(new Date(r.date)) >= 0).sort((a,b)=>new Date(a.date)-new Date(b.date))[0];
+    const raceContext = upcomingRace ? `Upcoming: ${upcomingRace.name} (${upcomingRace.subtype} ${upcomingRace.type}) in ${daysUntil(new Date(upcomingRace.date))} days.` : 'No upcoming race scheduled.';
+
+    // Tomorrow's planned session if any
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate()+1);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const tomorrowPlan = trainingPlan.find(p => p.date === tomorrowStr);
+    const tomorrowContext = tomorrowPlan ? `Tomorrow's planned session: ${tomorrowPlan.sport} - ${tomorrowPlan.title}.` : '';
 
     const text = await callClaude({
       model: 'claude-sonnet-4-6', max_tokens: 2500,
-      system: `You are a triathlon and running recovery coach. Generate a personalized 5-10 minute stretching routine. Keep each field SHORT — under 20 words per string.
+      system: `You are a triathlon and running recovery coach. Generate a personalized 5-10 minute stretching routine based on the athlete's FULL recent training context \u2014 not just the last activity. Consider: cumulative fatigue across all recent sessions, which muscle groups are most stressed given the mix of sports, weekly training load, and what's coming up next (race proximity, tomorrow's planned session). Keep each field SHORT \u2014 under 20 words per string.
 Return ONLY valid JSON, no markdown, no special characters, no apostrophes in values (use plain text only):
-{"intro":"1 short sentence","totalTime":"8 min","stretches":[{"name":"name","duration":"30 sec","focus":"quads","detail":"Short instruction under 15 words.","why":"Short reason under 12 words."}],"tips":[{"title":"title","detail":"Short tip."},{"title":"title","detail":"Short tip."},{"title":"title","detail":"Short tip."}]}
-Include exactly 6 stretches. No curly quotes, no apostrophes, no em-dashes — plain ASCII only.`,
-      messages: [{ role: 'user', content: `Recent training (last 10 activities): ${recentActs}. Generate recovery stretches.` }]
+{"intro":"1 short sentence referencing their specific recent training pattern","totalTime":"8 min","stretches":[{"name":"name","duration":"30 sec","focus":"quads","detail":"Short instruction under 15 words.","why":"Short reason under 12 words."}],"tips":[{"title":"title","detail":"Short tip."},{"title":"title","detail":"Short tip."},{"title":"title","detail":"Short tip."}]}
+Include exactly 6 stretches, prioritized by what this athlete's recent training actually stressed. No curly quotes, no apostrophes, no em-dashes \u2014 plain ASCII only.`,
+      messages: [{ role: 'user', content: `Recent training (most recent 15 activities): ${recentActs}\n\n${weekSummary}\n\n${raceContext} ${tomorrowContext}\n\nGenerate recovery stretches tailored to this full picture, not just the most recent workout.` }]
     });
 
     // Clean and parse
