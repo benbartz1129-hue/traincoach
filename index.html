@@ -737,6 +737,38 @@ body {
 .taper-item-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; line-height: 1.4; }
 .taper-item-text { font-size: 12px; color: var(--text); line-height: 1.5; }
 
+/* ── ACTIVITY NOTES ── */
+.act-item-wrap { margin-bottom: 10px; }
+.act-item-wrap .act-item { margin-bottom: 0; }
+.act-note-indicator { font-size: 11px; opacity: 0.8; }
+.act-note-preview {
+  font-size: 11px; color: var(--tri); margin-top: 4px;
+  font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.act-note-editor {
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 0 0 14px 14px; margin-top: -2px;
+  padding: 10px 14px 12px; border-top: none;
+}
+.act-note-input {
+  width: 100%; background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 8px; color: var(--text); padding: 8px 10px;
+  font-family: var(--font-mono); font-size: 13px; resize: none;
+  outline: none; margin-bottom: 8px;
+}
+.act-note-input:focus { border-color: var(--tri); }
+.act-note-actions { display: flex; justify-content: space-between; align-items: center; }
+.act-note-save {
+  background: var(--tri); color: #0a0a0f; border: none; border-radius: 8px;
+  padding: 6px 14px; font-family: var(--font-display); font-size: 11px;
+  font-weight: 700; cursor: pointer;
+}
+.act-note-delete {
+  background: none; color: var(--warn); border: 1px solid rgba(232,112,112,0.3);
+  border-radius: 8px; padding: 6px 14px; font-family: var(--font-display);
+  font-size: 11px; font-weight: 600; cursor: pointer;
+}
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -1479,20 +1511,31 @@ function renderActivities(acts) {
     const hasDist = mi > 0.1;
     const date = new Date(a.start_date_local).toLocaleDateString('en-US', {weekday:'short',month:'short',day:'numeric'});
     const typeClass = ['Run','Swim','Ride','WeightTraining'].includes(a.type) ? a.type : 'other';
-    return `<div class="act-item">
-      <div class="act-icon ${typeClass}">${sportEmoji(a.type)}</div>
-      <div class="act-body">
-        <div class="act-name">${a.name}</div>
-        <div class="act-date">${date}</div>
-        <div class="act-stats">
-          ${a.moving_time ? `<div class="act-stat"><strong>${secToTime(a.moving_time)}</strong></div>` : ''}
-          ${a.total_elevation_gain > 5 ? `<div class="act-stat">↑<strong>${Math.round(a.total_elevation_gain * 3.281)}ft</strong></div>` : ''}
-          ${a.calories ? `<div class="act-stat"><strong>${a.calories}</strong> cal</div>` : ''}
-          ${a.kudos_count > 0 ? `<div class="act-stat" style="color:var(--mar)">♥ <strong>${a.kudos_count}</strong></div>` : ''}
+    const note = activityNotes[a.id];
+    return `<div class="act-item-wrap">
+      <div class="act-item" onclick="toggleActivityNote(${a.id})" style="cursor:pointer">
+        <div class="act-icon ${typeClass}">${sportEmoji(a.type)}</div>
+        <div class="act-body">
+          <div class="act-name">${a.name}${note ? ' <span class="act-note-indicator">&#128221;</span>' : ''}</div>
+          <div class="act-date">${date}</div>
+          <div class="act-stats">
+            ${a.moving_time ? `<div class="act-stat"><strong>${secToTime(a.moving_time)}</strong></div>` : ''}
+            ${a.total_elevation_gain > 5 ? `<div class="act-stat">↑<strong>${Math.round(a.total_elevation_gain * 3.281)}ft</strong></div>` : ''}
+            ${a.calories ? `<div class="act-stat"><strong>${a.calories}</strong> cal</div>` : ''}
+            ${a.kudos_count > 0 ? `<div class="act-stat" style="color:var(--mar)">♥ <strong>${a.kudos_count}</strong></div>` : ''}
+          </div>
+          ${note ? `<div class="act-note-preview">${note}</div>` : ''}
+        </div>
+        <div class="act-right">
+          ${hasDist ? `<div class="act-dist">${mi.toFixed(1)}<span>mi</span></div>` : '<div class="act-dist" style="font-size:13px;color:var(--muted)">—</div>'}
         </div>
       </div>
-      <div class="act-right">
-        ${hasDist ? `<div class="act-dist">${mi.toFixed(1)}<span>mi</span></div>` : '<div class="act-dist" style="font-size:13px;color:var(--muted)">—</div>'}
+      <div class="act-note-editor" id="note-editor-${a.id}" style="display:none">
+        <textarea class="act-note-input" id="note-input-${a.id}" placeholder="Add a note... (e.g. felt great, knee tight, windy)" rows="2">${note || ''}</textarea>
+        <div class="act-note-actions">
+          ${note ? `<button class="act-note-delete" onclick="deleteActivityNote(${a.id})">Delete</button>` : '<span></span>'}
+          <button class="act-note-save" onclick="saveActivityNote(${a.id})">Save</button>
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -2590,6 +2633,13 @@ function ratioToBarPct(ratio) {
 let tlsChartInstance = null;
 
 function initLoadPage() {
+  if (!allActivities.length) {
+    document.getElementById('acwr-card').innerHTML = `<div class="loading-state" style="padding:2rem 1rem"><div class="loading-dots"><span></span><span></span><span></span></div><div class="loading-text">Loading your training data\u2026</div></div>`;
+    document.getElementById('tls-breakdown').innerHTML = '';
+    document.getElementById('tls-table').innerHTML = '';
+    return;
+  }
+
   const weeks = buildWeeklyTLS();
   if (!weeks.length) {
     document.getElementById('acwr-card').innerHTML = '<div style="padding:1rem;text-align:center;font-size:13px;color:var(--muted)">Sync Strava data to calculate your training load.</div>';
@@ -3057,6 +3107,12 @@ async function kvSyncAll() {
       localStorage.setItem('brb_weight_log', JSON.stringify(weightLog));
       changed = true;
       console.log('KV: updated weight log, count:', weightLog.length);
+    }
+    if (data.brb_activity_notes && typeof data.brb_activity_notes === 'object') {
+      activityNotes = data.brb_activity_notes;
+      localStorage.setItem('brb_activity_notes', JSON.stringify(activityNotes));
+      changed = true;
+      console.log('KV: updated activity notes, count:', Object.keys(activityNotes).length);
     }
 
     if (changed) {
@@ -3880,6 +3936,51 @@ function renderBrickCard() {
         ${latestDetail ? `<div style="font-size:11px;color:var(--dim);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">${latestDetail}</div>` : ''}
       </div>
     </div>`;
+}
+
+
+// ── ACTIVITY NOTES ────────────────────────────────────────────────────────
+const CACHE_KEY_NOTES = 'brb_activity_notes';
+let activityNotes = JSON.parse(localStorage.getItem(CACHE_KEY_NOTES) || '{}');
+// activityNotes = { "12345678": "felt great", "98765432": "knee tight" }
+
+function saveActivityNotesStorage() {
+  localStorage.setItem(CACHE_KEY_NOTES, JSON.stringify(activityNotes));
+  kvSet('brb_activity_notes', activityNotes);
+}
+
+function toggleActivityNote(activityId) {
+  // Close any other open editors first
+  document.querySelectorAll('.act-note-editor').forEach(el => {
+    if (el.id !== 'note-editor-' + activityId) el.style.display = 'none';
+  });
+  const editor = document.getElementById('note-editor-' + activityId);
+  if (!editor) return;
+  const isOpen = editor.style.display !== 'none';
+  editor.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    const input = document.getElementById('note-input-' + activityId);
+    if (input) { input.focus(); }
+  }
+}
+
+function saveActivityNote(activityId) {
+  const input = document.getElementById('note-input-' + activityId);
+  if (!input) return;
+  const text = input.value.trim();
+  if (text) {
+    activityNotes[activityId] = text;
+  } else {
+    delete activityNotes[activityId];
+  }
+  saveActivityNotesStorage();
+  renderActivities(allActivities);
+}
+
+function deleteActivityNote(activityId) {
+  delete activityNotes[activityId];
+  saveActivityNotesStorage();
+  renderActivities(allActivities);
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
