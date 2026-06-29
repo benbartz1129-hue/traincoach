@@ -769,6 +769,26 @@ body {
   font-size: 11px; font-weight: 600; cursor: pointer;
 }
 
+/* ── WELLNESS LOG ── */
+.wellness-input-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+.wellness-input-field { display: flex; flex-direction: column; gap: 5px; }
+.wellness-input-label {
+  font-size: 10px; font-family: var(--font-display); font-weight: 600;
+  letter-spacing: 0.05em; text-transform: uppercase; color: var(--dim); text-align: center;
+}
+.wellness-input-grid .form-input { text-align: center; font-size: 15px; }
+.wellness-log-row {
+  display: flex; align-items: center; padding: 10px 16px;
+  border-bottom: 1px solid var(--border); gap: 10px; font-size: 12px;
+}
+.wellness-log-row:last-child { border-bottom: none; }
+.wellness-log-date { color: var(--muted); flex: 1; font-family: var(--font-display); }
+.wellness-log-metric { text-align: center; min-width: 44px; }
+.wellness-log-metric-val { font-size: 13px; font-weight: 500; color: var(--text); }
+.wellness-log-metric-label { font-size: 8px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.04em; }
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -1253,6 +1273,78 @@ body {
         <!-- Weight log table -->
         <div class="section-label">History</div>
         <div class="card" style="padding:0;margin-bottom:20px;overflow:hidden" id="weight-log-table"></div>
+
+        <!-- ── WELLNESS LOG ── -->
+        <div class="section-label" style="margin-top:8px">Wellness log</div>
+        <div class="card" style="padding:14px 16px;margin-bottom:20px">
+          <div class="section-label" style="margin-bottom:10px">Log today's wellness</div>
+          <div class="wellness-input-grid">
+            <div class="wellness-input-field">
+              <div class="wellness-input-label">HRV (ms)</div>
+              <input class="form-input" id="hrv-input" type="number" step="1" min="0" max="300" placeholder="e.g. 52" />
+            </div>
+            <div class="wellness-input-field">
+              <div class="wellness-input-label">RHR (bpm)</div>
+              <input class="form-input" id="rhr-input" type="number" step="1" min="20" max="150" placeholder="e.g. 48" />
+            </div>
+            <div class="wellness-input-field">
+              <div class="wellness-input-label">Sleep (hrs)</div>
+              <input class="form-input" id="sleep-input" type="number" step="0.1" min="0" max="16" placeholder="e.g. 7.5" />
+            </div>
+          </div>
+          <button class="add-race-btn" style="margin-top:10px" onclick="logWellness()">Save Wellness</button>
+          <div id="wellness-save-msg" style="font-size:11px;color:var(--tri);margin-top:8px;min-height:16px;text-align:center"></div>
+        </div>
+
+        <!-- Wellness trend chart -->
+        <div class="section-label">Wellness trend</div>
+        <div class="card" style="padding:14px 16px;margin-bottom:20px">
+          <div style="display:flex;gap:8px;margin-bottom:12px" id="wellness-range-btns">
+            <button class="filter-btn active" onclick="setWellnessRange(30,this)">30d</button>
+            <button class="filter-btn" onclick="setWellnessRange(60,this)">60d</button>
+            <button class="filter-btn" onclick="setWellnessRange(90,this)">90d</button>
+            <button class="filter-btn" onclick="setWellnessRange(0,this)">All</button>
+          </div>
+          <div style="position:relative;height:180px">
+            <canvas id="wellness-chart" role="img" aria-label="HRV and resting heart rate trend chart"></canvas>
+          </div>
+          <div id="wellness-chart-empty" style="display:none;text-align:center;padding:2rem;font-size:12px;color:var(--dim)">
+            No wellness entries yet — log your first one above.
+          </div>
+          <div style="display:flex;gap:16px;margin-top:12px;font-size:11px;color:var(--muted);flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--tri);display:inline-block"></span>HRV</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block"></span>Resting HR</span>
+          </div>
+        </div>
+
+        <!-- Wellness summary -->
+        <div class="section-label">Wellness summary</div>
+        <div class="metrics-grid" style="margin-bottom:20px">
+          <div class="metric-card swim">
+            <div class="metric-label">Avg HRV (7d)</div>
+            <div class="metric-value" id="wellness-hrv-avg" style="font-size:20px">—</div>
+            <div class="metric-sub" id="wellness-hrv-trend"></div>
+          </div>
+          <div class="metric-card run">
+            <div class="metric-label">Avg RHR (7d)</div>
+            <div class="metric-value" id="wellness-rhr-avg" style="font-size:20px">—</div>
+            <div class="metric-sub" id="wellness-rhr-trend"></div>
+          </div>
+          <div class="metric-card bike">
+            <div class="metric-label">Avg sleep (7d)</div>
+            <div class="metric-value" id="wellness-sleep-avg" style="font-size:20px">—</div>
+            <div class="metric-sub">hours/night</div>
+          </div>
+          <div class="metric-card load">
+            <div class="metric-label">Readiness</div>
+            <div class="load-badge" id="wellness-readiness" style="font-size:14px">—</div>
+            <div class="metric-sub">based on HRV/RHR</div>
+          </div>
+        </div>
+
+        <!-- Wellness log table -->
+        <div class="section-label">Wellness history</div>
+        <div class="card" style="padding:0;margin-bottom:20px;overflow:hidden" id="wellness-log-table"></div>
 
       </div>
     </div>
@@ -1816,6 +1908,15 @@ Boston Marathon April 2026: 3:38:18. Strong run base. Swim volume critically low
 Recent activity data: ${activitySummary || 'Not yet loaded.'}
 Upcoming races: ${races.length ? races.map(r => r.name + ' (' + r.subtype + ' ' + r.type + ', ' + r.date + ', goal: ' + (r.goal||'none') + ')').join('; ') : 'none added'}
 Current calendar plan (upcoming): ${planSummary}
+${(() => {
+  if (!wellnessLog || !wellnessLog.length) return 'No wellness data logged (HRV/RHR/sleep).';
+  const last7 = new Date(); last7.setDate(last7.getDate()-7);
+  const last7str = last7.toISOString().split('T')[0];
+  const recent = wellnessLog.filter(e => e.date >= last7str);
+  const latest = wellnessLog[wellnessLog.length-1];
+  const avgField = (arr,f) => { const v = arr.filter(e=>e[f]!=null).map(e=>e[f]); return v.length ? (v.reduce((s,x)=>s+x,0)/v.length).toFixed(1) : null; };
+  return 'Latest wellness (' + latest.date + '): HRV ' + (latest.hrv||'n/a') + 'ms, RHR ' + (latest.rhr||'n/a') + 'bpm, sleep ' + (latest.sleep||'n/a') + 'h. 7-day avg: HRV ' + (avgField(recent,'hrv')||'n/a') + 'ms, RHR ' + (avgField(recent,'rhr')||'n/a') + 'bpm, sleep ' + (avgField(recent,'sleep')||'n/a') + 'h.';
+})()}
 Be concise, specific, and actionable. Reference their actual data when relevant. Use miles not km.
 
 CALENDAR UPDATES: If the user asks you to generate, update, or modify their training plan or calendar, you MUST include a plan block. First give a short 2-3 sentence conversational response, then ALWAYS end with this exact format — the <<<PLAN>>> and <<<END>>> markers are required:
@@ -2373,13 +2474,24 @@ async function generateRecovery() {
     const tomorrowPlan = trainingPlan.find(p => p.date === tomorrowStr);
     const tomorrowContext = tomorrowPlan ? `Tomorrow's planned session: ${tomorrowPlan.sport} - ${tomorrowPlan.title}.` : '';
 
+    // Wellness context (HRV/RHR/sleep) if logged
+    let wellnessContext = '';
+    if (wellnessLog && wellnessLog.length) {
+      const latestW = wellnessLog[wellnessLog.length - 1];
+      const parts = [];
+      if (latestW.hrv) parts.push('HRV ' + latestW.hrv + 'ms');
+      if (latestW.rhr) parts.push('RHR ' + latestW.rhr + 'bpm');
+      if (latestW.sleep) parts.push('slept ' + latestW.sleep + 'h');
+      if (parts.length) wellnessContext = 'Latest wellness (' + latestW.date + '): ' + parts.join(', ') + '.';
+    }
+
     const text = await callClaude({
       model: 'claude-sonnet-4-6', max_tokens: 2500,
-      system: `You are a triathlon and running recovery coach. Generate a personalized 5-10 minute stretching routine based on the athlete's FULL recent training context \u2014 not just the last activity. Consider: cumulative fatigue across all recent sessions, which muscle groups are most stressed given the mix of sports, weekly training load, and what's coming up next (race proximity, tomorrow's planned session). Keep each field SHORT \u2014 under 20 words per string.
+      system: `You are a triathlon and running recovery coach. Generate a personalized 5-10 minute stretching routine based on the athlete's FULL recent training context \u2014 not just the last activity. Consider: cumulative fatigue across all recent sessions, which muscle groups are most stressed given the mix of sports, weekly training load, wellness signals like HRV/RHR/sleep if available, and what's coming up next (race proximity, tomorrow's planned session). Keep each field SHORT \u2014 under 20 words per string.
 Return ONLY valid JSON, no markdown, no special characters, no apostrophes in values (use plain text only):
 {"intro":"1 short sentence referencing their specific recent training pattern","totalTime":"8 min","stretches":[{"name":"name","duration":"30 sec","focus":"quads","detail":"Short instruction under 15 words.","why":"Short reason under 12 words."}],"tips":[{"title":"title","detail":"Short tip."},{"title":"title","detail":"Short tip."},{"title":"title","detail":"Short tip."}]}
 Include exactly 6 stretches, prioritized by what this athlete's recent training actually stressed. No curly quotes, no apostrophes, no em-dashes \u2014 plain ASCII only.`,
-      messages: [{ role: 'user', content: `Recent training (most recent 15 activities): ${recentActs}\n\n${weekSummary}\n\n${raceContext} ${tomorrowContext}\n\nGenerate recovery stretches tailored to this full picture, not just the most recent workout.` }]
+      messages: [{ role: 'user', content: `Recent training (most recent 15 activities): ${recentActs}\n\n${weekSummary}\n\n${raceContext} ${tomorrowContext}\n\n${wellnessContext}\n\nGenerate recovery stretches tailored to this full picture, not just the most recent workout.` }]
     });
 
     // Clean and parse
@@ -3048,6 +3160,7 @@ function renderStatsPage() {
   }).join('');
 
   renderStatsChart();
+  renderWellnessPage();
 }
 
 
@@ -3113,6 +3226,12 @@ async function kvSyncAll() {
       localStorage.setItem('brb_activity_notes', JSON.stringify(activityNotes));
       changed = true;
       console.log('KV: updated activity notes, count:', Object.keys(activityNotes).length);
+    }
+    if (data.brb_wellness_log && Array.isArray(data.brb_wellness_log) && data.brb_wellness_log.length > 0) {
+      wellnessLog = data.brb_wellness_log;
+      localStorage.setItem('brb_wellness_log', JSON.stringify(wellnessLog));
+      changed = true;
+      console.log('KV: updated wellness log, count:', wellnessLog.length);
     }
 
     if (changed) {
@@ -3981,6 +4100,205 @@ function deleteActivityNote(activityId) {
   delete activityNotes[activityId];
   saveActivityNotesStorage();
   renderActivities(allActivities);
+}
+
+
+// ── WELLNESS LOG (HRV / RHR / SLEEP) ─────────────────────────────────────
+const CACHE_KEY_WELLNESS = 'brb_wellness_log';
+let wellnessLog = JSON.parse(localStorage.getItem(CACHE_KEY_WELLNESS) || '[]');
+// wellnessLog = [{ date:'2026-06-29', hrv:52, rhr:48, sleep:7.5 }, ...]
+let wellnessRangeDays = 30;
+let wellnessChartInstance = null;
+
+function saveWellnessLog() { kvSet('brb_wellness_log', wellnessLog); }
+
+function logWellness() {
+  const hrvVal = parseFloat(document.getElementById('hrv-input').value);
+  const rhrVal = parseFloat(document.getElementById('rhr-input').value);
+  const sleepVal = parseFloat(document.getElementById('sleep-input').value);
+
+  if (!hrvVal && !rhrVal && !sleepVal) {
+    document.getElementById('wellness-save-msg').textContent = 'Enter at least one value.';
+    return;
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const existing = wellnessLog.find(e => e.date === today) || {};
+  const entry = {
+    date: today,
+    hrv: hrvVal || existing.hrv || null,
+    rhr: rhrVal || existing.rhr || null,
+    sleep: sleepVal || existing.sleep || null
+  };
+
+  wellnessLog = wellnessLog.filter(e => e.date !== today);
+  wellnessLog.push(entry);
+  wellnessLog.sort((a,b) => a.date.localeCompare(b.date));
+  saveWellnessLog();
+
+  document.getElementById('hrv-input').value = '';
+  document.getElementById('rhr-input').value = '';
+  document.getElementById('sleep-input').value = '';
+  const msg = document.getElementById('wellness-save-msg');
+  msg.textContent = 'Saved for today.';
+  setTimeout(() => { msg.textContent = ''; }, 3000);
+
+  renderWellnessPage();
+}
+
+function deleteWellnessEntry(date) {
+  wellnessLog = wellnessLog.filter(e => e.date !== date);
+  saveWellnessLog();
+  renderWellnessPage();
+}
+
+function setWellnessRange(days, btn) {
+  wellnessRangeDays = days;
+  document.querySelectorAll('#wellness-range-btns .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderWellnessChart();
+}
+
+function getFilteredWellnessLog() {
+  if (wellnessRangeDays === 0) return wellnessLog;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - wellnessRangeDays);
+  const cutoffStr = cutoff.toISOString().split('T')[0];
+  return wellnessLog.filter(e => e.date >= cutoffStr);
+}
+
+function renderWellnessChart() {
+  const filtered = getFilteredWellnessLog().filter(e => e.hrv || e.rhr);
+  const canvas = document.getElementById('wellness-chart');
+  const empty = document.getElementById('wellness-chart-empty');
+  if (!canvas) return;
+
+  if (!filtered.length) {
+    canvas.style.display = 'none';
+    if (empty) empty.style.display = 'block';
+    return;
+  }
+  canvas.style.display = 'block';
+  if (empty) empty.style.display = 'none';
+
+  const labels = filtered.map(e => {
+    const d = new Date(e.date + 'T12:00:00');
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  });
+
+  if (wellnessChartInstance) { wellnessChartInstance.destroy(); wellnessChartInstance = null; }
+
+  wellnessChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'HRV', data: filtered.map(e => e.hrv || null),
+          borderColor: 'var(--tri)', backgroundColor: 'rgba(79,196,168,0.08)',
+          borderWidth: 2, pointRadius: filtered.length > 30 ? 0 : 3,
+          pointBackgroundColor: 'var(--tri)', tension: 0.3, fill: false, yAxisID: 'y', spanGaps: true
+        },
+        {
+          label: 'RHR', data: filtered.map(e => e.rhr || null),
+          borderColor: 'var(--warn)', backgroundColor: 'rgba(232,112,112,0.08)',
+          borderWidth: 2, pointRadius: filtered.length > 30 ? 0 : 3,
+          pointBackgroundColor: 'var(--warn)', tension: 0.3, fill: false, yAxisID: 'y1', spanGaps: true
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y + (ctx.dataset.label==='HRV'?' ms':' bpm') } }
+      },
+      scales: {
+        x: { ticks: { font:{size:10}, maxRotation:45, autoSkip:true, maxTicksLimit:8 }, grid:{display:false} },
+        y: { position:'left', ticks: { font:{size:10}, color:'rgba(79,196,168,0.8)' }, grid: { color:'rgba(128,128,128,0.08)' }, title:{display:true,text:'HRV (ms)',font:{size:9}} },
+        y1: { position:'right', ticks: { font:{size:10}, color:'rgba(232,112,112,0.8)' }, grid: { display:false }, title:{display:true,text:'RHR (bpm)',font:{size:9}} }
+      }
+    }
+  });
+}
+
+function getReadinessStatus(hrvTrend, rhrTrend) {
+  // hrvTrend > 0 = improving, rhrTrend < 0 = improving (lower RHR is better)
+  if (hrvTrend === null || rhrTrend === null) return { label: '—', color: 'var(--muted)' };
+  if (hrvTrend >= 0 && rhrTrend <= 0) return { label: 'Good', color: 'var(--ok)' };
+  if (hrvTrend < -5 || rhrTrend > 3) return { label: 'Fatigued', color: 'var(--warn)' };
+  return { label: 'Watch', color: 'var(--mar)' };
+}
+
+function renderWellnessPage() {
+  if (!wellnessLog.length) {
+    document.getElementById('wellness-hrv-avg').textContent = '—';
+    document.getElementById('wellness-rhr-avg').textContent = '—';
+    document.getElementById('wellness-sleep-avg').textContent = '—';
+    document.getElementById('wellness-readiness').textContent = '—';
+    document.getElementById('wellness-log-table').innerHTML =
+      '<div style="padding:2rem;text-align:center;font-size:12px;color:var(--dim)">No wellness entries yet. Log HRV, RHR, or sleep above.</div>';
+    renderWellnessChart();
+    return;
+  }
+
+  // 7-day averages
+  const last7 = new Date(); last7.setDate(last7.getDate() - 7);
+  const last7str = last7.toISOString().split('T')[0];
+  const recent = wellnessLog.filter(e => e.date >= last7str);
+  const prev7 = new Date(); prev7.setDate(prev7.getDate() - 14);
+  const prev7str = prev7.toISOString().split('T')[0];
+  const prevWeek = wellnessLog.filter(e => e.date >= prev7str && e.date < last7str);
+
+  function avg(arr, field) {
+    const vals = arr.filter(e => e[field] != null).map(e => e[field]);
+    return vals.length ? vals.reduce((s,v)=>s+v,0) / vals.length : null;
+  }
+
+  const hrvAvg = avg(recent, 'hrv');
+  const rhrAvg = avg(recent, 'rhr');
+  const sleepAvg = avg(recent, 'sleep');
+  const hrvPrevAvg = avg(prevWeek, 'hrv');
+  const rhrPrevAvg = avg(prevWeek, 'rhr');
+
+  document.getElementById('wellness-hrv-avg').textContent = hrvAvg !== null ? hrvAvg.toFixed(0) + ' ms' : '—';
+  document.getElementById('wellness-rhr-avg').textContent = rhrAvg !== null ? rhrAvg.toFixed(0) + ' bpm' : '—';
+  document.getElementById('wellness-sleep-avg').textContent = sleepAvg !== null ? sleepAvg.toFixed(1) + 'h' : '—';
+
+  const hrvTrend = (hrvAvg !== null && hrvPrevAvg !== null) ? hrvAvg - hrvPrevAvg : null;
+  const rhrTrend = (rhrAvg !== null && rhrPrevAvg !== null) ? rhrAvg - rhrPrevAvg : null;
+
+  const hrvTrendEl = document.getElementById('wellness-hrv-trend');
+  if (hrvTrendEl) {
+    hrvTrendEl.textContent = hrvTrend !== null ? (hrvTrend > 0 ? '+' : '') + hrvTrend.toFixed(0) + ' vs last wk' : 'vs last week';
+    hrvTrendEl.style.color = hrvTrend > 0 ? 'var(--ok)' : hrvTrend < 0 ? 'var(--warn)' : 'var(--muted)';
+  }
+  const rhrTrendEl = document.getElementById('wellness-rhr-trend');
+  if (rhrTrendEl) {
+    rhrTrendEl.textContent = rhrTrend !== null ? (rhrTrend > 0 ? '+' : '') + rhrTrend.toFixed(0) + ' vs last wk' : 'vs last week';
+    rhrTrendEl.style.color = rhrTrend < 0 ? 'var(--ok)' : rhrTrend > 0 ? 'var(--warn)' : 'var(--muted)';
+  }
+
+  const readiness = getReadinessStatus(hrvTrend, rhrTrend);
+  const readinessEl = document.getElementById('wellness-readiness');
+  readinessEl.textContent = readiness.label;
+  readinessEl.style.color = readiness.color;
+
+  // History table (newest first)
+  const sorted = [...wellnessLog].reverse();
+  document.getElementById('wellness-log-table').innerHTML = sorted.map(e => {
+    const d = new Date(e.date + 'T12:00:00');
+    const label = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    return `<div class="wellness-log-row">
+      <span class="wellness-log-date">${label}</span>
+      <div class="wellness-log-metric"><div class="wellness-log-metric-val">${e.hrv || '—'}</div><div class="wellness-log-metric-label">HRV</div></div>
+      <div class="wellness-log-metric"><div class="wellness-log-metric-val">${e.rhr || '—'}</div><div class="wellness-log-metric-label">RHR</div></div>
+      <div class="wellness-log-metric"><div class="wellness-log-metric-val">${e.sleep || '—'}</div><div class="wellness-log-metric-label">Sleep</div></div>
+      <button class="weight-log-delete" onclick="deleteWellnessEntry('${e.date}')">✕</button>
+    </div>`;
+  }).join('');
+
+  renderWellnessChart();
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
