@@ -1,4 +1,4 @@
-const CF_ACCOUNT_ID = '23846f97f2d5dde9557f21aabbc3f3e9';
+const CF_ACCOUNT_ID = 'REPLACE_WITH_ACCOUNT_ID';
 const KV_NAMESPACE_ID = 'ce44f82dceff46a6bd16563a2f3a3b1c';
 const BASE = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${KV_NAMESPACE_ID}`;
 
@@ -11,11 +11,29 @@ async function kvGet(key, token) {
 }
 
 async function kvPut(key, value, token) {
-  await fetch(`${BASE}/values/${key}`, {
+  const r = await fetch(`${BASE}/values/${key}`, {
     method: 'PUT',
     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'text/plain' },
     body: JSON.stringify(value)
   });
+  const result = await r.json().catch(() => ({}));
+  return { ok: r.ok, status: r.status, result };
+}
+
+// Strip activity down to only the fields the app actually uses — keeps KV value small
+function slimActivity(a) {
+  return {
+    id: a.id,
+    name: a.name,
+    type: a.type,
+    distance: a.distance,
+    moving_time: a.moving_time,
+    total_elevation_gain: a.total_elevation_gain,
+    start_date_local: a.start_date_local,
+    calories: a.calories || null,
+    kudos_count: a.kudos_count || 0,
+    average_speed: a.average_speed || null
+  };
 }
 
 export async function onRequestPost(context) {
@@ -30,42 +48,48 @@ export async function onRequestPost(context) {
     if (!CF_API_TOKEN) return new Response(JSON.stringify({ error: 'CF_API_TOKEN not set' }), { status: 500, headers });
 
     if (action === 'set') {
-      await kvPut(key, value, CF_API_TOKEN);
-      return new Response(JSON.stringify({ ok: true }), { headers });
+      const putResult = await kvPut(key, value, CF_API_TOKEN);
+      return new Response(JSON.stringify({ ok: putResult.ok, detail: putResult.result }), { headers });
     }
 
     if (action === 'getAll') {
-      const keys = ['brb_races', 'brb_training_plan', 'brb_weight_log'];
+      const keys = ['brb_races', 'brb_training_plan', 'brb_weight_log', 'brb_activity_notes', 'brb_wellness_log'];
       const results = {};
       await Promise.all(keys.map(async k => { results[k] = await kvGet(k, CF_API_TOKEN); }));
       return new Response(JSON.stringify(results), { headers });
     }
 
-    // Merge new Strava activities with stored archive
     if (action === 'mergeActivities') {
-      const newActs = value; // latest 100 from Strava
-      const stored = await kvGet('brb_activity_archive', CF_API_TOKEN) || [];
+      const newActs = (value || []).map(slimActivity);
+      const stored = (await kvGet('brb_activity_archive', CF_API_TOKEN)) || [];
 
-      // Build map of existing by id
       const map = {};
       stored.forEach(a => { map[a.id] = a; });
-      newActs.forEach(a => { map[a.id] = a; }); // new overwrite old (in case of edits)
+      newActs.forEach(a => { map[a.id] = a; });
 
       const merged = Object.values(map)
         .sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
 
-      await kvPut('brb_activity_archive', merged, CF_API_TOKEN);
-      return new Response(JSON.stringify({ ok: true, total: merged.length }), { headers });
+      const sizeBytes = JSON.stringify(merged).length;
+      const putResult = await kvPut('brb_activity_archive', merged, CF_API_TOKEN);
+
+      return new Response(JSON.stringify({
+        ok: putResult.ok,
+        total: merged.length,
+        sizeKB: Math.round(sizeBytes / 1024),
+        putStatus: putResult.status,
+        putDetail: putResult.result
+      }), { headers });
     }
 
     if (action === 'getActivities') {
       const archive = await kvGet('brb_activity_archive', CF_API_TOKEN) || [];
-      return new Response(JSON.stringify({ activities: archive }), { headers });
+      return new Response(JSON.stringify({ activities: archive, count: archive.length }), { headers });
     }
 
     return new Response(JSON.stringify({ error: 'Unknown action' }), { status: 400, headers });
   } catch (e) {
-    return new Response(JSON.stringify({ error: e.message }), { status: 500, headers });
+    return new Response(JSON.stringify({ error: e.message, stack: e.stack }), { status: 500, headers });
   }
 }
 
