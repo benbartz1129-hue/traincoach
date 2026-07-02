@@ -1556,6 +1556,10 @@ async function runAnalysis(summary) {
   const weekRunMi  = thisWeek.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
   const totalWeekMi = weekSwimMi + weekBikeMi + weekRunMi;
 
+  // ── Calculate Tri Readiness deterministically from real data (not AI-guessed) ──
+  // Uses trailing 4-week average volume vs. race-distance targets, plus recency of last session per sport
+  const readiness = calcTriReadiness();
+
   const text = await callClaude({
     model: 'claude-sonnet-4-6', max_tokens: 2000,
     system: `You are an expert triathlon and marathon coach. Today is ${today}.
@@ -1566,14 +1570,66 @@ Return ONLY valid JSON, all distances in miles:
 {"weeklyLoad":"low|moderate|high|very high",
 "todayRec":{"sport":"swim|run|ride|rest|strength","title":"","detail":""},"tomorrowRec":{"sport":"swim|run|ride|rest|strength","title":"","detail":""},
 "weekDays":[{"day":"Mon","sport":"rest","mi":0},{"day":"Tue","sport":"rest","mi":0},{"day":"Wed","sport":"rest","mi":0},{"day":"Thu","sport":"rest","mi":0},{"day":"Fri","sport":"rest","mi":0},{"day":"Sat","sport":"rest","mi":0},{"day":"Sun","sport":"rest","mi":0}],
-"swimReadiness":0,"bikeReadiness":0,"runReadiness":0,
 "insights":[{"type":"warning|success|info","tag":"tri|mar|both","title":"specific title referencing recent data","detail":"specific 1-2 sentence insight referencing actual recent activities"},{"type":"warning|success|info","tag":"tri|mar|both","title":"","detail":""},{"type":"warning|success|info","tag":"tri|mar|both","title":"","detail":""}]}`,
     messages: [{ role: 'user', content: `Recent activities:\n${summary}\n\nThis week totals (already calculated): Swim ${weekSwimMi.toFixed(1)}mi, Bike ${weekBikeMi.toFixed(1)}mi, Run ${weekRunMi.toFixed(1)}mi, Total ${totalWeekMi.toFixed(1)}mi\n\nGenerate fresh insights based specifically on the most recent activities listed above.` }]
   });
 
   const ai = JSON.parse(text.replace(/```json|```/g,'').trim());
-  // Merge accurate calculated totals with AI insights
-  return { ...ai, weekSwimMi, weekBikeMi, weekRunMi, totalWeekMi };
+  // Merge accurate calculated totals + deterministic readiness with AI insights
+  return { ...ai, weekSwimMi, weekBikeMi, weekRunMi, totalWeekMi, ...readiness };
+}
+
+// Calculate readiness (0-100) per sport based on real training data:
+// - Trailing 4-week average weekly volume vs. race-distance target (70% weight)
+// - Recency of last session in that sport, penalizing long gaps (30% weight)
+function calcTriReadiness() {
+  const triRace = races.find(r => r.type === 'triathlon' && daysUntil(new Date(r.date)) >= 0);
+  // Fallback targets if no tri race saved yet — Olympic distance defaults
+  const targets = triRace ? getTriDistanceTargets(triRace.subtype) : { swimMi: 0.93, bikeMi: 24.8, runMi: 6.2 };
+  // Weekly volume targets (roughly race distance x 2-3 for adequate prep, using our existing dashboard targets)
+  const weeklyTargets = { swim: 1.2, bike: 25, run: 15 };
+
+  const now = new Date();
+  const fourWeeksAgo = new Date(now); fourWeeksAgo.setDate(now.getDate() - 28);
+  const recentActs = allActivities.filter(a => new Date(a.start_date_local) >= fourWeeksAgo);
+
+  function scoreForSport(sportType, weeklyTarget) {
+    const acts = recentActs.filter(a => a.type === sportType && a.distance > 0);
+    const totalMi = acts.reduce((s,a) => s + mToMi(a.distance), 0);
+    const avgWeeklyMi = totalMi / 4;
+
+    // Volume score: 0-100 based on how close avg weekly volume is to target (caps at 100)
+    const volumeScore = weeklyTarget > 0 ? Math.min(100, (avgWeeklyMi / weeklyTarget) * 100) : 0;
+
+    // Recency score: most recent session in this sport
+    const lastAct = allActivities.find(a => a.type === sportType && a.distance > 0);
+    let recencyScore = 0;
+    if (lastAct) {
+      const daysSince = Math.floor((now - new Date(lastAct.start_date_local)) / 86400000);
+      // Full recency credit within 3 days, decaying to 0 by day 14
+      recencyScore = daysSince <= 3 ? 100 : Math.max(0, 100 - ((daysSince - 3) / 11) * 100);
+    }
+
+    // Weighted blend: volume matters more than recency
+    const score = (volumeScore * 0.7) + (recencyScore * 0.3);
+    return Math.round(Math.min(100, Math.max(0, score)));
+  }
+
+  return {
+    swimReadiness: scoreForSport('Swim', weeklyTargets.swim),
+    bikeReadiness: scoreForSport('Ride', weeklyTargets.bike),
+    runReadiness: scoreForSport('Run', weeklyTargets.run)
+  };
+}
+
+function getTriDistanceTargets(subtype) {
+  const map = {
+    'Sprint':    { swimMi: 0.47, bikeMi: 12.4, runMi: 3.1 },
+    'Olympic':   { swimMi: 0.93, bikeMi: 24.8, runMi: 6.2 },
+    '70.3 Half': { swimMi: 1.2,  bikeMi: 56,   runMi: 13.1 },
+    '140.6 Full':{ swimMi: 2.4,  bikeMi: 112,  runMi: 26.2 }
+  };
+  return map[subtype] || map['Olympic'];
 }
 
 // ── DASHBOARD RENDER ──────────────────────────────────────────────────────
