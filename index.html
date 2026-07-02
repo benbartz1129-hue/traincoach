@@ -650,145 +650,6 @@ body {
 }
 
 /* ── QUICK WEIGHT WIDGET ── */
-.quick-weight-card {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 14px; padding: 14px 16px;
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; flex-wrap: wrap;
-}
-.quick-weight-left { flex-shrink: 0; }
-.quick-weight-label {
-  font-size: 10px; font-family: var(--font-display); font-weight: 600;
-  letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim);
-  margin-bottom: 3px;
-}
-.quick-weight-current {
-  font-family: var(--font-display); font-size: 20px; font-weight: 700;
-  color: var(--text); letter-spacing: -0.02em;
-}
-.quick-weight-right {
-  display: flex; align-items: center; gap: 6px; flex: 1; min-width: 180px;
-}
-.quick-weight-input {
-  background: var(--surface2); border: 1px solid var(--border2);
-  border-radius: 8px; color: var(--text); padding: 8px 10px;
-  font-family: var(--font-mono); font-size: 14px; text-align: center;
-  width: 70px; outline: none; flex-shrink: 0;
-}
-.quick-weight-input:focus { border-color: var(--tri); }
-.quick-weight-unit {
-  background: var(--surface2); border: 1px solid var(--border2);
-  border-radius: 8px; color: var(--text); padding: 8px 6px;
-  font-family: var(--font-mono); font-size: 12px; outline: none;
-  width: 52px; flex-shrink: 0;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a7990' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 6px center; padding-right: 18px;
-}
-.quick-weight-btn {
-  background: var(--tri); color: #0a0a0f; border: none;
-  border-radius: 8px; padding: 9px 16px; font-family: var(--font-display);
-  font-size: 12px; font-weight: 700; cursor: pointer; flex-shrink: 0;
-  transition: opacity 0.15s;
-}
-.quick-weight-btn:active { opacity: 0.8; }
-.quick-weight-msg {
-  width: 100%; font-size: 11px; color: var(--tri); margin-top: 8px;
-  text-align: center; min-height: 14px;
-}
-
-/* ── TAPER MODE BANNER ── */
-.taper-banner {
-  background: linear-gradient(135deg, rgba(240,160,80,0.12), rgba(232,112,112,0.08));
-  border: 1px solid var(--mar-border);
-  border-radius: 14px; padding: 16px;
-  margin-bottom: 20px;
-}
-.taper-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  margin-bottom: 8px;
-}
-.taper-phase {
-  font-size: 10px; font-family: var(--font-display); font-weight: 700;
-  letter-spacing: 0.1em; text-transform: uppercase; color: var(--mar);
-  margin-bottom: 4px;
-}
-.taper-race-name {
-  font-family: var(--font-display); font-size: 17px; font-weight: 700;
-  letter-spacing: -0.01em; color: var(--text);
-}
-.taper-countdown { text-align: right; flex-shrink: 0; }
-.taper-days {
-  font-family: var(--font-display); font-size: 32px; font-weight: 800;
-  letter-spacing: -0.03em; color: var(--mar); line-height: 1;
-}
-.taper-days-label {
-  font-size: 10px; font-family: var(--font-display); font-weight: 600;
-  letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
-}
-.taper-meta {
-  font-size: 12px; color: var(--muted); margin-bottom: 12px;
-  padding-bottom: 12px; border-bottom: 1px solid rgba(240,160,80,0.2);
-}
-.taper-checklist { display: flex; flex-direction: column; gap: 8px; }
-.taper-item {
-  display: flex; align-items: flex-start; gap: 10px;
-}
-.taper-item-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; line-height: 1.4; }
-.taper-item-text { font-size: 12px; color: var(--text); line-height: 1.5; }
-
-/* ── ACTIVITY NOTES ── */
-.act-item-wrap { margin-bottom: 10px; }
-.act-item-wrap .act-item { margin-bottom: 0; }
-.act-note-indicator { font-size: 11px; opacity: 0.8; }
-.act-note-preview {
-  font-size: 11px; color: var(--tri); margin-top: 4px;
-  font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.act-note-editor {
-  background: var(--surface2); border: 1px solid var(--border2);
-  border-radius: 0 0 14px 14px; margin-top: -2px;
-  padding: 10px 14px 12px; border-top: none;
-}
-.act-note-input {
-  width: 100%; background: var(--surface); border: 1px solid var(--border2);
-  border-radius: 8px; color: var(--text); padding: 8px 10px;
-  font-family: var(--font-mono); font-size: 13px; resize: none;
-  outline: none; margin-bottom: 8px;
-}
-.act-note-input:focus { border-color: var(--tri); }
-.act-note-actions { display: flex; justify-content: space-between; align-items: center; }
-.act-note-save {
-  background: var(--tri); color: #0a0a0f; border: none; border-radius: 8px;
-  padding: 6px 14px; font-family: var(--font-display); font-size: 11px;
-  font-weight: 700; cursor: pointer;
-}
-.act-note-delete {
-  background: none; color: var(--warn); border: 1px solid rgba(232,112,112,0.3);
-  border-radius: 8px; padding: 6px 14px; font-family: var(--font-display);
-  font-size: 11px; font-weight: 600; cursor: pointer;
-}
-
-/* ── WELLNESS LOG ── */
-.wellness-input-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
-}
-.wellness-input-field { display: flex; flex-direction: column; gap: 5px; }
-.wellness-input-label {
-  font-size: 10px; font-family: var(--font-display); font-weight: 600;
-  letter-spacing: 0.05em; text-transform: uppercase; color: var(--dim); text-align: center;
-}
-.wellness-input-grid .form-input { text-align: center; font-size: 15px; }
-.wellness-log-row {
-  display: flex; align-items: center; padding: 10px 16px;
-  border-bottom: 1px solid var(--border); gap: 10px; font-size: 12px;
-}
-.wellness-log-row:last-child { border-bottom: none; }
-.wellness-log-date { color: var(--muted); flex: 1; font-family: var(--font-display); }
-.wellness-log-metric { text-align: center; min-width: 44px; }
-.wellness-log-metric-val { font-size: 13px; font-weight: 500; color: var(--text); }
-.wellness-log-metric-label { font-size: 8px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.04em; }
-
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -1202,33 +1063,96 @@ body {
     <div class="page" id="page-stats">
       <div class="page-inner">
 
+        <!-- Header with today's snapshot -->
         <div class="date-banner" style="margin-bottom:20px">
           <div>
-            <div class="date-greeting" style="font-size:16px">⚖️ Body Stats</div>
-            <div class="date-sub">Weight and body metrics over time</div>
+            <div class="date-greeting" style="font-size:16px">📊 Body Stats</div>
+            <div class="date-sub">Weight, HRV, sleep & recovery</div>
           </div>
-          <div id="stats-latest-badge" style="text-align:right">
-            <div style="font-family:var(--font-display);font-size:22px;font-weight:800;letter-spacing:-0.02em" id="stats-current-weight">—</div>
+          <div style="text-align:right">
+            <div style="font-family:var(--font-display);font-size:20px;font-weight:800;letter-spacing:-0.02em;color:var(--text)" id="stats-current-weight">—</div>
             <div style="font-size:10px;color:var(--muted)" id="stats-weight-date"></div>
           </div>
         </div>
 
-        <!-- Quick log -->
-        <div class="card" style="padding:14px 16px;margin-bottom:20px">
-          <div class="section-label" style="margin-bottom:10px">Log today's weight</div>
-          <div style="display:flex;gap:10px;align-items:center">
-            <input class="form-input" id="weight-input" type="number" step="0.1" min="50" max="500"
-              placeholder="e.g. 178.5" style="flex:1;font-size:18px;text-align:center" />
-            <select class="form-select" id="weight-unit" style="width:70px;flex-shrink:0">
-              <option value="lbs">lbs</option>
-              <option value="kg">kg</option>
-            </select>
-            <button class="add-race-btn" style="width:auto;padding:10px 16px;flex-shrink:0" onclick="logWeight()">Save</button>
+        <!-- TODAY'S MORNING LOG — single unified entry point -->
+        <div class="section-label">Morning log</div>
+        <div class="card" style="padding:16px;margin-bottom:20px">
+          <div class="morning-log-grid">
+            <div class="morning-log-field">
+              <div class="morning-log-label">⚖️ Weight</div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <input class="form-input" id="weight-input" type="number" step="0.1" min="50" max="500" placeholder="0.0" style="text-align:center;font-size:16px" />
+                <select class="form-select" id="weight-unit" style="width:52px;font-size:12px;padding:8px 4px">
+                  <option value="lbs">lbs</option>
+                  <option value="kg">kg</option>
+                </select>
+              </div>
+            </div>
+            <div class="morning-log-field">
+              <div class="morning-log-label">💓 HRV (ms)</div>
+              <input class="form-input" id="hrv-input" type="number" step="1" min="0" max="300" placeholder="0" style="text-align:center;font-size:16px" />
+            </div>
+            <div class="morning-log-field">
+              <div class="morning-log-label">❤️ RHR (bpm)</div>
+              <input class="form-input" id="rhr-input" type="number" step="1" min="20" max="150" placeholder="0" style="text-align:center;font-size:16px" />
+            </div>
+            <div class="morning-log-field">
+              <div class="morning-log-label">😴 Sleep (hrs)</div>
+              <input class="form-input" id="sleep-input" type="number" step="0.1" min="0" max="16" placeholder="0.0" style="text-align:center;font-size:16px" />
+            </div>
           </div>
-          <div id="weight-save-msg" style="font-size:11px;color:var(--tri);margin-top:8px;min-height:16px"></div>
+          <button class="add-race-btn" style="margin-top:14px;width:100%" onclick="logMorning()">Save Morning Log</button>
+          <div id="morning-save-msg" style="font-size:11px;color:var(--tri);margin-top:8px;min-height:14px;text-align:center"></div>
         </div>
 
-        <!-- Weight trend chart -->
+        <!-- TODAY'S SUMMARY CARDS -->
+        <div class="metrics-grid" style="margin-bottom:20px">
+          <div class="metric-card load">
+            <div class="metric-label">Weight</div>
+            <div class="metric-value" id="stat-current" style="font-size:18px">—</div>
+            <div class="metric-sub" id="stat-current-unit">lbs</div>
+          </div>
+          <div class="metric-card swim">
+            <div class="metric-label">HRV</div>
+            <div class="metric-value" id="wellness-hrv-avg" style="font-size:18px">—</div>
+            <div class="metric-sub" id="wellness-hrv-trend">7d avg</div>
+          </div>
+          <div class="metric-card run">
+            <div class="metric-label">RHR</div>
+            <div class="metric-value" id="wellness-rhr-avg" style="font-size:18px">—</div>
+            <div class="metric-sub" id="wellness-rhr-trend">7d avg</div>
+          </div>
+          <div class="metric-card bike">
+            <div class="metric-label">Sleep</div>
+            <div class="metric-value" id="wellness-sleep-avg" style="font-size:18px">—</div>
+            <div class="metric-sub">7d avg hrs</div>
+          </div>
+        </div>
+
+        <!-- Readiness + 7-day changes row -->
+        <div class="card" style="padding:12px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+          <div>
+            <div class="section-label" style="margin-bottom:2px">Readiness</div>
+            <div style="font-family:var(--font-display);font-size:18px;font-weight:700" id="wellness-readiness">—</div>
+          </div>
+          <div style="display:flex;gap:20px;flex-wrap:wrap">
+            <div style="text-align:center">
+              <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-display);margin-bottom:2px">Weight 7d</div>
+              <div style="font-size:14px;font-weight:500" id="stat-7d">—</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-display);margin-bottom:2px">Weight 30d</div>
+              <div style="font-size:14px;font-weight:500" id="stat-30d">—</div>
+            </div>
+            <div style="text-align:center">
+              <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-display);margin-bottom:2px">Low</div>
+              <div style="font-size:14px;font-weight:500" id="stat-low">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- WEIGHT CHART -->
         <div class="section-label">Weight trend</div>
         <div class="card" style="padding:14px 16px;margin-bottom:20px">
           <div style="display:flex;gap:8px;margin-bottom:12px" id="stats-range-btns">
@@ -1237,67 +1161,14 @@ body {
             <button class="filter-btn" onclick="setStatsRange(90,this)">90d</button>
             <button class="filter-btn" onclick="setStatsRange(0,this)">All</button>
           </div>
-          <div style="position:relative;height:180px">
+          <div style="position:relative;height:160px">
             <canvas id="weight-chart" role="img" aria-label="Weight over time chart"></canvas>
           </div>
-          <div id="stats-chart-empty" style="display:none;text-align:center;padding:2rem;font-size:12px;color:var(--dim)">
-            No weight entries yet — log your first one above.
-          </div>
+          <div id="stats-chart-empty" style="display:none;text-align:center;padding:1.5rem;font-size:12px;color:var(--dim)">No weight entries yet.</div>
         </div>
 
-        <!-- Stats summary -->
-        <div class="section-label">Summary</div>
-        <div class="metrics-grid" style="margin-bottom:20px" id="stats-summary-grid">
-          <div class="metric-card load">
-            <div class="metric-label">Current</div>
-            <div class="metric-value" id="stat-current" style="font-size:20px">—</div>
-            <div class="metric-sub" id="stat-current-unit">lbs</div>
-          </div>
-          <div class="metric-card run">
-            <div class="metric-label">7-day change</div>
-            <div class="metric-value" id="stat-7d" style="font-size:20px">—</div>
-            <div class="metric-sub">vs last week</div>
-          </div>
-          <div class="metric-card swim">
-            <div class="metric-label">30-day change</div>
-            <div class="metric-value" id="stat-30d" style="font-size:20px">—</div>
-            <div class="metric-sub">vs 30 days ago</div>
-          </div>
-          <div class="metric-card bike">
-            <div class="metric-label">All-time low</div>
-            <div class="metric-value" id="stat-low" style="font-size:20px">—</div>
-            <div class="metric-sub" id="stat-low-date"></div>
-          </div>
-        </div>
-
-        <!-- Weight log table -->
-        <div class="section-label">History</div>
-        <div class="card" style="padding:0;margin-bottom:20px;overflow:hidden" id="weight-log-table"></div>
-
-        <!-- ── WELLNESS LOG ── -->
-        <div class="section-label" style="margin-top:8px">Wellness log</div>
-        <div class="card" style="padding:14px 16px;margin-bottom:20px">
-          <div class="section-label" style="margin-bottom:10px">Log today's wellness</div>
-          <div class="wellness-input-grid">
-            <div class="wellness-input-field">
-              <div class="wellness-input-label">HRV (ms)</div>
-              <input class="form-input" id="hrv-input" type="number" step="1" min="0" max="300" placeholder="e.g. 52" />
-            </div>
-            <div class="wellness-input-field">
-              <div class="wellness-input-label">RHR (bpm)</div>
-              <input class="form-input" id="rhr-input" type="number" step="1" min="20" max="150" placeholder="e.g. 48" />
-            </div>
-            <div class="wellness-input-field">
-              <div class="wellness-input-label">Sleep (hrs)</div>
-              <input class="form-input" id="sleep-input" type="number" step="0.1" min="0" max="16" placeholder="e.g. 7.5" />
-            </div>
-          </div>
-          <button class="add-race-btn" style="margin-top:10px" onclick="logWellness()">Save Wellness</button>
-          <div id="wellness-save-msg" style="font-size:11px;color:var(--tri);margin-top:8px;min-height:16px;text-align:center"></div>
-        </div>
-
-        <!-- Wellness trend chart -->
-        <div class="section-label">Wellness trend</div>
+        <!-- WELLNESS CHART -->
+        <div class="section-label">HRV & resting HR trend</div>
         <div class="card" style="padding:14px 16px;margin-bottom:20px">
           <div style="display:flex;gap:8px;margin-bottom:12px" id="wellness-range-btns">
             <button class="filter-btn active" onclick="setWellnessRange(30,this)">30d</button>
@@ -1305,46 +1176,19 @@ body {
             <button class="filter-btn" onclick="setWellnessRange(90,this)">90d</button>
             <button class="filter-btn" onclick="setWellnessRange(0,this)">All</button>
           </div>
-          <div style="position:relative;height:180px">
+          <div style="position:relative;height:160px">
             <canvas id="wellness-chart" role="img" aria-label="HRV and resting heart rate trend chart"></canvas>
           </div>
-          <div id="wellness-chart-empty" style="display:none;text-align:center;padding:2rem;font-size:12px;color:var(--dim)">
-            No wellness entries yet — log your first one above.
-          </div>
-          <div style="display:flex;gap:16px;margin-top:12px;font-size:11px;color:var(--muted);flex-wrap:wrap">
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--tri);display:inline-block"></span>HRV</span>
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block"></span>Resting HR</span>
+          <div id="wellness-chart-empty" style="display:none;text-align:center;padding:1.5rem;font-size:12px;color:var(--dim)">No wellness entries yet.</div>
+          <div style="display:flex;gap:16px;margin-top:10px;font-size:11px;color:var(--muted);flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--tri);display:inline-block"></span>HRV (ms)</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block"></span>RHR (bpm)</span>
           </div>
         </div>
 
-        <!-- Wellness summary -->
-        <div class="section-label">Wellness summary</div>
-        <div class="metrics-grid" style="margin-bottom:20px">
-          <div class="metric-card swim">
-            <div class="metric-label">Avg HRV (7d)</div>
-            <div class="metric-value" id="wellness-hrv-avg" style="font-size:20px">—</div>
-            <div class="metric-sub" id="wellness-hrv-trend"></div>
-          </div>
-          <div class="metric-card run">
-            <div class="metric-label">Avg RHR (7d)</div>
-            <div class="metric-value" id="wellness-rhr-avg" style="font-size:20px">—</div>
-            <div class="metric-sub" id="wellness-rhr-trend"></div>
-          </div>
-          <div class="metric-card bike">
-            <div class="metric-label">Avg sleep (7d)</div>
-            <div class="metric-value" id="wellness-sleep-avg" style="font-size:20px">—</div>
-            <div class="metric-sub">hours/night</div>
-          </div>
-          <div class="metric-card load">
-            <div class="metric-label">Readiness</div>
-            <div class="load-badge" id="wellness-readiness" style="font-size:14px">—</div>
-            <div class="metric-sub">based on HRV/RHR</div>
-          </div>
-        </div>
-
-        <!-- Wellness log table -->
-        <div class="section-label">Wellness history</div>
-        <div class="card" style="padding:0;margin-bottom:20px;overflow:hidden" id="wellness-log-table"></div>
+        <!-- COMBINED HISTORY -->
+        <div class="section-label">Log history</div>
+        <div class="card" style="padding:0;margin-bottom:20px;overflow:hidden" id="combined-log-table"></div>
 
       </div>
     </div>
@@ -1779,22 +1623,7 @@ function renderDashboard(d) {
         </div>
       </div>
     </div>
-    <div class="section">
-      <div class="quick-weight-card" id="quick-weight-card">
-        <div class="quick-weight-left">
-          <div class="quick-weight-label">Today's weight</div>
-          <div class="quick-weight-current" id="qw-current-display">—</div>
-        </div>
-        <div class="quick-weight-right">
-          <input class="quick-weight-input" id="qw-input" type="number" step="0.1" min="50" max="500" placeholder="0.0" />
-          <select class="quick-weight-unit" id="qw-unit">
-            <option value="lbs">lbs</option>
-            <option value="kg">kg</option>
-          </select>
-          <button class="quick-weight-btn" onclick="quickLogWeight()">Log</button>
-        </div>
-      </div>
-    </div>
+
     <div class="section">
       <div class="section-label">Tri readiness</div>
       <div class="readiness-card">
@@ -1813,7 +1642,6 @@ function renderDashboard(d) {
     <div class="app-footer">Last updated ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} · BRB Training</div>`;
   updateRaceCountdowns();
   positionRacePlanner();
-  updateQuickWeightDisplay();
 }
 
 function toggleAIInsights() {
@@ -2968,23 +2796,60 @@ let weightChartInstance = null;
 function saveWeightLog() { kvSet('brb_weight_log', weightLog); }
 
 function logWeight() {
-  const input = document.getElementById('weight-input');
-  const unit = document.getElementById('weight-unit').value;
-  const val = parseFloat(input.value);
-  if (!val || val < 50 || val > 500) {
-    document.getElementById('weight-save-msg').textContent = 'Please enter a valid weight.';
-    return;
-  }
+  // Legacy alias — calls logMorning for weight only
+  logMorning();
+}
+
+function logMorning() {
+  const weightVal = parseFloat(document.getElementById('weight-input').value);
+  const weightUnit = document.getElementById('weight-unit').value;
+  const hrvVal = parseFloat(document.getElementById('hrv-input').value) || null;
+  const rhrVal = parseFloat(document.getElementById('rhr-input').value) || null;
+  const sleepVal = parseFloat(document.getElementById('sleep-input').value) || null;
   const today = new Date().toISOString().split('T')[0];
-  // Replace existing entry for today
-  weightLog = weightLog.filter(e => e.date !== today);
-  weightLog.push({ date: today, value: val, unit });
-  weightLog.sort((a,b) => a.date.localeCompare(b.date));
-  saveWeightLog();
-  input.value = '';
-  const msg = document.getElementById('weight-save-msg');
-  msg.textContent = 'Saved ' + val + ' ' + unit + ' for today.';
-  setTimeout(() => { msg.textContent = ''; }, 3000);
+  let saved = [];
+
+  // Save weight if entered
+  if (weightVal && weightVal >= 50 && weightVal <= 500) {
+    weightLog = weightLog.filter(e => e.date !== today);
+    weightLog.push({ date: today, value: weightVal, unit: weightUnit });
+    weightLog.sort((a,b) => a.date.localeCompare(b.date));
+    saveWeightLog();
+    saved.push(weightVal + ' ' + weightUnit);
+    document.getElementById('weight-input').value = '';
+  }
+
+  // Save wellness if any entered
+  if (hrvVal || rhrVal || sleepVal) {
+    const existing = wellnessLog.find(e => e.date === today) || {};
+    wellnessLog = wellnessLog.filter(e => e.date !== today);
+    wellnessLog.push({
+      date: today,
+      hrv: hrvVal || existing.hrv || null,
+      rhr: rhrVal || existing.rhr || null,
+      sleep: sleepVal || existing.sleep || null
+    });
+    wellnessLog.sort((a,b) => a.date.localeCompare(b.date));
+    saveWellnessLog();
+    if (hrvVal) saved.push('HRV ' + hrvVal);
+    if (rhrVal) saved.push('RHR ' + rhrVal);
+    if (sleepVal) saved.push('sleep ' + sleepVal + 'h');
+    document.getElementById('hrv-input').value = '';
+    document.getElementById('rhr-input').value = '';
+    document.getElementById('sleep-input').value = '';
+  }
+
+  const msg = document.getElementById('morning-save-msg');
+  if (!msg) return;
+  if (saved.length) {
+    msg.textContent = 'Saved: ' + saved.join(', ');
+    // Flash the card border green briefly
+    const card = msg.closest('.card');
+    if (card) { card.style.borderColor = 'var(--tri)'; setTimeout(() => { card.style.borderColor = ''; }, 800); }
+  } else {
+    msg.textContent = 'Enter at least one value to save.';
+  }
+  setTimeout(() => { if (msg) msg.textContent = ''; }, 3000);
   renderStatsPage();
 }
 
@@ -3085,82 +2950,118 @@ function renderStatsChart() {
 }
 
 function renderStatsPage() {
-  if (!weightLog.length) {
-    document.getElementById('stat-current').textContent = '—';
-    document.getElementById('stat-7d').textContent = '—';
-    document.getElementById('stat-30d').textContent = '—';
-    document.getElementById('stat-low').textContent = '—';
-    document.getElementById('weight-log-table').innerHTML =
-      '<div style="padding:2rem;text-align:center;font-size:12px;color:var(--dim)">No entries yet. Log your first weight above.</div>';
+  const today = new Date().toISOString().split('T')[0];
+
+  // Pre-fill morning log inputs with today's existing values if already logged
+  const todayWeight = weightLog.find(e => e.date === today);
+  const todayWellness = wellnessLog.find(e => e.date === today);
+  const weightInput = document.getElementById('weight-input');
+  const hrvInput = document.getElementById('hrv-input');
+  const rhrInput = document.getElementById('rhr-input');
+  const sleepInput = document.getElementById('sleep-input');
+  if (weightInput && todayWeight) { weightInput.value = todayWeight.value; document.getElementById('weight-unit').value = todayWeight.unit; }
+  if (hrvInput && todayWellness?.hrv) hrvInput.value = todayWellness.hrv;
+  if (rhrInput && todayWellness?.rhr) rhrInput.value = todayWellness.rhr;
+  if (sleepInput && todayWellness?.sleep) sleepInput.value = todayWellness.sleep;
+
+  // Banner — show most recent weight + date
+  if (weightLog.length) {
+    const latest = weightLog[weightLog.length-1];
+    const curEl = document.getElementById('stats-current-weight');
+    const curDate = document.getElementById('stats-weight-date');
+    if (curEl) curEl.textContent = latest.value + ' ' + latest.unit;
+    if (curDate) {
+      const d = new Date(latest.date + 'T12:00:00');
+      const daysAgo = Math.floor((new Date() - d) / 86400000);
+      curDate.textContent = daysAgo === 0 ? 'logged today' : daysAgo === 1 ? 'yesterday' : daysAgo + 'd ago';
+    }
+  }
+
+  // Summary cards — weight
+  if (weightLog.length) {
+    const latest = weightLog[weightLog.length-1];
+    const unit = latest.unit;
+    const statCur = document.getElementById('stat-current');
+    if (statCur) statCur.textContent = latest.value + ' ' + unit;
+
+    const d7str = new Date(Date.now()-7*86400000).toISOString().split('T')[0];
+    const d30str = new Date(Date.now()-30*86400000).toISOString().split('T')[0];
+    const entry7 = [...weightLog].reverse().find(e => e.date <= d7str);
+    const entry30 = [...weightLog].reverse().find(e => e.date <= d30str);
+
+    const stat7 = document.getElementById('stat-7d');
+    if (stat7 && entry7) {
+      const diff = (latest.value - entry7.value).toFixed(1);
+      stat7.textContent = (diff > 0 ? '+' : '') + diff + ' ' + unit;
+      stat7.style.color = diff > 0 ? 'var(--warn)' : diff < 0 ? 'var(--ok)' : 'var(--text)';
+    }
+    const stat30 = document.getElementById('stat-30d');
+    if (stat30 && entry30) {
+      const diff = (latest.value - entry30.value).toFixed(1);
+      stat30.textContent = (diff > 0 ? '+' : '') + diff + ' ' + unit;
+      stat30.style.color = diff > 0 ? 'var(--warn)' : diff < 0 ? 'var(--ok)' : 'var(--text)';
+    }
+    const low = weightLog.reduce((m,e) => e.value < m.value ? e : m, weightLog[0]);
+    const statLow = document.getElementById('stat-low');
+    if (statLow) statLow.textContent = low.value + ' ' + low.unit;
+  }
+
+  // Summary cards — wellness (7d avg via renderWellnessPage)
+  renderWellnessPage();
+
+  // Combined history table — merge weight + wellness by date, newest first
+  const allDates = new Set([
+    ...weightLog.map(e => e.date),
+    ...wellnessLog.map(e => e.date)
+  ]);
+  const sortedDates = [...allDates].sort((a,b) => b.localeCompare(a));
+
+  const table = document.getElementById('combined-log-table');
+  if (!table) { renderStatsChart(); return; }
+
+  if (!sortedDates.length) {
+    table.innerHTML = '<div style="padding:2rem;text-align:center;font-size:12px;color:var(--dim)">No entries yet. Use the Morning Log above to get started.</div>';
     renderStatsChart();
     return;
   }
 
-  const latest = weightLog[weightLog.length-1];
-  const unit = latest.unit;
-
-  // Current weight display in banner
-  const curEl = document.getElementById('stats-current-weight');
-  const curDate = document.getElementById('stats-weight-date');
-  if (curEl) curEl.textContent = latest.value + ' ' + unit;
-  if (curDate) {
-    const d = new Date(latest.date + 'T12:00:00');
-    curDate.textContent = d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-  }
-
-  document.getElementById('stat-current').textContent = latest.value;
-  document.getElementById('stat-current-unit').textContent = unit;
-
-  // 7-day change
-  const d7 = new Date(); d7.setDate(d7.getDate()-7);
-  const d7str = d7.toISOString().split('T')[0];
-  const entry7 = [...weightLog].reverse().find(e => e.date <= d7str);
-  const stat7El = document.getElementById('stat-7d');
-  if (entry7) {
-    const diff = (latest.value - entry7.value).toFixed(1);
-    stat7El.textContent = (diff > 0 ? '+' : '') + diff;
-    stat7El.style.color = diff > 0 ? 'var(--warn)' : diff < 0 ? 'var(--ok)' : 'var(--text)';
-  } else { stat7El.textContent = '—'; stat7El.style.color = 'var(--text)'; }
-
-  // 30-day change
-  const d30 = new Date(); d30.setDate(d30.getDate()-30);
-  const d30str = d30.toISOString().split('T')[0];
-  const entry30 = [...weightLog].reverse().find(e => e.date <= d30str);
-  const stat30El = document.getElementById('stat-30d');
-  if (entry30) {
-    const diff = (latest.value - entry30.value).toFixed(1);
-    stat30El.textContent = (diff > 0 ? '+' : '') + diff;
-    stat30El.style.color = diff > 0 ? 'var(--warn)' : diff < 0 ? 'var(--ok)' : 'var(--text)';
-  } else { stat30El.textContent = '—'; stat30El.style.color = 'var(--text)'; }
-
-  // All-time low
-  const low = weightLog.reduce((min,e) => e.value < min.value ? e : min, weightLog[0]);
-  document.getElementById('stat-low').textContent = low.value;
-  const lowDate = new Date(low.date + 'T12:00:00');
-  document.getElementById('stat-low-date').textContent =
-    lowDate.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
-
-  // History table (newest first)
-  const table = document.getElementById('weight-log-table');
-  const sorted = [...weightLog].reverse(); // newest first
-  table.innerHTML = sorted.map((e, i) => {
-    // Compare against the chronologically previous entry (next item in this newest-first array)
-    const prevEntry = sorted[i + 1];
-    const diff = prevEntry ? (e.value - prevEntry.value).toFixed(1) : null;
-    const diffColor = diff > 0 ? 'var(--warn)' : diff < 0 ? 'var(--ok)' : 'var(--dim)';
-    const diffStr = diff !== null ? (diff > 0 ? '+' : '') + diff : '—';
-    const d = new Date(e.date + 'T12:00:00');
-    const label = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'});
-    return `<div class="weight-log-row">
-      <span class="weight-log-date">${label}</span>
-      <span class="weight-log-val">${e.value} ${e.unit}</span>
-      <span class="weight-log-change" style="color:${diffColor}">${diffStr}</span>
-      <button class="weight-log-delete" onclick="deleteWeightEntry('${e.date}')">✕</button>
+  table.innerHTML = sortedDates.map(date => {
+    const w = weightLog.find(e => e.date === date);
+    const wl = wellnessLog.find(e => e.date === date);
+    const d = new Date(date + 'T12:00:00');
+    const label = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    const isToday = date === today;
+    return `<div class="wellness-log-row" style="${isToday ? 'background:rgba(79,196,168,0.05)' : ''}">
+      <span class="wellness-log-date">${label}${isToday ? ' <span style="color:var(--tri);font-size:9px;font-family:var(--font-display);font-weight:700">TODAY</span>' : ''}</span>
+      <div class="wellness-log-metric">
+        <div class="wellness-log-metric-val">${w ? w.value + w.unit[0] : '—'}</div>
+        <div class="wellness-log-metric-label">Weight</div>
+      </div>
+      <div class="wellness-log-metric">
+        <div class="wellness-log-metric-val">${wl?.hrv || '—'}</div>
+        <div class="wellness-log-metric-label">HRV</div>
+      </div>
+      <div class="wellness-log-metric">
+        <div class="wellness-log-metric-val">${wl?.rhr || '—'}</div>
+        <div class="wellness-log-metric-label">RHR</div>
+      </div>
+      <div class="wellness-log-metric">
+        <div class="wellness-log-metric-val">${wl?.sleep || '—'}</div>
+        <div class="wellness-log-metric-label">Sleep</div>
+      </div>
+      <button class="weight-log-delete" onclick="deleteMorningEntry('${date}')">✕</button>
     </div>`;
   }).join('');
 
   renderStatsChart();
-  renderWellnessPage();
+}
+
+function deleteMorningEntry(date) {
+  weightLog = weightLog.filter(e => e.date !== date);
+  wellnessLog = wellnessLog.filter(e => e.date !== date);
+  saveWeightLog();
+  saveWellnessLog();
+  renderStatsPage();
 }
 
 
@@ -3593,54 +3494,7 @@ function renderPaceChart() {
 
 
 // ── QUICK WEIGHT (DASHBOARD) ─────────────────────────────────────────────
-function updateQuickWeightDisplay() {
-  const today = new Date().toISOString().split('T')[0];
-  const todayEntry = weightLog.find(e => e.date === today);
-  const display = document.getElementById('qw-current-display');
-  const input = document.getElementById('qw-input');
-  const unitSel = document.getElementById('qw-unit');
-  if (!display) return;
 
-  if (todayEntry) {
-    display.textContent = todayEntry.value + ' ' + todayEntry.unit;
-    display.style.color = 'var(--tri)';
-    if (input) input.value = todayEntry.value;
-    if (unitSel) unitSel.value = todayEntry.unit;
-  } else if (weightLog.length) {
-    const last = weightLog[weightLog.length - 1];
-    display.textContent = 'Last: ' + last.value + ' ' + last.unit;
-    display.style.color = 'var(--muted)';
-    if (unitSel) unitSel.value = last.unit;
-  } else {
-    display.textContent = 'Not logged';
-    display.style.color = 'var(--dim)';
-  }
-}
-
-function quickLogWeight() {
-  const input = document.getElementById('qw-input');
-  const unit = document.getElementById('qw-unit').value;
-  const val = parseFloat(input.value);
-  const card = document.getElementById('quick-weight-card');
-
-  if (!val || val < 50 || val > 500) {
-    input.style.borderColor = 'var(--warn)';
-    setTimeout(() => { input.style.borderColor = ''; }, 1500);
-    return;
-  }
-
-  const today = new Date().toISOString().split('T')[0];
-  weightLog = weightLog.filter(e => e.date !== today);
-  weightLog.push({ date: today, value: val, unit });
-  weightLog.sort((a,b) => a.date.localeCompare(b.date));
-  saveWeightLog();
-
-  updateQuickWeightDisplay();
-
-  // Brief success flash
-  card.style.borderColor = 'var(--tri)';
-  setTimeout(() => { card.style.borderColor = ''; }, 800);
-}
 
 
 // ── TAPER MODE ────────────────────────────────────────────────────────────
@@ -4236,8 +4090,6 @@ function renderWellnessPage() {
     document.getElementById('wellness-rhr-avg').textContent = '—';
     document.getElementById('wellness-sleep-avg').textContent = '—';
     document.getElementById('wellness-readiness').textContent = '—';
-    document.getElementById('wellness-log-table').innerHTML =
-      '<div style="padding:2rem;text-align:center;font-size:12px;color:var(--dim)">No wellness entries yet. Log HRV, RHR, or sleep above.</div>';
     renderWellnessChart();
     return;
   }
@@ -4270,12 +4122,12 @@ function renderWellnessPage() {
 
   const hrvTrendEl = document.getElementById('wellness-hrv-trend');
   if (hrvTrendEl) {
-    hrvTrendEl.textContent = hrvTrend !== null ? (hrvTrend > 0 ? '+' : '') + hrvTrend.toFixed(0) + ' vs last wk' : 'vs last week';
+    hrvTrendEl.textContent = hrvTrend !== null ? (hrvTrend > 0 ? '+' : '') + hrvTrend.toFixed(0) + ' vs last wk' : '7d avg';
     hrvTrendEl.style.color = hrvTrend > 0 ? 'var(--ok)' : hrvTrend < 0 ? 'var(--warn)' : 'var(--muted)';
   }
   const rhrTrendEl = document.getElementById('wellness-rhr-trend');
   if (rhrTrendEl) {
-    rhrTrendEl.textContent = rhrTrend !== null ? (rhrTrend > 0 ? '+' : '') + rhrTrend.toFixed(0) + ' vs last wk' : 'vs last week';
+    rhrTrendEl.textContent = rhrTrend !== null ? (rhrTrend > 0 ? '+' : '') + rhrTrend.toFixed(0) + ' vs last wk' : '7d avg';
     rhrTrendEl.style.color = rhrTrend < 0 ? 'var(--ok)' : rhrTrend > 0 ? 'var(--warn)' : 'var(--muted)';
   }
 
@@ -4283,20 +4135,6 @@ function renderWellnessPage() {
   const readinessEl = document.getElementById('wellness-readiness');
   readinessEl.textContent = readiness.label;
   readinessEl.style.color = readiness.color;
-
-  // History table (newest first)
-  const sorted = [...wellnessLog].reverse();
-  document.getElementById('wellness-log-table').innerHTML = sorted.map(e => {
-    const d = new Date(e.date + 'T12:00:00');
-    const label = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-    return `<div class="wellness-log-row">
-      <span class="wellness-log-date">${label}</span>
-      <div class="wellness-log-metric"><div class="wellness-log-metric-val">${e.hrv || '—'}</div><div class="wellness-log-metric-label">HRV</div></div>
-      <div class="wellness-log-metric"><div class="wellness-log-metric-val">${e.rhr || '—'}</div><div class="wellness-log-metric-label">RHR</div></div>
-      <div class="wellness-log-metric"><div class="wellness-log-metric-val">${e.sleep || '—'}</div><div class="wellness-log-metric-label">Sleep</div></div>
-      <button class="weight-log-delete" onclick="deleteWellnessEntry('${e.date}')">✕</button>
-    </div>`;
-  }).join('');
 
   renderWellnessChart();
 }
