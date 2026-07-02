@@ -650,6 +650,54 @@ body {
 }
 
 /* ── QUICK WEIGHT WIDGET ── */
+/* ── MORNING LOG ── */
+.morning-log-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.morning-log-field { display: flex; flex-direction: column; gap: 4px; }
+.morning-log-label {
+  font-size: 10px; font-family: var(--font-display); font-weight: 600;
+  letter-spacing: 0.03em; color: var(--muted);
+}
+.morning-log-grid .form-input {
+  text-align: center; font-size: 14px; padding: 7px 8px;
+}
+
+/* ── MORNING LOG HISTORY CARDS ── */
+.morning-log-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 12px 16px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 12px;
+}
+.morning-log-card.is-today { border-color: var(--tri-border); background: var(--tri-dim); }
+.morning-log-card-date {
+  flex-shrink: 0; width: 56px; display: flex; flex-direction: column; align-items: center;
+}
+.morning-log-card-dow {
+  font-size: 9px; font-family: var(--font-display); font-weight: 700;
+  letter-spacing: 0.05em; text-transform: uppercase; color: var(--dim);
+}
+.morning-log-card-daynum { font-size: 18px; font-weight: 700; font-family: var(--font-display); color: var(--text); line-height: 1.1; }
+.morning-log-card-month { font-size: 9px; color: var(--muted); }
+.morning-log-card.is-today .morning-log-card-dow,
+.morning-log-card.is-today .morning-log-card-daynum { color: var(--tri); }
+.morning-log-card-metrics {
+  flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+}
+.morning-log-card-metric { text-align: center; }
+.morning-log-card-metric-val { font-size: 14px; font-weight: 600; color: var(--text); font-family: var(--font-display); }
+.morning-log-card-metric-val.empty { color: var(--dim); font-weight: 400; }
+.morning-log-card-metric-label {
+  font-size: 8px; color: var(--muted); text-transform: uppercase;
+  letter-spacing: 0.04em; margin-top: 2px;
+}
+.morning-log-card-delete {
+  background: none; border: none; color: var(--dim); font-size: 15px;
+  cursor: pointer; padding: 4px; flex-shrink: 0; line-height: 1;
+}
+.morning-log-card-delete:active { color: var(--warn); }
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -1188,7 +1236,7 @@ body {
 
         <!-- COMBINED HISTORY -->
         <div class="section-label">Log history</div>
-        <div class="card" style="padding:0;margin-bottom:20px;overflow:hidden" id="combined-log-table"></div>
+        <div id="combined-log-table"></div>
 
       </div>
     </div>
@@ -3065,7 +3113,7 @@ function renderStatsPage() {
   // Summary cards — wellness (7d avg via renderWellnessPage)
   renderWellnessPage();
 
-  // Combined history table — merge weight + wellness by date, newest first
+  // Combined history — merge weight + wellness by date, newest first
   const allDates = new Set([
     ...weightLog.map(e => e.date),
     ...wellnessLog.map(e => e.date)
@@ -3085,27 +3133,32 @@ function renderStatsPage() {
     const w = weightLog.find(e => e.date === date);
     const wl = wellnessLog.find(e => e.date === date);
     const d = new Date(date + 'T12:00:00');
-    const label = d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+    const dow = d.toLocaleDateString('en-US', { weekday: 'short' });
+    const dayNum = d.getDate();
+    const month = d.toLocaleDateString('en-US', { month: 'short' });
     const isToday = date === today;
-    return `<div class="wellness-log-row" style="${isToday ? 'background:rgba(79,196,168,0.05)' : ''}">
-      <span class="wellness-log-date">${label}${isToday ? ' <span style="color:var(--tri);font-size:9px;font-family:var(--font-display);font-weight:700">TODAY</span>' : ''}</span>
-      <div class="wellness-log-metric">
-        <div class="wellness-log-metric-val">${w ? w.value + w.unit[0] : '—'}</div>
-        <div class="wellness-log-metric-label">Weight</div>
+
+    function metricCell(val, unit, label) {
+      const hasVal = val !== null && val !== undefined;
+      return `<div class="morning-log-card-metric">
+        <div class="morning-log-card-metric-val${hasVal ? '' : ' empty'}">${hasVal ? val + (unit||'') : '—'}</div>
+        <div class="morning-log-card-metric-label">${label}</div>
+      </div>`;
+    }
+
+    return `<div class="morning-log-card${isToday ? ' is-today' : ''}">
+      <div class="morning-log-card-date">
+        <div class="morning-log-card-dow">${isToday ? 'Today' : dow}</div>
+        <div class="morning-log-card-daynum">${dayNum}</div>
+        <div class="morning-log-card-month">${month}</div>
       </div>
-      <div class="wellness-log-metric">
-        <div class="wellness-log-metric-val">${wl?.hrv || '—'}</div>
-        <div class="wellness-log-metric-label">HRV</div>
+      <div class="morning-log-card-metrics">
+        ${metricCell(w ? w.value : null, w ? w.unit[0] : '', 'Weight')}
+        ${metricCell(wl?.hrv || null, '', 'HRV')}
+        ${metricCell(wl?.rhr || null, '', 'RHR')}
+        ${metricCell(wl?.sleep || null, 'h', 'Sleep')}
       </div>
-      <div class="wellness-log-metric">
-        <div class="wellness-log-metric-val">${wl?.rhr || '—'}</div>
-        <div class="wellness-log-metric-label">RHR</div>
-      </div>
-      <div class="wellness-log-metric">
-        <div class="wellness-log-metric-val">${wl?.sleep || '—'}</div>
-        <div class="wellness-log-metric-label">Sleep</div>
-      </div>
-      <button class="weight-log-delete" onclick="deleteMorningEntry('${date}')">✕</button>
+      <button class="morning-log-card-delete" onclick="deleteMorningEntry('${date}')">✕</button>
     </div>`;
   }).join('');
 
