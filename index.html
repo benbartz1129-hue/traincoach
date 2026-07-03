@@ -861,49 +861,6 @@ body {
   <div class="pages">
     <!-- DASHBOARD -->
     <div class="page active" id="page-dashboard">
-      <!-- Race planner lives here permanently — outside dashboard-content so it never gets wiped -->
-      <div class="page-inner" id="race-planner-wrap" style="display:block;padding-top:0">
-        <div class="section">
-          <div class="section-label">Race planner</div>
-          <div class="race-planner" id="race-planner">
-            <div class="race-planner-header" onclick="toggleRacePlanner()">
-              <div class="race-planner-title">&#127937; My Races <span class="race-count-badge" id="race-count">0</span></div>
-              <span class="race-planner-toggle" id="race-planner-toggle">&#9660;</span>
-            </div>
-            <div class="race-planner-body" id="race-planner-body">
-              <div class="race-list" id="race-list"></div>
-              <div class="add-race-form">
-                <div class="form-field">
-                  <div class="form-label">Race name</div>
-                  <input class="form-input" id="race-name" placeholder="e.g. Chicago Sprint Tri" />
-                </div>
-                <div class="form-row">
-                  <div class="form-field">
-                    <div class="form-label">Date</div>
-                    <input class="form-input" id="race-date" type="date" />
-                  </div>
-                  <div class="form-field">
-                    <div class="form-label">Goal time</div>
-                    <input class="form-input" id="race-goal" placeholder="e.g. 2:30:00" />
-                  </div>
-                </div>
-                <div class="form-field">
-                  <div class="form-label">Type</div>
-                  <div class="type-selector">
-                    <button class="type-btn active-tri" id="type-tri" onclick="selectRaceType('triathlon')">&#127946; Triathlon</button>
-                    <button class="type-btn" id="type-run" onclick="selectRaceType('running')">&#127939; Running</button>
-                  </div>
-                </div>
-                <div class="form-field" id="subtype-field">
-                  <div class="form-label">Distance</div>
-                  <div class="subtype-row" id="subtype-row"></div>
-                </div>
-                <button class="add-race-btn" onclick="addRace()">+ Add Race</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
       <div class="page-inner" id="dashboard-content">
         <div class="loading-state" id="loading-state">
           <div class="loading-dots"><span></span><span></span><span></span></div>
@@ -1736,6 +1693,46 @@ function renderDashboard(d) {
         <div class="readiness-row"><span class="readiness-sport">Run</span><div class="readiness-bar-bg"><div class="readiness-bar-fill" style="width:${d.runReadiness}%;background:var(--run)"></div></div><span class="readiness-pct">${d.runReadiness}%</span></div>
       </div>
     </div>
+    <div class="section">
+      <div class="section-label">Race planner</div>
+      <div class="race-planner" id="race-planner">
+        <div class="race-planner-header" onclick="toggleRacePlanner()">
+          <div class="race-planner-title">&#127937; My Races <span class="race-count-badge" id="race-count">0</span></div>
+          <span class="race-planner-toggle" id="race-planner-toggle">&#9660;</span>
+        </div>
+        <div class="race-planner-body" id="race-planner-body">
+          <div class="race-list" id="race-list"></div>
+          <div class="add-race-form">
+            <div class="form-field">
+              <div class="form-label">Race name</div>
+              <input class="form-input" id="race-name" placeholder="e.g. Chicago Sprint Tri" />
+            </div>
+            <div class="form-row">
+              <div class="form-field">
+                <div class="form-label">Date</div>
+                <input class="form-input" id="race-date" type="date" />
+              </div>
+              <div class="form-field">
+                <div class="form-label">Goal time</div>
+                <input class="form-input" id="race-goal" placeholder="e.g. 2:30:00" />
+              </div>
+            </div>
+            <div class="form-field">
+              <div class="form-label">Type</div>
+              <div class="type-selector">
+                <button class="type-btn active-tri" id="type-tri" onclick="selectRaceType('triathlon')">&#127946; Triathlon</button>
+                <button class="type-btn" id="type-run" onclick="selectRaceType('running')">&#127939; Running</button>
+              </div>
+            </div>
+            <div class="form-field" id="subtype-field">
+              <div class="form-label">Distance</div>
+              <div class="subtype-row" id="subtype-row"></div>
+            </div>
+            <button class="add-race-btn" onclick="addRace()">+ Add Race</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="section" id="ai-insights-section">
       <button class="add-race-btn" id="ai-insights-toggle-btn" onclick="toggleAIInsights()" style="display:flex;align-items:center;justify-content:center;gap:8px">
         <span id="ai-insights-toggle-icon">✨</span>
@@ -1745,7 +1742,8 @@ function renderDashboard(d) {
     </div>
     <div class="app-footer">Last updated ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} · BRB Training</div>`;
   updateRaceCountdowns();
-  positionRacePlanner();
+  // Race planner HTML is now rendered fresh every time inside this template — re-init its state
+  initRacePlanner();
 }
 
 function toggleAIInsights() {
@@ -1991,14 +1989,7 @@ const RUN_SUBTYPES = ['5K','10K','Half Marathon','Marathon','Ultra'];
 
 function saveRaces() { kvSet('brb_races', races); }
 
-// Move the permanent race-planner-wrap div to sit right before the AI Insights button
-function positionRacePlanner() {
-  const wrap = document.getElementById('race-planner-wrap');
-  const aiSection = document.getElementById('ai-insights-section');
-  if (wrap && aiSection && wrap.nextElementSibling !== aiSection) {
-    aiSection.parentNode.insertBefore(wrap, aiSection);
-  }
-}
+// (positionRacePlanner removed — race planner now renders inline in dashboard template each time)
 
 function toggleRacePlanner() {
   const body = document.getElementById('race-planner-body');
@@ -4394,7 +4385,6 @@ async function init() {
     document.getElementById('app-screen').style.display = 'flex';
     // Init race planner and calendar immediately so they show before data loads
     initRacePlanner();
-    positionRacePlanner();
     renderCalendar();
     initRecovery();
     // Restore plan summary if exists
