@@ -1857,12 +1857,19 @@ ${(() => {
   return 'Latest wellness (' + latest.date + '): HRV ' + (latest.hrv||'n/a') + 'ms, RHR ' + (latest.rhr||'n/a') + 'bpm, sleep ' + (latest.sleep||'n/a') + 'h. 7-day avg: HRV ' + (avgField(recent,'hrv')||'n/a') + 'ms, RHR ' + (avgField(recent,'rhr')||'n/a') + 'bpm, sleep ' + (avgField(recent,'sleep')||'n/a') + 'h.';
 })()}
 Be concise, specific, and actionable. Reference their actual data when relevant. Use miles not km.
+Saved swim drills: ${swimDrills.length ? swimDrills.map(d => d.name + ' — ' + d.description).join('; ') : 'none saved yet'}
 
 CALENDAR UPDATES: If the user asks you to generate, update, or modify their training plan or calendar, you MUST include a plan block. First give a short 2-3 sentence conversational response, then ALWAYS end with this exact format — the <<<PLAN>>> and <<<END>>> markers are required:
 <<<PLAN>>>
 [{"date":"2026-06-13","sport":"run","title":"Easy 4mi run","detail":"Zone 2, conversational pace. 40min.","id":1},{"date":"2026-06-14","sport":"swim","title":"Pool swim 1mi","detail":"Easy pace, focus on form. 30min.","id":2}]
 <<<END>>>
-Rules: sport must be one of: run, swim, ride, rest, strength. date must be YYYY-MM-DD. Always include 'detail' with duration and intensity. Only dates from today onward. Generate enough sessions to cover the full plan period requested. The <<<PLAN>>> block must be valid JSON array.`;
+Rules: sport must be one of: run, swim, ride, rest, strength. date must be YYYY-MM-DD. Always include 'detail' with duration and intensity. Only dates from today onward. Generate enough sessions to cover the full plan period requested. The <<<PLAN>>> block must be valid JSON array.
+
+SWIM DRILLS: If the user explicitly asks you to remember, save, or log a swim drill (phrases like "remember this drill", "save this drill", "log this drill for future use"), you MUST include a drill block. First confirm conversationally in 1-2 sentences, then ALWAYS end with this exact format — the <<<DRILL>>> and <<<END>>> markers are required:
+<<<DRILL>>>
+[{"name":"Catch-up drill","description":"One arm extended forward at all times while the other completes a full stroke cycle. 4x25m, focus on long reach."}]
+<<<END>>>
+Rules: name is a short drill title. description includes what it is, how to do it, and any distance/rep guidance the user gave. Only create a drill block when the user explicitly asks you to remember/save/log a drill — never do this automatically just because swimming or drills are mentioned in conversation. You can reference saved drills naturally in any future conversation when relevant.`;
 
     const rawReply = await callClaude({
       model: 'claude-sonnet-4-6', max_tokens: 4000,
@@ -1902,6 +1909,29 @@ Rules: sport must be one of: run, swim, ride, rest, strength. date must be YYYY-
       }
     } else {
       console.log('No plan block found in reply. Reply length:', rawReply.length);
+    }
+
+    // Check if reply contains a swim drill to save (JSON block wrapped in <<<DRILL>>>...<<<END>>>)
+    const drillMatch = reply.match(/<<<DRILL>>>([\s\S]*?)<<<END>>>/);
+    if (drillMatch) {
+      try {
+        const drillJsonStr = drillMatch[1]
+          .trim()
+          .replace(/[‘’ʼ]/g, '')
+          .replace(/[“”]/g, '"')
+          .replace(/[–—]/g, '-')
+          .replace(/\n/g, ' ');
+        console.log('Drill JSON found, preview:', drillJsonStr.slice(0,150));
+        const drillItems = JSON.parse(drillJsonStr);
+        const drillApplied = applyDrillUpdates(drillItems);
+        console.log('Drill applied:', drillApplied);
+        reply = reply.replace(/<<<DRILL>>>[\s\S]*?<<<END>>>/, '').trim();
+        if (drillApplied) {
+          reply += '\n\n🏊 Drill saved — I\'ll remember it for future conversations.';
+        }
+      } catch(e) {
+        console.warn('Drill parse error:', e.message, '\nJSON preview:', drillMatch[1].slice(0,300));
+      }
     }
 
     addMessage('assistant', reply);
@@ -3246,6 +3276,12 @@ async function kvSyncAll() {
       changed = true;
       console.log('KV: updated wellness log, count:', wellnessLog.length);
     }
+    if (data.brb_swim_drills && Array.isArray(data.brb_swim_drills) && data.brb_swim_drills.length > 0) {
+      swimDrills = data.brb_swim_drills;
+      localStorage.setItem('brb_swim_drills', JSON.stringify(swimDrills));
+      changed = true;
+      console.log('KV: updated swim drills, count:', swimDrills.length);
+    }
 
     if (changed) {
       updateRaceCountdowns();
@@ -4072,6 +4108,25 @@ function deleteActivityNote(activityId) {
 // ── WELLNESS LOG (HRV / RHR / SLEEP) ─────────────────────────────────────
 const CACHE_KEY_WELLNESS = 'brb_wellness_log';
 let wellnessLog = JSON.parse(localStorage.getItem(CACHE_KEY_WELLNESS) || '[]');
+
+// ── SWIM DRILLS (Coach-saved) ──
+const CACHE_KEY_DRILLS = 'brb_swim_drills';
+let swimDrills = JSON.parse(localStorage.getItem(CACHE_KEY_DRILLS) || '[]');
+// swimDrills = [{ id, name, description, dateAdded }]
+function saveSwimDrills() { kvSet('brb_swim_drills', swimDrills); }
+function applyDrillUpdates(drillItems) {
+  if (!Array.isArray(drillItems) || !drillItems.length) return false;
+  let added = 0;
+  drillItems.forEach(item => {
+    if (!item.name || !item.description) return;
+    // Avoid exact duplicate names
+    swimDrills = swimDrills.filter(d => d.name.toLowerCase() !== item.name.toLowerCase());
+    swimDrills.push({ name: item.name, description: item.description, dateAdded: new Date().toISOString().split('T')[0], id: Date.now() + Math.random() });
+    added++;
+  });
+  if (added > 0) { saveSwimDrills(); return true; }
+  return false;
+}
 // wellnessLog = [{ date:'2026-06-29', hrv:52, rhr:48, sleep:7.5 }, ...]
 let wellnessRangeDays = 30;
 let wellnessChartInstance = null;
