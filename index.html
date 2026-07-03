@@ -1589,34 +1589,43 @@ Return ONLY valid JSON, all distances in miles:
 // - Recency of last session in that sport, penalizing long gaps (30% weight)
 function calcTriReadiness() {
   const triRace = races.find(r => r.type === 'triathlon' && daysUntil(new Date(r.date)) >= 0);
-  // Fallback targets if no tri race saved yet — Olympic distance defaults
   const targets = triRace ? getTriDistanceTargets(triRace.subtype) : { swimMi: 0.93, bikeMi: 24.8, runMi: 6.2 };
-  // Weekly volume targets (roughly race distance x 2-3 for adequate prep, using our existing dashboard targets)
+  // Weekly volume targets
   const weeklyTargets = { swim: 1.2, bike: 25, run: 15 };
 
   const now = new Date();
-  const fourWeeksAgo = new Date(now); fourWeeksAgo.setDate(now.getDate() - 28);
-  const recentActs = allActivities.filter(a => new Date(a.start_date_local) >= fourWeeksAgo);
 
   function scoreForSport(sportType, weeklyTarget) {
-    const acts = recentActs.filter(a => a.type === sportType && a.distance > 0);
-    const totalMi = acts.reduce((s,a) => s + mToMi(a.distance), 0);
-    const avgWeeklyMi = totalMi / 4;
+    // Break the last 4 weeks into 4 separate Mon-Sun buckets to measure consistency, not just total volume
+    const weekBuckets = [];
+    for (let w = 0; w < 4; w++) {
+      const weekEnd = new Date(now); weekEnd.setDate(now.getDate() - (w * 7));
+      const weekStart = new Date(weekEnd); weekStart.setDate(weekEnd.getDate() - 7);
+      const weekMi = allActivities
+        .filter(a => a.type === sportType && a.distance > 0)
+        .filter(a => { const d = new Date(a.start_date_local); return d > weekStart && d <= weekEnd; })
+        .reduce((s,a) => s + mToMi(a.distance), 0);
+      weekBuckets.push(weekMi);
+    }
+    const avgWeeklyMi = weekBuckets.reduce((s,v)=>s+v,0) / 4;
 
-    // Volume score: 0-100 based on how close avg weekly volume is to target (caps at 100)
-    const volumeScore = weeklyTarget > 0 ? Math.min(100, (avgWeeklyMi / weeklyTarget) * 100) : 0;
+    // Volume score: now requires exceeding target by 40% to hit 100 — hitting exactly the target only earns ~71
+    const volumeScore = weeklyTarget > 0 ? Math.min(100, (avgWeeklyMi / (weeklyTarget * 1.4)) * 100) : 0;
 
-    // Recency score: most recent session in this sport
+    // Consistency score: how many of the last 4 weeks had at least 60% of weekly target — rewards steady training, not one big week
+    const consistentWeeks = weekBuckets.filter(mi => mi >= weeklyTarget * 0.6).length;
+    const consistencyScore = (consistentWeeks / 4) * 100;
+
+    // Recency score: tightened window — full credit only within 2 days, zero by day 10
     const lastAct = allActivities.find(a => a.type === sportType && a.distance > 0);
     let recencyScore = 0;
     if (lastAct) {
       const daysSince = Math.floor((now - new Date(lastAct.start_date_local)) / 86400000);
-      // Full recency credit within 3 days, decaying to 0 by day 14
-      recencyScore = daysSince <= 3 ? 100 : Math.max(0, 100 - ((daysSince - 3) / 11) * 100);
+      recencyScore = daysSince <= 2 ? 100 : Math.max(0, 100 - ((daysSince - 2) / 8) * 100);
     }
 
-    // Weighted blend: volume matters more than recency
-    const score = (volumeScore * 0.7) + (recencyScore * 0.3);
+    // Weighted blend: volume and consistency matter most, recency is a smaller factor
+    const score = (volumeScore * 0.5) + (consistencyScore * 0.3) + (recencyScore * 0.2);
     return Math.round(Math.min(100, Math.max(0, score)));
   }
 
