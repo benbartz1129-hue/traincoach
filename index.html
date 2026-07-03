@@ -2007,9 +2007,11 @@ function selectRaceType(type) {
 }
 
 function renderSubtypes() {
+  const el = document.getElementById('subtype-row');
+  if (!el) return; // race planner not rendered yet — safe no-op
   const subtypes = selectedRaceType === 'triathlon' ? TRI_SUBTYPES : RUN_SUBTYPES;
   const activeClass = selectedRaceType === 'triathlon' ? 'active-tri' : 'active-run';
-  document.getElementById('subtype-row').innerHTML = subtypes.map(s =>
+  el.innerHTML = subtypes.map(s =>
     `<button class="subtype-btn${selectedSubtype===s?' '+activeClass:''}" onclick="selectSubtype('${s}')">${s}</button>`
   ).join('');
 }
@@ -2051,6 +2053,7 @@ function deleteRace(id) {
 function renderRaces() {
   updateRaceCountdowns();
   const list = document.getElementById('race-list');
+  if (!list) return; // race planner not rendered yet — safe no-op
   const badge = document.getElementById('race-count');
   if (badge) badge.textContent = races.length;
   if (!races.length) { list.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--dim);text-align:center">No races added yet</div>'; return; }
