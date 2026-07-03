@@ -1680,6 +1680,7 @@ function renderDashboard(d) {
 
   document.getElementById('dashboard-content').innerHTML = `
     ${bannerHtml}
+    ${renderWeeklySummaryCard()}
     <div class="section">
       <div class="section-label">This week</div>
       <div class="metrics-grid">
@@ -1702,6 +1703,7 @@ function renderDashboard(d) {
         <div class="readiness-row"><span class="readiness-sport">Run</span><div class="readiness-bar-bg"><div class="readiness-bar-fill" style="width:${d.runReadiness}%;background:var(--run)"></div></div><span class="readiness-pct">${d.runReadiness}%</span></div>
       </div>
     </div>
+    ${renderInjuryRiskCard()}
     <div class="section">
       <div class="section-label">Race planner</div>
       <div class="race-planner" id="race-planner">
@@ -4304,6 +4306,167 @@ function renderWellnessPage() {
   readinessEl.style.color = readiness.color;
 
   renderWellnessChart();
+}
+
+
+// ── INJURY RISK DETECTOR ─────────────────────────────────────────────────
+// Pure math, no AI cost. Checks: (1) weekly mileage jump vs last week, (2) consecutive days without rest.
+function calcInjuryRisk() {
+  if (!allActivities.length) return null;
+
+  const now = new Date();
+  const today = new Date(now); today.setHours(0,0,0,0);
+
+  // This week (Mon-based) and last week totals — all sports combined, TLS-weighted
+  function weekTotals(weeksAgo) {
+    const weekEnd = new Date(today); weekEnd.setDate(today.getDate() - (weeksAgo * 7));
+    const weekStart = new Date(weekEnd); weekStart.setDate(weekEnd.getDate() - 7);
+    const acts = allActivities.filter(a => {
+      const d = new Date(a.start_date_local);
+      return d > weekStart && d <= weekEnd && a.distance > 0;
+    });
+    const swimMi = acts.filter(a=>a.type==='Swim').reduce((s,a)=>s+mToMi(a.distance),0);
+    const runMi  = acts.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
+    const bikeMi = acts.filter(a=>a.type==='Ride').reduce((s,a)=>s+mToMi(a.distance),0);
+    return calcTLS(swimMi, runMi, bikeMi);
+  }
+
+  const thisWeekTLS = weekTotals(0);
+  const lastWeekTLS = weekTotals(1);
+  const jumpPct = lastWeekTLS > 0 ? ((thisWeekTLS - lastWeekTLS) / lastWeekTLS) * 100 : 0;
+
+  // Consecutive days trained without a rest day (looking back from today)
+  let consecutiveDays = 0;
+  for (let i = 0; i < 21; i++) {
+    const checkDate = new Date(today); checkDate.setDate(today.getDate() - i);
+    const dateStr = checkDate.toISOString().split('T')[0];
+    const hasActivity = allActivities.some(a => a.start_date_local.split('T')[0] === dateStr && a.distance > 0);
+    if (hasActivity) consecutiveDays++;
+    else break;
+  }
+
+  // Determine risk level
+  const flags = [];
+  if (jumpPct > 30 && lastWeekTLS > 5) {
+    flags.push({ level: 'high', text: `Weekly load jumped ${Math.round(jumpPct)}% vs last week — that's a significant spike.` });
+  } else if (jumpPct > 15 && lastWeekTLS > 5) {
+    flags.push({ level: 'moderate', text: `Weekly load is up ${Math.round(jumpPct)}% vs last week.` });
+  }
+  if (consecutiveDays >= 8) {
+    flags.push({ level: 'high', text: `${consecutiveDays} days in a row without rest.` });
+  } else if (consecutiveDays >= 6) {
+    flags.push({ level: 'moderate', text: `${consecutiveDays} days in a row without rest.` });
+  }
+
+  if (!flags.length) return { level: 'ok', jumpPct, consecutiveDays, thisWeekTLS, lastWeekTLS };
+
+  const highestLevel = flags.some(f => f.level === 'high') ? 'high' : 'moderate';
+  return { level: highestLevel, flags, jumpPct, consecutiveDays, thisWeekTLS, lastWeekTLS };
+}
+
+function renderInjuryRiskCard() {
+  const risk = calcInjuryRisk();
+  if (!risk || risk.level === 'ok') return ''; // nothing to show when things look fine
+
+  const config = {
+    high:     { icon: '🚨', label: 'Injury Risk: High',     color: 'var(--warn)', bg: 'rgba(232,112,112,0.08)', border: 'rgba(232,112,112,0.3)' },
+    moderate: { icon: '⚠️', label: 'Injury Risk: Elevated', color: 'var(--mar)',  bg: 'rgba(240,160,80,0.08)',  border: 'rgba(240,160,80,0.3)' }
+  }[risk.level];
+
+  return `
+    <div class="section">
+      <div class="card" style="padding:14px 16px;background:${config.bg};border-color:${config.border};border-left:3px solid ${config.color}">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:16px">${config.icon}</span>
+          <span style="font-family:var(--font-display);font-size:14px;font-weight:700;color:${config.color}">${config.label}</span>
+        </div>
+        ${risk.flags.map(f => `<div style="font-size:12px;color:var(--text);line-height:1.6;margin-top:4px">${f.text}</div>`).join('')}
+        <div style="font-size:11px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid ${config.border}">Consider a lighter day or extra rest to stay ahead of overuse injury.</div>
+      </div>
+    </div>`;
+}
+
+
+// ── WEEKLY SUMMARY CARD (Sunday only) ────────────────────────────────────
+const CACHE_KEY_WEEKLY_SUMMARY = 'brb_weekly_summary';
+
+function isSunday() {
+  return new Date().getDay() === 0;
+}
+
+function getWeekSummaryData() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const weekStart = new Date(today); weekStart.setDate(today.getDate() - 6); // Mon-Sun, today is Sunday
+
+  const acts = allActivities.filter(a => {
+    const d = new Date(a.start_date_local);
+    return d >= weekStart && d <= today && a.distance > 0;
+  });
+
+  const swimMi = acts.filter(a=>a.type==='Swim').reduce((s,a)=>s+mToMi(a.distance),0);
+  const runMi  = acts.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
+  const bikeMi = acts.filter(a=>a.type==='Ride').reduce((s,a)=>s+mToMi(a.distance),0);
+  const tls = calcTLS(swimMi, runMi, bikeMi);
+  const activeDays = new Set(acts.map(a => a.start_date_local.split('T')[0])).size;
+  const targets = { swim: 1.2, bike: 25, run: 15 };
+
+  return { swimMi, runMi, bikeMi, tls, activeDays, count: acts.length, targets, weekStart: weekStart.toISOString().split('T')[0] };
+}
+
+function renderWeeklySummaryCard() {
+  if (!isSunday()) return '';
+  if (!allActivities.length) return '';
+
+  const wk = getWeekSummaryData();
+  // Check if we already generated a summary for this specific week
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem(CACHE_KEY_WEEKLY_SUMMARY) || 'null'); } catch(e) {}
+  const alreadyGenerated = cached && cached.weekStart === wk.weekStart;
+
+  return `
+    <div class="section">
+      <div class="card" style="padding:16px;border-left:3px solid var(--tri)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <span style="font-size:16px">📆</span>
+          <span style="font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--tri)">Week in Review</span>
+        </div>
+        <div class="metrics-grid" style="margin-bottom:12px">
+          <div class="metric-card swim"><div class="metric-label">Swim</div><div class="metric-value" style="font-size:16px">${wk.swimMi.toFixed(1)}<span>mi</span></div></div>
+          <div class="metric-card bike"><div class="metric-label">Bike</div><div class="metric-value" style="font-size:16px">${wk.bikeMi.toFixed(1)}<span>mi</span></div></div>
+          <div class="metric-card run"><div class="metric-label">Run</div><div class="metric-value" style="font-size:16px">${wk.runMi.toFixed(1)}<span>mi</span></div></div>
+          <div class="metric-card load"><div class="metric-label">TLS</div><div class="metric-value" style="font-size:16px">${wk.tls.toFixed(1)}</div></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:10px">${wk.count} activities across ${wk.activeDays} active days this week</div>
+        <div id="weekly-summary-ai-content">
+          ${alreadyGenerated
+            ? `<div style="font-size:12px;color:var(--text);line-height:1.7;padding-top:10px;border-top:1px solid var(--border)">${cached.text}</div>`
+            : `<button class="add-race-btn" style="font-size:12px" onclick="generateWeeklySummary()">✨ Generate weekly recap</button>`
+          }
+        </div>
+      </div>
+    </div>`;
+}
+
+async function generateWeeklySummary() {
+  const container = document.getElementById('weekly-summary-ai-content');
+  if (!container) return;
+  container.innerHTML = `<div style="font-size:12px;color:var(--dim);text-align:center;padding:8px 0">Generating recap...</div>`;
+
+  try {
+    const wk = getWeekSummaryData();
+    const triDays = daysUntil(TRI_DATE), marDays = daysUntil(MAR_DATE);
+    const reply = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 300,
+      system: `You are a supportive but honest triathlon and marathon coach. Write a 2-3 sentence weekly recap for the athlete. Reference their actual numbers. Be encouraging but note anything worth flagging (imbalance between sports, low volume, great consistency, etc). Olympic Tri in ${triDays} days, Chicago Marathon in ${marDays} days. Keep it warm and conversational, not clinical.`,
+      messages: [{ role: 'user', content: `This week: ${wk.swimMi.toFixed(1)}mi swim, ${wk.bikeMi.toFixed(1)}mi bike, ${wk.runMi.toFixed(1)}mi run, TLS ${wk.tls.toFixed(1)}, ${wk.count} activities across ${wk.activeDays} active days. Targets: swim ${wk.targets.swim}mi/wk, bike ${wk.targets.bike}mi/wk, run ${wk.targets.run}mi/wk. Write the recap.` }]
+    });
+
+    localStorage.setItem(CACHE_KEY_WEEKLY_SUMMARY, JSON.stringify({ weekStart: wk.weekStart, text: reply }));
+    container.innerHTML = `<div style="font-size:12px;color:var(--text);line-height:1.7;padding-top:10px;border-top:1px solid var(--border)">${reply}</div>`;
+  } catch(e) {
+    container.innerHTML = `<div style="font-size:12px;color:var(--warn);text-align:center">Could not generate recap. <span style="color:var(--tri);cursor:pointer;text-decoration:underline" onclick="generateWeeklySummary()">Try again</span></div>`;
+    console.error('Weekly summary error:', e);
+  }
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
