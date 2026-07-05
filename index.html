@@ -745,6 +745,29 @@ body {
 .checklist-item.checked .checklist-item-text {
   text-decoration: line-through; color: var(--muted);
 }
+.checklist-item-delete {
+  background: none; border: none; color: var(--dim); font-size: 13px;
+  cursor: pointer; padding: 4px; flex-shrink: 0; line-height: 1;
+}
+.checklist-item-delete:active { color: var(--warn); }
+.checklist-add-row, .checklist-add-category-row {
+  display: flex; gap: 8px; margin-top: 4px;
+}
+.checklist-add-category-row { margin-top: 4px; margin-bottom: 20px; }
+.checklist-add-input {
+  flex: 1; background: var(--surface); border: 1px dashed var(--border2);
+  border-radius: 10px; color: var(--text); padding: 10px 12px;
+  font-family: var(--font-mono); font-size: 13px; outline: none;
+}
+.checklist-add-input:focus { border-color: var(--tri); border-style: solid; }
+.checklist-add-input::placeholder { color: var(--dim); }
+.checklist-add-btn {
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 0 14px; font-family: var(--font-display);
+  font-size: 12px; font-weight: 600; color: var(--text); cursor: pointer;
+  flex-shrink: 0;
+}
+.checklist-add-btn:active { background: var(--tri-dim); border-color: var(--tri-border); }
 
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
@@ -4653,15 +4676,58 @@ function renderChecklist(raceId) {
   document.getElementById('checklist-progress-ring').style.borderColor = pct === 100 ? 'var(--ok)' : 'var(--tri)';
   document.getElementById('checklist-progress-ring').style.color = pct === 100 ? 'var(--ok)' : 'var(--tri)';
 
-  document.getElementById('checklist-content').innerHTML = cl.categories.map(cat => `
+  document.getElementById('checklist-content').innerHTML = cl.categories.map((cat, catIdx) => `
     <div class="checklist-category">
       <div class="checklist-category-title">${cat.title}</div>
       ${cat.items.map(item => `
-        <div class="checklist-item${item.checked ? ' checked' : ''}" onclick="toggleChecklistItem(${raceId}, '${item.id}')">
-          <div class="checklist-checkbox">${item.checked ? '&#10003;' : ''}</div>
-          <div class="checklist-item-text">${item.text}</div>
+        <div class="checklist-item${item.checked ? ' checked' : ''}">
+          <div class="checklist-checkbox" onclick="toggleChecklistItem(${raceId}, '${item.id}')">${item.checked ? '&#10003;' : ''}</div>
+          <div class="checklist-item-text" onclick="toggleChecklistItem(${raceId}, '${item.id}')">${item.text}</div>
+          <button class="checklist-item-delete" onclick="deleteChecklistItem(${raceId}, '${item.id}')">&#10005;</button>
         </div>`).join('')}
-    </div>`).join('');
+      <div class="checklist-add-row">
+        <input class="checklist-add-input" id="add-item-${raceId}-${catIdx}" placeholder="+ Add item..." onkeydown="if(event.key==='Enter') addChecklistItem(${raceId}, ${catIdx})" />
+        <button class="checklist-add-btn" onclick="addChecklistItem(${raceId}, ${catIdx})">Add</button>
+      </div>
+    </div>`).join('') + `
+    <div class="checklist-add-category-row">
+      <input class="checklist-add-input" id="add-category-${raceId}" placeholder="+ New category name..." onkeydown="if(event.key==='Enter') addChecklistCategory(${raceId})" />
+      <button class="checklist-add-btn" onclick="addChecklistCategory(${raceId})">Add Category</button>
+    </div>`;
+}
+
+function addChecklistItem(raceId, catIdx) {
+  const input = document.getElementById('add-item-' + raceId + '-' + catIdx);
+  const text = input.value.trim();
+  if (!text) return;
+  const cl = raceChecklists[raceId];
+  if (!cl || !cl.categories[catIdx]) return;
+  cl.categories[catIdx].items.push({ text, checked: false, id: Date.now() + Math.random() });
+  saveChecklists();
+  renderChecklist(raceId);
+  renderRaces();
+}
+
+function deleteChecklistItem(raceId, itemId) {
+  const cl = raceChecklists[raceId];
+  if (!cl) return;
+  cl.categories.forEach(cat => {
+    cat.items = cat.items.filter(i => String(i.id) !== String(itemId));
+  });
+  saveChecklists();
+  renderChecklist(raceId);
+  renderRaces();
+}
+
+function addChecklistCategory(raceId) {
+  const input = document.getElementById('add-category-' + raceId);
+  const title = input.value.trim();
+  if (!title) return;
+  const cl = raceChecklists[raceId];
+  if (!cl) return;
+  cl.categories.push({ title, items: [] });
+  saveChecklists();
+  renderChecklist(raceId);
 }
 
 function toggleChecklistItem(raceId, itemId) {
