@@ -698,6 +698,54 @@ body {
 }
 .morning-log-card-delete:active { color: var(--warn); }
 
+
+/* ── RACE CHECKLIST ── */
+.race-checklist-btn {
+  width: 100%; margin-top: 10px; background: var(--surface2);
+  border: 1px solid var(--border2); border-radius: 10px;
+  padding: 9px 12px; font-family: var(--font-display); font-size: 12px;
+  font-weight: 600; color: var(--text); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.race-checklist-btn:active { background: var(--surface); }
+.race-checklist-progress {
+  font-size: 10px; color: var(--tri); font-weight: 700;
+}
+.checklist-progress-ring {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 3px solid var(--tri); display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; font-family: var(--font-display); color: var(--tri);
+  flex-shrink: 0;
+}
+.checklist-category { margin-bottom: 18px; }
+.checklist-category-title {
+  font-size: 11px; font-family: var(--font-display); font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim);
+  margin-bottom: 8px;
+}
+.checklist-item {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: all 0.15s;
+}
+.checklist-item.checked { background: var(--tri-dim); border-color: var(--tri-border); opacity: 0.7; }
+.checklist-checkbox {
+  width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--border2);
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: transparent; transition: all 0.15s;
+}
+.checklist-item.checked .checklist-checkbox {
+  background: var(--tri); border-color: var(--tri); color: #0a0a0f;
+}
+.checklist-item-text {
+  flex: 1; font-size: 13px; color: var(--text); line-height: 1.4;
+}
+.checklist-item.checked .checklist-item-text {
+  text-decoration: line-through; color: var(--muted);
+}
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -938,6 +986,33 @@ body {
             &#128197; Generate training plan in Coach
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- RACE CHECKLIST -->
+    <div class="page" id="page-checklist">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:20px">
+          <div>
+            <div class="date-greeting" style="font-size:16px" id="checklist-race-name">Race Checklist</div>
+            <div class="date-sub" id="checklist-race-sub">Race morning checklist</div>
+          </div>
+          <button class="refresh-btn" onclick="switchTab('dashboard')" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Back</button>
+        </div>
+
+        <div class="card" style="padding:12px 16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="section-label" style="margin-bottom:2px">Progress</div>
+            <div style="font-family:var(--font-display);font-size:16px;font-weight:700" id="checklist-progress-text">0 / 0 packed</div>
+          </div>
+          <div class="checklist-progress-ring" id="checklist-progress-ring">0%</div>
+        </div>
+
+        <div id="checklist-content"></div>
+
+        <button class="add-race-btn" style="margin-top:8px" onclick="regenerateChecklist()" id="checklist-regenerate-btn">
+          &#10227; Regenerate checklist
+        </button>
       </div>
     </div>
 
@@ -2114,6 +2189,9 @@ function renderRaces() {
       <div class="race-item-insight ${r.insight ? '' : 'loading'}" id="insight-${r.id}">
         ${r.insight || '&#8230; Generating coaching insight'}
       </div>
+      <button class="race-checklist-btn" onclick="openRaceChecklist(${r.id})">
+        &#128203; Race Morning Checklist ${raceChecklists[r.id] ? '<span class="race-checklist-progress">' + checklistProgressText(r.id) + '</span>' : ''}
+      </button>
     </div>`;
   }).join('');
 }
@@ -3283,6 +3361,12 @@ async function kvSyncAll() {
       localStorage.setItem('brb_swim_drills', JSON.stringify(swimDrills));
       changed = true;
       console.log('KV: updated swim drills, count:', swimDrills.length);
+    }
+    if (data.brb_race_checklists && typeof data.brb_race_checklists === 'object') {
+      raceChecklists = data.brb_race_checklists;
+      localStorage.setItem('brb_race_checklists', JSON.stringify(raceChecklists));
+      changed = true;
+      console.log('KV: updated race checklists');
     }
 
     if (changed) {
@@ -4467,6 +4551,130 @@ async function generateWeeklySummary() {
     container.innerHTML = `<div style="font-size:12px;color:var(--warn);text-align:center">Could not generate recap. <span style="color:var(--tri);cursor:pointer;text-decoration:underline" onclick="generateWeeklySummary()">Try again</span></div>`;
     console.error('Weekly summary error:', e);
   }
+}
+
+
+// ── RACE MORNING CHECKLIST ────────────────────────────────────────────────
+const CACHE_KEY_CHECKLISTS = 'brb_race_checklists';
+let raceChecklists = JSON.parse(localStorage.getItem(CACHE_KEY_CHECKLISTS) || '{}');
+// raceChecklists = { [raceId]: { categories: [{ title, items: [{ text, checked, id }] }], generatedFor: 'triathlon'|'running' } }
+let currentChecklistRaceId = null;
+
+function saveChecklists() {
+  localStorage.setItem(CACHE_KEY_CHECKLISTS, JSON.stringify(raceChecklists));
+  kvSet('brb_race_checklists', raceChecklists);
+}
+
+function checklistProgressText(raceId) {
+  const cl = raceChecklists[raceId];
+  if (!cl) return '';
+  const allItems = cl.categories.flatMap(c => c.items);
+  const checked = allItems.filter(i => i.checked).length;
+  return checked + '/' + allItems.length;
+}
+
+async function openRaceChecklist(raceId) {
+  currentChecklistRaceId = raceId;
+  const race = races.find(r => r.id === raceId);
+  if (!race) return;
+
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-checklist').classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  currentTab = 'checklist';
+
+  document.getElementById('checklist-race-name').textContent = '📋 ' + race.name;
+  document.getElementById('checklist-race-sub').textContent = race.subtype + ' ' + (race.type === 'triathlon' ? 'Triathlon' : 'Run') + ' · ' + new Date(race.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+  if (raceChecklists[raceId]) {
+    renderChecklist(raceId);
+  } else {
+    await generateChecklistForRace(raceId);
+  }
+}
+
+async function generateChecklistForRace(raceId) {
+  const race = races.find(r => r.id === raceId);
+  if (!race) return;
+
+  document.getElementById('checklist-content').innerHTML = `<div class="loading-state"><div class="loading-dots"><span></span><span></span><span></span></div><div class="loading-text">Generating your race checklist…</div></div>`;
+  document.getElementById('checklist-regenerate-btn').style.display = 'none';
+
+  try {
+    const reply = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 1200,
+      system: `You are an expert race-day logistics coach. Generate a race morning checklist tailored to the specific race type and distance. Return ONLY valid JSON, no markdown, no apostrophes or curly quotes (plain ASCII only):
+{"categories":[{"title":"Gear","items":["item 1","item 2"]},{"title":"Nutrition","items":["item 1"]},{"title":"Race Morning","items":["item 1"]},{"title":"Logistics","items":["item 1"]}]}
+For a triathlon include swim/bike/run specific gear (wetsuit, goggles, swim cap if open water, bike shoes, helmet, race belt, running shoes, transition setup items). For a running race focus on running-specific gear, pacing plan, and fueling. Keep items short and specific, 4-6 items per category, 4 categories total. Tailor everything to the specific distance given.`,
+      messages: [{ role: 'user', content: `Generate a race morning checklist for: ${race.name}, a ${race.subtype} ${race.type === 'triathlon' ? 'triathlon' : 'running race'}. Goal time: ${race.goal || 'not set'}.` }]
+    });
+
+    const cleaned = reply
+      .replace(/```json|```/g,'')
+      .replace(/[‘’]/g, "'")
+      .replace(/[“”]/g, '"')
+      .replace(/[–—]/g, '-')
+      .trim();
+    const data = JSON.parse(cleaned);
+
+    const categories = data.categories.map(cat => ({
+      title: cat.title,
+      items: cat.items.map(text => ({ text, checked: false, id: Date.now() + Math.random() }))
+    }));
+
+    raceChecklists[raceId] = { categories, generatedFor: race.type };
+    saveChecklists();
+    renderChecklist(raceId);
+  } catch(e) {
+    document.getElementById('checklist-content').innerHTML = `<div class="card" style="padding:1.5rem;text-align:center">
+      <div style="font-size:13px;color:var(--warn)">Could not generate checklist.</div>
+      <button class="add-race-btn" style="margin-top:12px" onclick="generateChecklistForRace(${raceId})">Try again</button>
+    </div>`;
+    console.error('Checklist generation error:', e);
+  }
+  document.getElementById('checklist-regenerate-btn').style.display = 'block';
+}
+
+function regenerateChecklist() {
+  if (currentChecklistRaceId) generateChecklistForRace(currentChecklistRaceId);
+}
+
+function renderChecklist(raceId) {
+  const cl = raceChecklists[raceId];
+  if (!cl) return;
+
+  const allItems = cl.categories.flatMap(c => c.items);
+  const checkedCount = allItems.filter(i => i.checked).length;
+  const totalCount = allItems.length;
+  const pct = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
+
+  document.getElementById('checklist-progress-text').textContent = checkedCount + ' / ' + totalCount + ' packed';
+  document.getElementById('checklist-progress-ring').textContent = pct + '%';
+  document.getElementById('checklist-progress-ring').style.borderColor = pct === 100 ? 'var(--ok)' : 'var(--tri)';
+  document.getElementById('checklist-progress-ring').style.color = pct === 100 ? 'var(--ok)' : 'var(--tri)';
+
+  document.getElementById('checklist-content').innerHTML = cl.categories.map(cat => `
+    <div class="checklist-category">
+      <div class="checklist-category-title">${cat.title}</div>
+      ${cat.items.map(item => `
+        <div class="checklist-item${item.checked ? ' checked' : ''}" onclick="toggleChecklistItem(${raceId}, '${item.id}')">
+          <div class="checklist-checkbox">${item.checked ? '&#10003;' : ''}</div>
+          <div class="checklist-item-text">${item.text}</div>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
+function toggleChecklistItem(raceId, itemId) {
+  const cl = raceChecklists[raceId];
+  if (!cl) return;
+  for (const cat of cl.categories) {
+    const item = cat.items.find(i => String(i.id) === String(itemId));
+    if (item) { item.checked = !item.checked; break; }
+  }
+  saveChecklists();
+  renderChecklist(raceId);
+  // Also update the badge on the race card if we go back
+  renderRaces();
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
