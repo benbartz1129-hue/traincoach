@@ -1,4 +1,4 @@
-const CF_ACCOUNT_ID = '23846f97f2d5dde9557f21aabbc3f3e9';
+const CF_ACCOUNT_ID = 'REPLACE_WITH_ACCOUNT_ID';
 const KV_NAMESPACE_ID = 'ce44f82dceff46a6bd16563a2f3a3b1c';
 const BASE = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${KV_NAMESPACE_ID}`;
 
@@ -53,7 +53,7 @@ export async function onRequestPost(context) {
     }
 
     if (action === 'getAll') {
-      const keys = ['brb_races', 'brb_training_plan', 'brb_weight_log', 'brb_activity_notes', 'brb_wellness_log', 'brb_swim_drills'];
+      const keys = ['brb_races', 'brb_training_plan', 'brb_weight_log', 'brb_activity_notes', 'brb_wellness_log', 'brb_swim_drills', 'brb_race_checklists'];
       const results = {};
       await Promise.all(keys.map(async k => { results[k] = await kvGet(k, CF_API_TOKEN); }));
       return new Response(JSON.stringify(results), { headers });
