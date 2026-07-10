@@ -1270,22 +1270,41 @@ body {
           <div id="stats-chart-empty" style="display:none;text-align:center;padding:1.5rem;font-size:12px;color:var(--dim)">No weight entries yet.</div>
         </div>
 
-        <!-- WELLNESS CHART -->
-        <div class="section-label">HRV & resting HR trend</div>
+        <!-- HRV CHART -->
+        <div class="section-label">HRV trend</div>
         <div class="card" style="padding:14px 16px;margin-bottom:20px">
-          <div style="display:flex;gap:8px;margin-bottom:12px" id="wellness-range-btns">
-            <button class="filter-btn active" onclick="setWellnessRange(30,this)">30d</button>
-            <button class="filter-btn" onclick="setWellnessRange(60,this)">60d</button>
-            <button class="filter-btn" onclick="setWellnessRange(90,this)">90d</button>
-            <button class="filter-btn" onclick="setWellnessRange(0,this)">All</button>
+          <div style="display:flex;gap:8px;margin-bottom:12px" id="hrv-range-btns">
+            <button class="filter-btn active" onclick="setHrvRange(30,this)">30d</button>
+            <button class="filter-btn" onclick="setHrvRange(60,this)">60d</button>
+            <button class="filter-btn" onclick="setHrvRange(90,this)">90d</button>
+            <button class="filter-btn" onclick="setHrvRange(0,this)">All</button>
           </div>
           <div style="position:relative;height:160px">
-            <canvas id="wellness-chart" role="img" aria-label="HRV and resting heart rate trend chart"></canvas>
+            <canvas id="hrv-chart" role="img" aria-label="HRV trend chart"></canvas>
           </div>
-          <div id="wellness-chart-empty" style="display:none;text-align:center;padding:1.5rem;font-size:12px;color:var(--dim)">No wellness entries yet.</div>
-          <div style="display:flex;gap:16px;margin-top:10px;font-size:11px;color:var(--muted);flex-wrap:wrap">
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--tri);display:inline-block"></span>HRV (ms)</span>
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--warn);display:inline-block"></span>RHR (bpm)</span>
+          <div id="hrv-chart-empty" style="display:none;text-align:center;padding:1.5rem;font-size:12px;color:var(--dim)">No HRV entries yet.</div>
+          <div style="display:flex;gap:16px;margin-top:10px;font-size:11px;color:var(--muted)">
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:rgba(79,196,168,0.9);display:inline-block"></span>HRV (ms)</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:0;border-top:2px dashed rgba(240,160,80,0.55);display:inline-block"></span>Trend</span>
+          </div>
+        </div>
+
+        <!-- RHR CHART -->
+        <div class="section-label">Resting HR trend</div>
+        <div class="card" style="padding:14px 16px;margin-bottom:20px">
+          <div style="display:flex;gap:8px;margin-bottom:12px" id="rhr-range-btns">
+            <button class="filter-btn active" onclick="setRhrRange(30,this)">30d</button>
+            <button class="filter-btn" onclick="setRhrRange(60,this)">60d</button>
+            <button class="filter-btn" onclick="setRhrRange(90,this)">90d</button>
+            <button class="filter-btn" onclick="setRhrRange(0,this)">All</button>
+          </div>
+          <div style="position:relative;height:160px">
+            <canvas id="rhr-chart" role="img" aria-label="Resting heart rate trend chart"></canvas>
+          </div>
+          <div id="rhr-chart-empty" style="display:none;text-align:center;padding:1.5rem;font-size:12px;color:var(--dim)">No RHR entries yet.</div>
+          <div style="display:flex;gap:16px;margin-top:10px;font-size:11px;color:var(--muted)">
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:rgba(232,112,112,0.85);display:inline-block"></span>RHR (bpm)</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:0;border-top:2px dashed rgba(240,160,80,0.55);display:inline-block"></span>Trend</span>
           </div>
         </div>
 
@@ -4302,74 +4321,71 @@ function deleteWellnessEntry(date) {
   renderWellnessPage();
 }
 
-function setWellnessRange(days, btn) {
-  wellnessRangeDays = days;
-  document.querySelectorAll('#wellness-range-btns .filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderWellnessChart();
+// Shared chart defaults for all 3 stats charts
+const STATS_CHART_DEFAULTS = {
+  tickColor: 'rgba(255,255,255,0.45)',
+  gridColor: 'rgba(255,255,255,0.06)',
+  font: { size: 10, family: "'DM Mono', monospace" },
+  tooltip: {
+    backgroundColor: 'rgba(20,20,30,0.92)',
+    titleColor: 'rgba(255,255,255,0.7)',
+    bodyColor: 'rgba(255,255,255,0.9)',
+    borderColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1
+  }
+};
+
+function buildTrendLine(values) {
+  const n = values.length;
+  if (n < 2) return values.map(v => v);
+  const xMean = (n-1)/2;
+  const validPairs = values.map((v,i) => v !== null ? [i,v] : null).filter(Boolean);
+  if (validPairs.length < 2) return values.map(() => null);
+  const yMean = validPairs.reduce((s,[,v])=>s+v,0)/validPairs.length;
+  const slope = validPairs.reduce((s,[x,v])=>s+(x-xMean)*(v-yMean),0) /
+                validPairs.reduce((s,[x])=>s+(x-xMean)**2, 0.001);
+  const intercept = yMean - slope*xMean;
+  return values.map((_,i) => +(intercept + slope*i).toFixed(2));
 }
 
-function getFilteredWellnessLog() {
-  if (wellnessRangeDays === 0) return wellnessLog;
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - wellnessRangeDays);
-  const cutoffStr = cutoff.toISOString().split('T')[0];
-  return wellnessLog.filter(e => e.date >= cutoffStr);
-}
-
-function renderWellnessChart() {
-  const filtered = getFilteredWellnessLog().filter(e => e.hrv || e.rhr);
-  const canvas = document.getElementById('wellness-chart');
-  const empty = document.getElementById('wellness-chart-empty');
-  if (!canvas) return;
-
-  if (!filtered.length) {
+function makeStatsChart(canvasId, emptyId, labels, mainData, mainColor, mainFill, tooltipUnit, trendData, existingInstance) {
+  const canvas = document.getElementById(canvasId);
+  const empty = document.getElementById(emptyId);
+  if (!canvas) return existingInstance;
+  const hasData = mainData.some(v => v !== null);
+  if (!hasData) {
     canvas.style.display = 'none';
     if (empty) empty.style.display = 'block';
-    return;
+    return existingInstance;
   }
   canvas.style.display = 'block';
   if (empty) empty.style.display = 'none';
-
-  const labels = filtered.map(e => {
-    const d = new Date(e.date + 'T12:00:00');
-    return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
-  });
-
-  if (wellnessChartInstance) { wellnessChartInstance.destroy(); wellnessChartInstance = null; }
-
-  const wChartDefaults = {
-    tickColor: 'rgba(255,255,255,0.45)',
-    gridColor: 'rgba(255,255,255,0.06)',
-    font: { size: 10, family: "'DM Mono', monospace" }
-  };
-
-  wellnessChartInstance = new Chart(canvas, {
+  if (existingInstance) { existingInstance.destroy(); existingInstance = null; }
+  const n = mainData.filter(v=>v!==null).length;
+  return new Chart(canvas, {
     type: 'line',
     data: {
       labels,
       datasets: [
         {
-          label: 'HRV',
-          data: filtered.map(e => e.hrv || null),
-          borderColor: 'rgba(79,196,168,0.9)',
-          backgroundColor: 'rgba(79,196,168,0.07)',
+          label: tooltipUnit,
+          data: mainData,
+          borderColor: mainColor,
+          backgroundColor: mainFill,
           borderWidth: 2,
-          pointRadius: filtered.length > 30 ? 0 : 3,
-          pointBackgroundColor: 'rgba(79,196,168,0.9)',
+          pointRadius: n > 30 ? 0 : 4,
+          pointBackgroundColor: mainColor,
           pointBorderColor: 'transparent',
-          tension: 0.35, fill: true, yAxisID: 'y', spanGaps: true
+          tension: 0.35, fill: true, order: 2, spanGaps: true
         },
         {
-          label: 'RHR',
-          data: filtered.map(e => e.rhr || null),
-          borderColor: 'rgba(232,112,112,0.85)',
-          backgroundColor: 'rgba(232,112,112,0.06)',
-          borderWidth: 2,
-          pointRadius: filtered.length > 30 ? 0 : 3,
-          pointBackgroundColor: 'rgba(232,112,112,0.85)',
-          pointBorderColor: 'transparent',
-          tension: 0.35, fill: true, yAxisID: 'y1', spanGaps: true
+          label: 'Trend',
+          data: trendData,
+          borderColor: 'rgba(240,160,80,0.55)',
+          borderWidth: 1.5,
+          borderDash: [5,4],
+          pointRadius: 0,
+          tension: 0, fill: false, order: 1, spanGaps: true
         }
       ]
     },
@@ -4379,37 +4395,78 @@ function renderWellnessChart() {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: 'rgba(20,20,30,0.92)',
-          titleColor: 'rgba(255,255,255,0.7)',
-          bodyColor: 'rgba(255,255,255,0.9)',
-          borderColor: 'rgba(255,255,255,0.1)',
-          borderWidth: 1,
-          callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y + (ctx.dataset.label==='HRV' ? ' ms' : ' bpm') }
+          ...STATS_CHART_DEFAULTS.tooltip,
+          callbacks: { label: ctx => ctx.dataset.label === 'Trend' ? 'Trend: ' + (+ctx.parsed.y).toFixed(1) + ' ' + tooltipUnit : tooltipUnit + ': ' + (+ctx.parsed.y).toFixed(1) }
         }
       },
       scales: {
         x: {
-          ticks: { color: wChartDefaults.tickColor, font: wChartDefaults.font, maxRotation: 45, autoSkip: true, maxTicksLimit: 7 },
+          ticks: { color: STATS_CHART_DEFAULTS.tickColor, font: STATS_CHART_DEFAULTS.font, maxRotation: 45, autoSkip: true, maxTicksLimit: 7 },
           grid: { display: false },
           border: { color: 'rgba(255,255,255,0.08)' }
         },
         y: {
-          position: 'left',
-          ticks: { color: 'rgba(79,196,168,0.7)', font: wChartDefaults.font },
-          grid: { color: wChartDefaults.gridColor },
-          border: { color: 'transparent' },
-          title: { display: true, text: 'HRV (ms)', color: 'rgba(79,196,168,0.6)', font: { size: 9 } }
-        },
-        y1: {
-          position: 'right',
-          ticks: { color: 'rgba(232,112,112,0.7)', font: wChartDefaults.font },
-          grid: { display: false },
-          border: { color: 'transparent' },
-          title: { display: true, text: 'RHR (bpm)', color: 'rgba(232,112,112,0.6)', font: { size: 9 } }
+          ticks: { color: STATS_CHART_DEFAULTS.tickColor, font: STATS_CHART_DEFAULTS.font },
+          grid: { color: STATS_CHART_DEFAULTS.gridColor },
+          border: { color: 'transparent' }
         }
       }
     }
   });
+}
+
+// HRV chart
+let hrvRangeDays = 30;
+let hrvChartInstance = null;
+
+function setHrvRange(days, btn) {
+  hrvRangeDays = days;
+  document.querySelectorAll('#hrv-range-btns .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderHrvChart();
+}
+
+function renderHrvChart() {
+  const cutoff = hrvRangeDays > 0 ? new Date(Date.now() - hrvRangeDays*86400000).toISOString().split('T')[0] : null;
+  const filtered = wellnessLog.filter(e => e.hrv && (!cutoff || e.date >= cutoff));
+  const labels = filtered.map(e => new Date(e.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+  const values = filtered.map(e => e.hrv);
+  const trend = buildTrendLine(values);
+  hrvChartInstance = makeStatsChart('hrv-chart','hrv-chart-empty', labels, values, 'rgba(79,196,168,0.9)', 'rgba(79,196,168,0.07)', 'ms', trend, hrvChartInstance);
+}
+
+// RHR chart
+let rhrRangeDays = 30;
+let rhrChartInstance = null;
+
+function setRhrRange(days, btn) {
+  rhrRangeDays = days;
+  document.querySelectorAll('#rhr-range-btns .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderRhrChart();
+}
+
+function renderRhrChart() {
+  const cutoff = rhrRangeDays > 0 ? new Date(Date.now() - rhrRangeDays*86400000).toISOString().split('T')[0] : null;
+  const filtered = wellnessLog.filter(e => e.rhr && (!cutoff || e.date >= cutoff));
+  const labels = filtered.map(e => new Date(e.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+  const values = filtered.map(e => e.rhr);
+  const trend = buildTrendLine(values);
+  rhrChartInstance = makeStatsChart('rhr-chart','rhr-chart-empty', labels, values, 'rgba(232,112,112,0.85)', 'rgba(232,112,112,0.06)', 'bpm', trend, rhrChartInstance);
+}
+
+// Legacy alias called from renderWellnessPage
+function renderWellnessChart() {
+  renderHrvChart();
+  renderRhrChart();
+}
+
+// No-op stubs for old range buttons no longer in HTML
+function setWellnessRange(days, btn) { hrvRangeDays = days; rhrRangeDays = days; renderWellnessChart(); }
+function getFilteredWellnessLog() {
+  if (wellnessRangeDays === 0) return wellnessLog;
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - wellnessRangeDays);
+  return wellnessLog.filter(e => e.date >= cutoff.toISOString().split('T')[0]);
 }
 
 function getReadinessStatus(hrvTrend, rhrTrend) {
