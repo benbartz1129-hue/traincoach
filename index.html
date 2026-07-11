@@ -1233,24 +1233,37 @@ body {
           </div>
         </div>
 
-        <!-- Readiness + 7-day changes row -->
-        <div class="card" style="padding:12px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
-          <div>
-            <div class="section-label" style="margin-bottom:2px">Readiness</div>
-            <div style="font-family:var(--font-display);font-size:18px;font-weight:700" id="wellness-readiness">—</div>
+        <!-- Readiness + Daily Insight -->
+        <div class="card" style="padding:14px 16px;margin-bottom:20px">
+          <!-- Top row: readiness + weight changes -->
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+            <div>
+              <div class="section-label" style="margin-bottom:2px">Readiness</div>
+              <div style="font-family:var(--font-display);font-size:18px;font-weight:700" id="wellness-readiness">—</div>
+            </div>
+            <div style="display:flex;gap:20px;flex-wrap:wrap">
+              <div style="text-align:center">
+                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-display);margin-bottom:2px">Weight 7d</div>
+                <div style="font-size:14px;font-weight:500" id="stat-7d">—</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-display);margin-bottom:2px">Weight 30d</div>
+                <div style="font-size:14px;font-weight:500" id="stat-30d">—</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-display);margin-bottom:2px">Low</div>
+                <div style="font-size:14px;font-weight:500" id="stat-low">—</div>
+              </div>
+            </div>
           </div>
-          <div style="display:flex;gap:20px;flex-wrap:wrap">
-            <div style="text-align:center">
-              <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-display);margin-bottom:2px">Weight 7d</div>
-              <div style="font-size:14px;font-weight:500" id="stat-7d">—</div>
+          <!-- Daily Insight -->
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <div class="section-label" style="margin-bottom:0">Daily Insight</div>
+              <button id="daily-insight-refresh-btn" onclick="generateDailyInsight(true)" style="background:none;border:none;color:var(--tri);font-size:11px;font-family:var(--font-display);font-weight:600;cursor:pointer;padding:0">↻ Refresh</button>
             </div>
-            <div style="text-align:center">
-              <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-display);margin-bottom:2px">Weight 30d</div>
-              <div style="font-size:14px;font-weight:500" id="stat-30d">—</div>
-            </div>
-            <div style="text-align:center">
-              <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-display);margin-bottom:2px">Low</div>
-              <div style="font-size:14px;font-weight:500" id="stat-low">—</div>
+            <div id="daily-insight-content">
+              <button class="add-race-btn" style="font-size:12px;padding:9px 16px" onclick="generateDailyInsight(false)">✨ Generate daily insight</button>
             </div>
           </div>
         </div>
@@ -3288,6 +3301,17 @@ function renderStatsPage() {
   // Summary cards — wellness (7d avg via renderWellnessPage)
   renderWellnessPage();
 
+  // Load cached daily insight if available, show generate button if not
+  const cachedInsight = loadCachedDailyInsight();
+  const insightEl = document.getElementById('daily-insight-content');
+  if (insightEl) {
+    if (cachedInsight) {
+      showDailyInsight(cachedInsight);
+    } else {
+      insightEl.innerHTML = '<button class="add-race-btn" style="font-size:12px;padding:9px 16px" onclick="generateDailyInsight(false)">✨ Generate daily insight</button>';
+    }
+  }
+
   // Combined history — merge weight + wellness by date, newest first
   const allDates = new Set([
     ...weightLog.map(e => e.date),
@@ -4868,6 +4892,93 @@ function preventZoom() {
 function restoreZoom() {
   const vp = document.querySelector('meta[name="viewport"]');
   if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+}
+
+
+// ── DAILY INSIGHT (Stats page) ────────────────────────────────────────────
+const CACHE_KEY_DAILY_INSIGHT = 'brb_daily_insight';
+
+function loadCachedDailyInsight() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY_DAILY_INSIGHT) || 'null');
+    const today = new Date().toISOString().split('T')[0];
+    if (cached && cached.date === today && cached.text) return cached.text;
+  } catch(e) {}
+  return null;
+}
+
+function showDailyInsight(text) {
+  const el = document.getElementById('daily-insight-content');
+  if (!el) return;
+  el.innerHTML = `<div style="font-size:12px;color:var(--text);line-height:1.8">${text.replace(/\n/g,'<br>')}</div>`;
+}
+
+async function generateDailyInsight(forceRefresh) {
+  const el = document.getElementById('daily-insight-content');
+  if (!el) return;
+
+  // Use cached version if available and not forcing refresh
+  if (!forceRefresh) {
+    const cached = loadCachedDailyInsight();
+    if (cached) { showDailyInsight(cached); return; }
+  }
+
+  el.innerHTML = '<div style="font-size:11px;color:var(--dim);text-align:center;padding:8px 0">Generating…</div>';
+  const refreshBtn = document.getElementById('daily-insight-refresh-btn');
+  if (refreshBtn) refreshBtn.style.opacity = '0.4';
+
+  try {
+    const today = new Date().toISOString().split('T')[0];
+
+    // Gather all relevant context
+    // Wellness — today and 7-day average
+    const todayWellness = wellnessLog.find(e => e.date === today);
+    const last7str = new Date(Date.now()-7*86400000).toISOString().split('T')[0];
+    const recent7 = wellnessLog.filter(e => e.date >= last7str);
+    const avg7 = field => { const v=recent7.filter(e=>e[field]!=null).map(e=>e[field]); return v.length ? (v.reduce((s,x)=>s+x,0)/v.length).toFixed(1) : null; };
+
+    const wellnessParts = [];
+    if (todayWellness?.hrv) wellnessParts.push('HRV ' + todayWellness.hrv + 'ms (7d avg ' + (avg7('hrv')||'?') + ')');
+    if (todayWellness?.rhr) wellnessParts.push('RHR ' + todayWellness.rhr + 'bpm (7d avg ' + (avg7('rhr')||'?') + ')');
+    if (todayWellness?.sleep) wellnessParts.push('slept ' + todayWellness.sleep + 'h');
+    const wellnessCtx = wellnessParts.length ? 'Today: ' + wellnessParts.join(', ') : 'No wellness data logged today.';
+
+    // Weight
+    const latestWeight = weightLog.length ? weightLog[weightLog.length-1] : null;
+    const weightCtx = latestWeight ? 'Weight: ' + latestWeight.value + latestWeight.unit + ' (' + latestWeight.date + ')' : 'No weight logged.';
+
+    // Training — this week
+    const startOfWeek = new Date(); startOfWeek.setHours(0,0,0,0);
+    startOfWeek.setDate(startOfWeek.getDate() - (startOfWeek.getDay()===0?6:startOfWeek.getDay()-1));
+    const thisWeek = allActivities.filter(a => new Date(a.start_date_local) >= startOfWeek && a.distance > 0);
+    const swimMi = thisWeek.filter(a=>a.type==='Swim').reduce((s,a)=>s+mToMi(a.distance),0);
+    const runMi  = thisWeek.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
+    const bikeMi = thisWeek.filter(a=>a.type==='Ride').reduce((s,a)=>s+mToMi(a.distance),0);
+    const tls = calcTLS(swimMi, runMi, bikeMi);
+    const trainingCtx = 'This week: ' + swimMi.toFixed(1) + 'mi swim, ' + runMi.toFixed(1) + 'mi run, ' + bikeMi.toFixed(1) + 'mi bike (TLS ' + tls.toFixed(1) + ')';
+
+    // Races
+    const triDays = daysUntil(TRI_DATE), marDays = daysUntil(MAR_DATE);
+    const raceCtx = 'Olympic Tri in ' + triDays + ' days, Chicago Marathon in ' + marDays + ' days.';
+
+    // Saved swim drills (brief)
+    const drillCtx = swimDrills.length ? 'Saved drills: ' + swimDrills.map(d=>d.name).join(', ') : '';
+
+    const reply = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 250,
+      system: `You are a triathlon and marathon coach giving a quick daily check-in. Write 2-3 short sentences interpreting the athlete's stats holistically — wellness signals, training load, and race proximity. Be warm, direct, and specific. Reference actual numbers. No bullet points, no headers — just a natural paragraph like a coach would say it. Flag anything worth noting but keep it positive and actionable.`,
+      messages: [{ role: 'user', content: wellnessCtx + '\n' + weightCtx + '\n' + trainingCtx + '\n' + raceCtx + (drillCtx ? '\n' + drillCtx : '') }]
+    });
+
+    // Cache for today
+    localStorage.setItem(CACHE_KEY_DAILY_INSIGHT, JSON.stringify({ date: today, text: reply }));
+    showDailyInsight(reply);
+  } catch(e) {
+    el.innerHTML = '<div style="font-size:11px;color:var(--warn);text-align:center">Could not generate insight. <span style="color:var(--tri);cursor:pointer;text-decoration:underline" onclick="generateDailyInsight(true)">Try again</span></div>';
+    console.error('Daily insight error:', e);
+  }
+
+  if (refreshBtn) refreshBtn.style.opacity = '1';
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
