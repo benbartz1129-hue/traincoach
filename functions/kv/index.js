@@ -53,7 +53,7 @@ export async function onRequestPost(context) {
     }
 
     if (action === 'getAll') {
-      const keys = ['brb_races', 'brb_training_plan', 'brb_weight_log', 'brb_activity_notes', 'brb_wellness_log', 'brb_swim_drills', 'brb_race_checklists'];
+      const keys = ['brb_races', 'brb_training_plan', 'brb_weight_log', 'brb_activity_notes', 'brb_wellness_log', 'brb_swim_drills', 'brb_race_checklists', 'brb_garage'];
       const results = {};
       await Promise.all(keys.map(async k => { results[k] = await kvGet(k, CF_API_TOKEN); }));
       return new Response(JSON.stringify(results), { headers });
