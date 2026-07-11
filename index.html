@@ -769,6 +769,46 @@ body {
 }
 .checklist-add-btn:active { background: var(--tri-dim); border-color: var(--tri-border); }
 
+
+/* ── GARAGE ── */
+.bike-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px; margin-bottom: 14px;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s;
+}
+.bike-card:active { border-color: var(--tri); }
+.bike-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.bike-card-icon { font-size: 22px; flex-shrink: 0; }
+.bike-card-name { font-family: var(--font-display); font-size: 16px; font-weight: 700; color: var(--text); }
+.bike-card-type { font-size: 10px; font-family: var(--font-display); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+.bike-card-meta { font-size: 12px; color: var(--muted); display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+.bike-card-mileage { font-family: var(--font-mono); font-size: 13px; color: var(--tri); font-weight: 600; }
+.garage-section-label { font-size: 10px; font-family: var(--font-display); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); margin: 16px 0 8px; }
+.garage-log-entry {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
+}
+.garage-log-date { font-size: 10px; color: var(--dim); font-family: var(--font-display); font-weight: 600; margin-bottom: 3px; }
+.garage-log-text { font-size: 13px; color: var(--text); line-height: 1.5; }
+.garage-log-delete { float: right; background: none; border: none; color: var(--dim); font-size: 13px; cursor: pointer; padding: 0; line-height: 1; }
+.garage-log-delete:active { color: var(--warn); }
+.garage-add-row { display: flex; gap: 8px; margin-top: 4px; margin-bottom: 16px; }
+.garage-add-input {
+  flex: 1; background: var(--surface); border: 1px dashed var(--border2);
+  border-radius: 10px; color: var(--text); padding: 10px 12px;
+  font-family: var(--font-mono); font-size: 16px; outline: none;
+}
+.garage-add-input:focus { border-color: var(--tri); border-style: solid; }
+.garage-add-input::placeholder { color: var(--dim); }
+.garage-add-btn {
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 10px; padding: 0 14px; font-family: var(--font-display);
+  font-size: 12px; font-weight: 600; color: var(--text); cursor: pointer; flex-shrink: 0;
+}
+.garage-add-btn:active { background: var(--tri-dim); border-color: var(--tri-border); }
+.bike-type-icon { Road:'🚴', Tri:'⏱️', Gravel:'🌲', Trainer:'🎰', MTB:'⛰️', Other:'🔧' }
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -901,6 +941,9 @@ body {
       <button class="nav-item" id="nav-stats" onclick="switchTab('stats')">
         <span class="nav-icon">⚖️</span>Stats
       </button>
+      <button class="nav-item" id="nav-garage" onclick="switchTab('garage')">
+        <span class="nav-icon">🚴</span>Garage
+      </button>
     </nav>
     <div class="drawer-footer">
       <div>BRB Training &middot; Track. Train. Triumph.</div>
@@ -1009,6 +1052,72 @@ body {
             &#128197; Generate training plan in Coach
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- GARAGE -->
+    <div class="page" id="page-garage">
+      <div class="page-inner">
+
+        <div class="date-banner" style="margin-bottom:20px">
+          <div>
+            <div class="date-greeting" style="font-size:16px">🚴 My Garage</div>
+            <div class="date-sub">Bikes, builds, fits &amp; maintenance</div>
+          </div>
+          <button class="add-race-btn" style="width:auto;padding:0 12px;font-size:12px" onclick="showAddBikeForm()">+ Add Bike</button>
+        </div>
+
+        <!-- Bike list -->
+        <div id="garage-bike-list"></div>
+
+        <!-- Add / Edit bike form -->
+        <div id="garage-form-wrap" style="display:none">
+          <div class="section-label" id="garage-form-title">Add bike</div>
+          <div class="card" style="padding:16px;margin-bottom:20px">
+            <div class="form-field">
+              <div class="form-label">Name</div>
+              <input class="form-input" id="bike-name-input" placeholder="e.g. Trek Domane SL6" />
+            </div>
+            <div class="form-row" style="margin-top:10px">
+              <div class="form-field">
+                <div class="form-label">Type</div>
+                <select class="form-select" id="bike-type-input">
+                  <option value="road">Road</option>
+                  <option value="tri">Tri / TT</option>
+                  <option value="gravel">Gravel</option>
+                  <option value="trainer">Trainer</option>
+                  <option value="mtb">MTB</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <div class="form-label">Year</div>
+                <input class="form-input" id="bike-year-input" type="number" placeholder="2023" min="1980" max="2030" />
+              </div>
+            </div>
+            <div class="form-row" style="margin-top:10px">
+              <div class="form-field">
+                <div class="form-label">Color</div>
+                <input class="form-input" id="bike-color-input" placeholder="e.g. Matte black" />
+              </div>
+              <div class="form-field">
+                <div class="form-label">Current mileage</div>
+                <input class="form-input" id="bike-mileage-input" type="number" placeholder="0" min="0" />
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:14px">
+              <button class="add-race-btn" onclick="saveBike()" style="flex:1">Save</button>
+              <button class="add-race-btn" onclick="hideAddBikeForm()" style="flex:1;background:var(--surface2);color:var(--muted)">Cancel</button>
+            </div>
+            <div id="garage-form-msg" style="font-size:11px;color:var(--tri);margin-top:8px;text-align:center;min-height:14px"></div>
+          </div>
+        </div>
+
+        <!-- Bike detail view -->
+        <div id="garage-detail-wrap" style="display:none">
+          <div id="garage-detail-content"></div>
+        </div>
+
       </div>
     </div>
 
@@ -1503,6 +1612,7 @@ function switchTab(tab) {
   if (tab === 'prs') initPRWall();
   if (tab === 'load') initLoadPage();
   if (tab === 'stats') renderStatsPage();
+  if (tab === 'garage') initGarage();
 }
 
 // ── STRAVA OAUTH ──────────────────────────────────────────────────────────
@@ -3454,6 +3564,12 @@ async function kvSyncAll() {
       changed = true;
       console.log('KV: updated race checklists');
     }
+    if (data.brb_garage && Array.isArray(data.brb_garage) && data.brb_garage.length > 0) {
+      garage = data.brb_garage;
+      localStorage.setItem('brb_garage', JSON.stringify(garage));
+      changed = true;
+      console.log('KV: updated garage, bikes:', garage.length);
+    }
 
     if (changed) {
       updateRaceCountdowns();
@@ -4979,6 +5095,195 @@ async function generateDailyInsight(forceRefresh) {
   }
 
   if (refreshBtn) refreshBtn.style.opacity = '1';
+}
+
+
+// ── GARAGE ────────────────────────────────────────────────────────────────
+const CACHE_KEY_GARAGE = 'brb_garage';
+let garage = JSON.parse(localStorage.getItem(CACHE_KEY_GARAGE) || '[]');
+// garage = [{ id, name, type, year, color, mileage, buildLog:[], fitNotes:[], maintenanceLog:[] }]
+let editingBikeId = null;
+let currentGarageBikeId = null;
+
+const BIKE_TYPE_ICONS = { road:'🚴', tri:'⏱', gravel:'🌲', trainer:'🎰', mtb:'⛰', other:'🔧' };
+
+function saveGarage() {
+  localStorage.setItem(CACHE_KEY_GARAGE, JSON.stringify(garage));
+  kvSet('brb_garage', garage);
+}
+
+function initGarage() {
+  hideAddBikeForm();
+  document.getElementById('garage-detail-wrap').style.display = 'none';
+  renderGarageList();
+}
+
+function renderGarageList() {
+  const list = document.getElementById('garage-bike-list');
+  if (!list) return;
+  if (!garage.length) {
+    list.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);font-size:13px">No bikes yet.<br><br><span style="font-size:11px;color:var(--dim)">Tap + Add Bike to get started.</span></div>';
+    return;
+  }
+  list.innerHTML = garage.map(bike => `
+    <div class="bike-card" onclick="openBikeDetail(${bike.id})">
+      <div class="bike-card-header">
+        <span class="bike-card-icon">${BIKE_TYPE_ICONS[bike.type] || '🚴'}</span>
+        <div>
+          <div class="bike-card-name">${bike.name}</div>
+          <div class="bike-card-type">${bike.type.charAt(0).toUpperCase()+bike.type.slice(1)}${bike.year ? ' · ' + bike.year : ''}${bike.color ? ' · ' + bike.color : ''}</div>
+        </div>
+      </div>
+      <div class="bike-card-meta">
+        <span class="bike-card-mileage">${(bike.mileage||0).toLocaleString()} mi</span>
+        <span>${(bike.buildLog||[]).length} build entries</span>
+        <span>${(bike.maintenanceLog||[]).length} maintenance entries</span>
+      </div>
+    </div>`).join('');
+}
+
+function showAddBikeForm(bikeId) {
+  editingBikeId = bikeId || null;
+  const form = document.getElementById('garage-form-wrap');
+  const title = document.getElementById('garage-form-title');
+  form.style.display = 'block';
+  document.getElementById('garage-detail-wrap').style.display = 'none';
+
+  if (bikeId) {
+    const bike = garage.find(b => b.id === bikeId);
+    if (!bike) return;
+    title.textContent = 'Edit bike';
+    document.getElementById('bike-name-input').value = bike.name || '';
+    document.getElementById('bike-type-input').value = bike.type || 'road';
+    document.getElementById('bike-year-input').value = bike.year || '';
+    document.getElementById('bike-color-input').value = bike.color || '';
+    document.getElementById('bike-mileage-input').value = bike.mileage || 0;
+  } else {
+    title.textContent = 'Add bike';
+    document.getElementById('bike-name-input').value = '';
+    document.getElementById('bike-type-input').value = 'road';
+    document.getElementById('bike-year-input').value = '';
+    document.getElementById('bike-color-input').value = '';
+    document.getElementById('bike-mileage-input').value = '';
+  }
+  document.getElementById('garage-form-msg').textContent = '';
+}
+
+function hideAddBikeForm() {
+  document.getElementById('garage-form-wrap').style.display = 'none';
+  editingBikeId = null;
+}
+
+function saveBike() {
+  const name = document.getElementById('bike-name-input').value.trim();
+  if (!name) { document.getElementById('garage-form-msg').textContent = 'Please enter a bike name.'; return; }
+  const type = document.getElementById('bike-type-input').value;
+  const year = parseInt(document.getElementById('bike-year-input').value) || null;
+  const color = document.getElementById('bike-color-input').value.trim() || null;
+  const mileage = parseFloat(document.getElementById('bike-mileage-input').value) || 0;
+
+  if (editingBikeId) {
+    const bike = garage.find(b => b.id === editingBikeId);
+    if (bike) { bike.name = name; bike.type = type; bike.year = year; bike.color = color; bike.mileage = mileage; }
+  } else {
+    garage.push({ id: Date.now(), name, type, year, color, mileage, buildLog: [], fitNotes: [], maintenanceLog: [] });
+  }
+  saveGarage();
+  hideAddBikeForm();
+  renderGarageList();
+}
+
+function deleteBike(bikeId) {
+  garage = garage.filter(b => b.id !== bikeId);
+  saveGarage();
+  document.getElementById('garage-detail-wrap').style.display = 'none';
+  renderGarageList();
+}
+
+function openBikeDetail(bikeId) {
+  currentGarageBikeId = bikeId;
+  const bike = garage.find(b => b.id === bikeId);
+  if (!bike) return;
+  document.getElementById('garage-bike-list').style.display = 'none';
+  document.getElementById('garage-form-wrap').style.display = 'none';
+  document.getElementById('garage-detail-wrap').style.display = 'block';
+  renderBikeDetail(bikeId);
+}
+
+function closeBikeDetail() {
+  document.getElementById('garage-detail-wrap').style.display = 'none';
+  document.getElementById('garage-bike-list').style.display = 'block';
+  currentGarageBikeId = null;
+}
+
+function renderBikeDetail(bikeId) {
+  const bike = garage.find(b => b.id === bikeId);
+  if (!bike) return;
+  const wrap = document.getElementById('garage-detail-content');
+
+  function logSection(title, emoji, logKey, placeholder) {
+    const entries = (bike[logKey] || []).slice().reverse();
+    return `
+      <div class="garage-section-label">${emoji} ${title}</div>
+      ${entries.map(e => `
+        <div class="garage-log-entry">
+          <button class="garage-log-delete" onclick="deleteGarageEntry(${bikeId},'${logKey}','${e.id}')">✕</button>
+          <div class="garage-log-date">${e.date}</div>
+          <div class="garage-log-text">${e.text}</div>
+        </div>`).join('') || '<div style="font-size:12px;color:var(--dim);margin-bottom:8px">No entries yet</div>'}
+      <div class="garage-add-row">
+        <input class="garage-add-input" id="add-${logKey}-${bikeId}" placeholder="${placeholder}"
+          onkeydown="if(event.key==='Enter') addGarageEntry(${bikeId},'${logKey}')" />
+        <button class="garage-add-btn" onclick="addGarageEntry(${bikeId},'${logKey}')">Add</button>
+      </div>`;
+  }
+
+  wrap.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+      <button onclick="closeBikeDetail()" style="background:none;border:none;color:var(--tri);font-family:var(--font-display);font-size:13px;font-weight:600;cursor:pointer;padding:0">← Back</button>
+    </div>
+    <div class="card" style="padding:14px 16px;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-size:22px;margin-bottom:4px">${BIKE_TYPE_ICONS[bike.type] || '🚴'}</div>
+          <div style="font-family:var(--font-display);font-size:18px;font-weight:800;letter-spacing:-0.01em">${bike.name}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">${bike.type.charAt(0).toUpperCase()+bike.type.slice(1)}${bike.year?' · '+bike.year:''}${bike.color?' · '+bike.color:''}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--tri)">${(bike.mileage||0).toLocaleString()}</div>
+          <div style="font-size:10px;color:var(--dim)">miles</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="add-race-btn" style="flex:1;font-size:11px;padding:8px" onclick="showAddBikeForm(${bikeId})">✏️ Edit</button>
+        <button class="add-race-btn" style="flex:1;font-size:11px;padding:8px;background:rgba(232,112,112,0.1);color:var(--warn);border-color:rgba(232,112,112,0.3)" onclick="if(confirm('Delete this bike?')) deleteBike(${bikeId})">🗑 Delete</button>
+      </div>
+    </div>
+
+    ${logSection('Build log', '🔧', 'buildLog', 'Parts added, upgrades, swaps...')}
+    ${logSection('Fit notes', '📐', 'fitNotes', 'Saddle height, reach, cleat position...')}
+    ${logSection('Maintenance', '🛠', 'maintenanceLog', 'Chain lube, cable tension, service...')}`;
+}
+
+function addGarageEntry(bikeId, logKey) {
+  const input = document.getElementById('add-' + logKey + '-' + bikeId);
+  const text = input.value.trim();
+  if (!text) return;
+  const bike = garage.find(b => b.id === bikeId);
+  if (!bike) return;
+  if (!bike[logKey]) bike[logKey] = [];
+  const today = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  bike[logKey].push({ id: Date.now() + Math.random(), date: today, text });
+  saveGarage();
+  renderBikeDetail(bikeId);
+}
+
+function deleteGarageEntry(bikeId, logKey, entryId) {
+  const bike = garage.find(b => b.id === bikeId);
+  if (!bike || !bike[logKey]) return;
+  bike[logKey] = bike[logKey].filter(e => String(e.id) !== String(entryId));
+  saveGarage();
+  renderBikeDetail(bikeId);
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
