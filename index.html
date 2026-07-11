@@ -3565,10 +3565,13 @@ async function kvSyncAll() {
       console.log('KV: updated race checklists');
     }
     if (data.brb_garage && Array.isArray(data.brb_garage) && data.brb_garage.length > 0) {
-      garage = data.brb_garage;
-      localStorage.setItem('brb_garage', JSON.stringify(garage));
-      changed = true;
-      console.log('KV: updated garage, bikes:', garage.length);
+      // Only overwrite local if KV has MORE bikes (KV is source of truth but don't wipe local-only data)
+      if (data.brb_garage.length >= garage.length) {
+        garage = data.brb_garage;
+        localStorage.setItem('brb_garage', JSON.stringify(garage));
+        changed = true;
+        console.log('KV: updated garage, bikes:', garage.length);
+      }
     }
 
     if (changed) {
@@ -5109,6 +5112,7 @@ const BIKE_TYPE_ICONS = { road:'🚴', tri:'⏱', gravel:'🌲', trainer:'🎰',
 
 function saveGarage() {
   localStorage.setItem(CACHE_KEY_GARAGE, JSON.stringify(garage));
+  console.log('Saving garage locally, bikes:', garage.length);
   kvSet('brb_garage', garage);
 }
 
