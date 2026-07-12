@@ -4892,9 +4892,12 @@ function renderWeeklySummaryCard() {
   return `
     <div class="section">
       <div class="card" style="padding:16px;border-left:3px solid var(--tri)">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-          <span style="font-size:16px">📆</span>
-          <span style="font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--tri)">Week in Review</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:16px">📆</span>
+            <span style="font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--tri)">Week in Review</span>
+          </div>
+          <button onclick="generateWeeklySummary(true)" style="background:none;border:none;color:var(--tri);font-size:11px;font-family:var(--font-display);font-weight:600;cursor:pointer;padding:0">↻ Refresh</button>
         </div>
         <div class="metrics-grid" style="margin-bottom:12px">
           <div class="metric-card swim"><div class="metric-label">Swim</div><div class="metric-value" style="font-size:16px">${wk.swimMi.toFixed(1)}<span>mi</span></div></div>
@@ -4913,9 +4916,23 @@ function renderWeeklySummaryCard() {
     </div>`;
 }
 
-async function generateWeeklySummary() {
+async function generateWeeklySummary(forceRefresh) {
   const container = document.getElementById('weekly-summary-ai-content');
   if (!container) return;
+
+  // If not forcing, check cache first
+  if (!forceRefresh) {
+    const wk = getWeekSummaryData();
+    let cached = null;
+    try { cached = JSON.parse(localStorage.getItem(CACHE_KEY_WEEKLY_SUMMARY) || 'null'); } catch(e) {}
+    if (cached && cached.weekStart === wk.weekStart) {
+      container.innerHTML = `<div style="font-size:12px;color:var(--text);line-height:1.7;padding-top:10px;border-top:1px solid var(--border)">${cached.text}</div>`;
+      return;
+    }
+  }
+
+  // Clear stale cache so fresh data is used
+  localStorage.removeItem(CACHE_KEY_WEEKLY_SUMMARY);
   container.innerHTML = `<div style="font-size:12px;color:var(--dim);text-align:center;padding:8px 0">Generating recap...</div>`;
 
   try {
@@ -5582,6 +5599,25 @@ async function init() {
         activitySummary = buildSummary(allActivities);
         if (currentTab === 'activities') renderActivities(allActivities);
         if (currentTab === 'prs') initPRWall();
+        // Re-render dashboard metrics with fresh archive data
+        if (currentTab === 'dashboard') {
+          const liveWeekTotals = calcLiveWeekTotals();
+          // Update This Week metric cards directly without full re-render
+          const dashContent = document.getElementById('dashboard-content');
+          if (dashContent && window._lastDashboardData) {
+            const updated = { ...window._lastDashboardData, ...liveWeekTotals };
+            window._lastDashboardData = updated;
+            // Re-render the weekly summary card inline
+            const wkCard = document.querySelector('.card[style*="border-left:3px solid var(--tri)"]');
+            if (wkCard && isSunday()) {
+              const freshCard = renderWeeklySummaryCard();
+              const tempDiv = document.createElement('div');
+              tempDiv.innerHTML = freshCard;
+              const newCard = tempDiv.querySelector('.card');
+              if (newCard) wkCard.replaceWith(newCard);
+            }
+          }
+        }
         console.log('Loaded full archive:', allActivities.length, 'activities');
       }
     }).catch(e => console.warn('Archive load failed:', e));
