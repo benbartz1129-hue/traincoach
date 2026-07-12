@@ -2059,6 +2059,7 @@ function renderDashboard(d) {
   document.getElementById('dashboard-content').innerHTML = `
     ${bannerHtml}
     ${renderWeeklySummaryCard()}
+    ${renderWeekDebugCard()}
     <div class="section">
       <div class="section-label">This week</div>
       <div class="metrics-grid">
@@ -4875,6 +4876,8 @@ function getWeekSummaryData() {
   const tls = calcTLS(swimMi, runMi, bikeMi);
   const activeDays = new Set(acts.map(a => a.start_date_local.split('T')[0])).size;
   const targets = { swim: 1.2, bike: 25, run: 15 };
+  console.log('getWeekSummaryData: weekStart=', weekStart.toISOString(), 'activities=', acts.length, 'swim=', swimMi.toFixed(2), 'bike=', bikeMi.toFixed(2), 'run=', runMi.toFixed(2));
+  acts.filter(a=>a.type==='Swim').forEach(a => console.log('  Swim:', a.start_date_local, mToMi(a.distance).toFixed(2)+'mi'));
 
   return { swimMi, runMi, bikeMi, tls, activeDays, count: acts.length, targets, weekStart: weekStart.toISOString().split('T')[0] };
 }
@@ -5389,6 +5392,34 @@ function deleteGarageEntry(bikeId, logKey, entryId) {
   renderBikeDetail(bikeId);
 }
 
+
+// ── TEMP DEBUG ── remove after diagnosis
+function renderWeekDebugCard() {
+  const startOfWeek = new Date(); startOfWeek.setHours(0,0,0,0);
+  startOfWeek.setDate(startOfWeek.getDate() - (startOfWeek.getDay() === 0 ? 6 : startOfWeek.getDay() - 1));
+
+  // This Week calc (same as calcLiveWeekTotals)
+  const thisWeek = allActivities.filter(a => new Date(a.start_date_local) >= startOfWeek);
+  const twSwim = thisWeek.filter(a=>a.type==='Swim').reduce((s,a)=>s+mToMi(a.distance),0);
+  const twSwimActs = thisWeek.filter(a=>a.type==='Swim');
+
+  // Week in Review calc (same as getWeekSummaryData)
+  const wkStart = new Date(); wkStart.setHours(0,0,0,0);
+  wkStart.setDate(wkStart.getDate() - (wkStart.getDay() === 0 ? 6 : wkStart.getDay() - 1));
+  const wirActs = allActivities.filter(a => { const d = new Date(a.start_date_local); return d >= wkStart && d <= new Date() && a.distance > 0; });
+  const wirSwim = wirActs.filter(a=>a.type==='Swim').reduce((s,a)=>s+mToMi(a.distance),0);
+  const wirSwimActs = wirActs.filter(a=>a.type==='Swim');
+
+  return \`<div class="card" style="padding:12px;margin-bottom:16px;font-size:11px;font-family:var(--font-mono);color:var(--muted);border-left:3px solid var(--warn)">
+    <div style="color:var(--warn);font-weight:700;margin-bottom:6px">DEBUG — Week Start: \${startOfWeek.toDateString()}</div>
+    <div>This Week swim: \${twSwim.toFixed(2)}mi (\${twSwimActs.length} sessions)</div>
+    \${twSwimActs.map(a=>\`<div style="padding-left:8px">\${a.start_date_local.split('T')[0]}: \${mToMi(a.distance).toFixed(2)}mi</div>\`).join('')}
+    <div style="margin-top:6px">WiR swim: \${wirSwim.toFixed(2)}mi (\${wirSwimActs.length} sessions)</div>
+    \${wirSwimActs.map(a=>\`<div style="padding-left:8px">\${a.start_date_local.split('T')[0]}: \${mToMi(a.distance).toFixed(2)}mi</div>\`).join('')}
+    <div style="margin-top:6px">Total activities in memory: \${allActivities.length}</div>
+  </div>\`;
+}
+
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
 const CACHE_KEY_ANALYSIS  = 'brb_last_analysis';
 const CACHE_KEY_ACTIVITIES = 'brb_last_activities';
@@ -5522,6 +5553,8 @@ function calcLiveWeekTotals() {
   const weekBikeMi = thisWeek.filter(a=>a.type==='Ride'&&a.distance>0).reduce((s,a)=>s+mToMi(a.distance),0);
   const weekRunMi  = thisWeek.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
   const totalWeekMi = weekSwimMi + weekBikeMi + weekRunMi;
+  console.log('calcLiveWeekTotals: startOfWeek=', startOfWeek.toISOString(), 'activities this week=', thisWeek.length, 'swim=', weekSwimMi.toFixed(2), 'bike=', weekBikeMi.toFixed(2), 'run=', weekRunMi.toFixed(2));
+  thisWeek.filter(a=>a.type==='Swim').forEach(a => console.log('  Swim:', a.start_date_local, mToMi(a.distance).toFixed(2)+'mi'));
   return { weekSwimMi, weekBikeMi, weekRunMi, totalWeekMi };
 }
 
