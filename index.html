@@ -834,7 +834,7 @@ body {
   font-size: 12px; font-weight: 600; color: var(--text); cursor: pointer; flex-shrink: 0;
 }
 .garage-add-btn:active { background: var(--tri-dim); border-color: var(--tri-border); }
-.bike-type-icon { Road:'🚴', Tri:'⏱️', Gravel:'🌲', Trainer:'🎰', MTB:'⛰️', Other:'🔧' }
+/* BIKE_TYPE_ICONS defined in JS as BIKE_TYPE_ICONS object */
 
 
 /* ── TAPER MODE BANNER ── */
@@ -4860,7 +4860,9 @@ function isSunday() {
 
 function getWeekSummaryData() {
   const today = new Date(); today.setHours(0,0,0,0);
-  const weekStart = new Date(today); weekStart.setDate(today.getDate() - 6); // Mon-Sun, today is Sunday
+  // Use Monday as week start — same as "This Week" metrics on dashboard
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
 
   const acts = allActivities.filter(a => {
     const d = new Date(a.start_date_local);
