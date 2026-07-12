@@ -836,6 +836,49 @@ body {
 .garage-add-btn:active { background: var(--tri-dim); border-color: var(--tri-border); }
 .bike-type-icon { Road:'🚴', Tri:'⏱️', Gravel:'🌲', Trainer:'🎰', MTB:'⛰️', Other:'🔧' }
 
+
+/* ── TAPER MODE BANNER ── */
+.taper-banner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--mar);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.taper-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 8px;
+}
+.taper-phase {
+  font-size: 10px; font-family: var(--font-display); font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--mar); margin-bottom: 4px;
+}
+.taper-race-name {
+  font-family: var(--font-display); font-size: 16px; font-weight: 700;
+  letter-spacing: -0.01em; color: var(--text);
+}
+.taper-countdown { text-align: right; flex-shrink: 0; }
+.taper-days {
+  font-family: var(--font-display); font-size: 28px; font-weight: 800;
+  letter-spacing: -0.03em; color: var(--mar); line-height: 1;
+}
+.taper-days-label {
+  font-size: 9px; font-family: var(--font-display); font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+}
+.taper-meta {
+  font-size: 11px; color: var(--muted);
+  margin-bottom: 12px; padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-display);
+}
+.taper-checklist { display: flex; flex-direction: column; gap: 9px; }
+.taper-item { display: flex; align-items: flex-start; gap: 10px; }
+.taper-item-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; line-height: 1.5; }
+.taper-item-text { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
