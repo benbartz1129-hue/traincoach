@@ -5505,10 +5505,24 @@ function loadFromCache() {
   if (!cache) return false;
   allActivities  = cache.acts;
   activitySummary = cache.summary;
-  renderDashboard(cache.analysis);
+  // Always recalculate This Week totals live from current activities
+  // so they're never stale even when loading from cache
+  const analysis = { ...cache.analysis, ...calcLiveWeekTotals() };
+  renderDashboard(analysis);
   updateRefreshBanner(cache.timestamp);
   if (currentTab === 'activities') renderActivities(allActivities);
   return true;
+}
+
+function calcLiveWeekTotals() {
+  const startOfWeek = new Date(); startOfWeek.setHours(0,0,0,0);
+  startOfWeek.setDate(startOfWeek.getDate() - (startOfWeek.getDay() === 0 ? 6 : startOfWeek.getDay() - 1));
+  const thisWeek = allActivities.filter(a => new Date(a.start_date_local) >= startOfWeek);
+  const weekSwimMi = thisWeek.filter(a=>a.type==='Swim').reduce((s,a)=>s+mToMi(a.distance),0);
+  const weekBikeMi = thisWeek.filter(a=>a.type==='Ride'&&a.distance>0).reduce((s,a)=>s+mToMi(a.distance),0);
+  const weekRunMi  = thisWeek.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
+  const totalWeekMi = weekSwimMi + weekBikeMi + weekRunMi;
+  return { weekSwimMi, weekBikeMi, weekRunMi, totalWeekMi };
 }
 
 async function init() {
