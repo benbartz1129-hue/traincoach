@@ -93,6 +93,33 @@ body {
 .login-note { margin-top: 1.5rem; font-size: 11px; color: var(--dim); line-height: 1.6; max-width: 280px; }
 
 /* ── APP SHELL ── */
+
+/* ── BOTTOM NAV ── */
+.bottom-nav {
+  display: flex; align-items: stretch;
+  background: var(--surface); border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  flex-shrink: 0; z-index: 100; position: relative;
+}
+.bottom-nav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 3px; padding: 10px 0 8px;
+  background: none; border: none; cursor: pointer;
+  color: var(--dim); transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  font-family: var(--font-display);
+}
+.bottom-nav-item.active { color: var(--tri); }
+.bottom-nav-item:active { color: var(--tri); opacity: 0.8; }
+.bottom-nav-icon { font-size: 20px; line-height: 1; }
+.bottom-nav-label { font-size: 9px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.drawer-section-label {
+  font-size: 9px; font-family: var(--font-display); font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim);
+  padding: 16px 16px 4px; margin-top: 4px;
+}
+.drawer-section-label:first-child { padding-top: 8px; margin-top: 0; }
+
 #app-screen { display: none; flex-direction: column; height: 100vh; overflow: hidden; position: relative; }
 .app-header {
   position: sticky; top: 0; z-index: 100;
@@ -126,7 +153,7 @@ body {
   position: absolute; inset: 0;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
   display: none;
-  padding-bottom: calc(var(--safe-bottom) + 24px);
+  padding-bottom: calc(var(--safe-bottom) + 80px);
 }
 .page.active { display: block; }
 .page-inner { padding: 20px 16px 0; max-width: 480px; margin: 0 auto; }
@@ -789,7 +816,7 @@ body {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 12px; padding: 12px 14px; margin-bottom: 8px;
 }
-.garage-log-date { font-size: 10px; color: var(--dim); font-family: var(--font-display); font-weight: 600; margin-bottom: 3px; }
+.garage-log-date { font-size: 10px; color: var(--muted); font-family: var(--font-display); font-weight: 600; margin-bottom: 3px; letter-spacing: 0.03em; }
 .garage-log-text { font-size: 13px; color: var(--text); line-height: 1.5; }
 .garage-log-delete { float: right; background: none; border: none; color: var(--dim); font-size: 13px; cursor: pointer; padding: 0; line-height: 1; }
 .garage-log-delete:active { color: var(--warn); }
@@ -920,27 +947,24 @@ body {
       <button class="drawer-close" onclick="closeDrawer()">✕</button>
     </div>
     <nav class="drawer-nav">
-      <button class="nav-item active" id="nav-dashboard" onclick="switchTab('dashboard')">
-        <span class="nav-icon">📊</span>Dashboard
+      <div class="drawer-section-label">Train</div>
+      <button class="nav-item" id="nav-calendar" onclick="switchTab('calendar')">
+        <span class="nav-icon">📅</span>Calendar
       </button>
       <button class="nav-item" id="nav-activities" onclick="switchTab('activities')">
         <span class="nav-icon">📋</span>Activities
       </button>
-      <button class="nav-item" id="nav-calendar" onclick="switchTab('calendar')">
-        <span class="nav-icon">📅</span>Calendar
-      </button>
-      <button class="nav-item" id="nav-coach" onclick="switchTab('coach')">
-        <span class="nav-icon">🏅</span>Coach
-      </button>
       <button class="nav-item" id="nav-recovery" onclick="switchTab('recovery')">
         <span class="nav-icon">🧘</span>Recovery
+      </button>
+      <div class="drawer-section-label">Race</div>
+      <button class="nav-item" id="nav-races" onclick="closeDrawer();scrollToRaces()">
+        <span class="nav-icon">🏁</span>My Races
       </button>
       <button class="nav-item" id="nav-prs" onclick="switchTab('prs')">
         <span class="nav-icon">🏆</span>PR Wall
       </button>
-      <button class="nav-item" id="nav-stats" onclick="switchTab('stats')">
-        <span class="nav-icon">⚖️</span>Stats
-      </button>
+      <div class="drawer-section-label">Gear</div>
       <button class="nav-item" id="nav-garage" onclick="switchTab('garage')">
         <span class="nav-icon">🚴</span>Garage
       </button>
@@ -971,6 +995,30 @@ body {
       </button>
     </div>
   </div>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <button class="bottom-nav-item active" id="bnav-dashboard" onclick="switchTab('dashboard')">
+      <span class="bottom-nav-icon">📊</span>
+      <span class="bottom-nav-label">Home</span>
+    </button>
+    <button class="bottom-nav-item" id="bnav-stats" onclick="switchTab('stats')">
+      <span class="bottom-nav-icon">⚖️</span>
+      <span class="bottom-nav-label">Stats</span>
+    </button>
+    <button class="bottom-nav-item" id="bnav-load" onclick="switchTab('load')">
+      <span class="bottom-nav-icon">📈</span>
+      <span class="bottom-nav-label">Load</span>
+    </button>
+    <button class="bottom-nav-item" id="bnav-coach" onclick="switchTab('coach')">
+      <span class="bottom-nav-icon">🏅</span>
+      <span class="bottom-nav-label">Coach</span>
+    </button>
+    <button class="bottom-nav-item" id="bnav-more" onclick="openDrawer()">
+      <span class="bottom-nav-icon">☰</span>
+      <span class="bottom-nav-label">More</span>
+    </button>
+  </nav>
 
   <div class="pages">
     <!-- DASHBOARD -->
@@ -1118,6 +1166,50 @@ body {
           <div id="garage-detail-content"></div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- RACE PLANNER PAGE -->
+    <div class="page" id="page-races">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:20px">
+          <div>
+            <div class="date-greeting" style="font-size:16px">🏁 My Races</div>
+            <div class="date-sub">Upcoming races &amp; goals</div>
+          </div>
+        </div>
+        <div class="race-planner" id="race-planner">
+          <div class="race-list" id="race-list"></div>
+          <div class="add-race-form">
+            <div class="section-label" style="margin-bottom:10px">Add a race</div>
+            <div class="form-field">
+              <div class="form-label">Race name</div>
+              <input class="form-input" id="race-name" placeholder="e.g. Chicago Sprint Tri" />
+            </div>
+            <div class="form-row">
+              <div class="form-field">
+                <div class="form-label">Date</div>
+                <input class="form-input" id="race-date" type="date" />
+              </div>
+              <div class="form-field">
+                <div class="form-label">Goal time</div>
+                <input class="form-input" id="race-goal" placeholder="e.g. 2:30:00" />
+              </div>
+            </div>
+            <div class="form-field">
+              <div class="form-label">Type</div>
+              <div class="type-selector">
+                <button class="type-btn active-tri" id="type-tri" onclick="selectRaceType('triathlon')">&#127946; Triathlon</button>
+                <button class="type-btn" id="type-run" onclick="selectRaceType('running')">&#127939; Running</button>
+              </div>
+            </div>
+            <div class="form-field" id="subtype-field">
+              <div class="form-label">Distance</div>
+              <div class="subtype-row" id="subtype-row"></div>
+            </div>
+            <button class="add-race-btn" onclick="addRace()">+ Add Race</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1601,9 +1693,12 @@ function switchTab(tab) {
   closeDrawer();
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + tab).classList.add('active');
   const navEl = document.getElementById('nav-' + tab);
   if (navEl) navEl.classList.add('active');
+  const bnavEl = document.getElementById('bnav-' + tab);
+  if (bnavEl) bnavEl.classList.add('active');
   currentTab = tab;
   if (tab === 'activities' && allActivities.length > 0) renderActivities(allActivities);
   if (tab === 'calendar') renderCalendar();
@@ -1613,6 +1708,7 @@ function switchTab(tab) {
   if (tab === 'load') initLoadPage();
   if (tab === 'stats') renderStatsPage();
   if (tab === 'garage') initGarage();
+  if (tab === 'races') { initRacePlanner(); renderRaces(); }
 }
 
 // ── STRAVA OAUTH ──────────────────────────────────────────────────────────
@@ -1944,46 +2040,6 @@ function renderDashboard(d) {
       </div>
     </div>
     ${renderInjuryRiskCard()}
-    <div class="section">
-      <div class="section-label">Race planner</div>
-      <div class="race-planner" id="race-planner">
-        <div class="race-planner-header" onclick="toggleRacePlanner()">
-          <div class="race-planner-title">&#127937; My Races <span class="race-count-badge" id="race-count">0</span></div>
-          <span class="race-planner-toggle" id="race-planner-toggle">&#9660;</span>
-        </div>
-        <div class="race-planner-body" id="race-planner-body">
-          <div class="race-list" id="race-list"></div>
-          <div class="add-race-form">
-            <div class="form-field">
-              <div class="form-label">Race name</div>
-              <input class="form-input" id="race-name" placeholder="e.g. Chicago Sprint Tri" />
-            </div>
-            <div class="form-row">
-              <div class="form-field">
-                <div class="form-label">Date</div>
-                <input class="form-input" id="race-date" type="date" />
-              </div>
-              <div class="form-field">
-                <div class="form-label">Goal time</div>
-                <input class="form-input" id="race-goal" placeholder="e.g. 2:30:00" />
-              </div>
-            </div>
-            <div class="form-field">
-              <div class="form-label">Type</div>
-              <div class="type-selector">
-                <button class="type-btn active-tri" id="type-tri" onclick="selectRaceType('triathlon')">&#127946; Triathlon</button>
-                <button class="type-btn" id="type-run" onclick="selectRaceType('running')">&#127939; Running</button>
-              </div>
-            </div>
-            <div class="form-field" id="subtype-field">
-              <div class="form-label">Distance</div>
-              <div class="subtype-row" id="subtype-row"></div>
-            </div>
-            <button class="add-race-btn" onclick="addRace()">+ Add Race</button>
-          </div>
-        </div>
-      </div>
-    </div>
     <div class="section" id="ai-insights-section">
       <button class="add-race-btn" id="ai-insights-toggle-btn" onclick="toggleAIInsights()" style="display:flex;align-items:center;justify-content:center;gap:8px">
         <span id="ai-insights-toggle-icon">✨</span>
@@ -1993,8 +2049,6 @@ function renderDashboard(d) {
     </div>
     <div class="app-footer">Last updated ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} · BRB Training</div>`;
   updateRaceCountdowns();
-  // Race planner HTML is now rendered fresh every time inside this template — re-init its state
-  initRacePlanner();
 }
 
 function toggleAIInsights() {
@@ -2249,7 +2303,8 @@ function updateRaceCountdowns() {
   }
 }
 
-function scrollToRaces() {
+function scrollToRaces() { switchTab('races'); }
+function scrollToRaces_old_unused() {
   const el = document.getElementById('race-planner');
   if (el) {
     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -5478,4 +5533,3 @@ init();
 </script>
 </body>
 </html>
-
