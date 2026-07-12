@@ -4859,24 +4859,32 @@ function isSunday() {
 }
 
 function getWeekSummaryData() {
+  // Use the same calculation as "This Week" cards to guarantee consistency
+  const live = calcLiveWeekTotals();
   const today = new Date(); today.setHours(0,0,0,0);
-  // Use Monday as week start — same as "This Week" metrics on dashboard
   const weekStart = new Date(today);
   weekStart.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
 
   const acts = allActivities.filter(a => {
     const d = new Date(a.start_date_local);
-    return d >= weekStart && d <= today && a.distance > 0;
+    return d >= weekStart && d < tomorrow && a.distance > 0;
   });
 
-  const swimMi = acts.filter(a=>a.type==='Swim').reduce((s,a)=>s+mToMi(a.distance),0);
-  const runMi  = acts.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
-  const bikeMi = acts.filter(a=>a.type==='Ride').reduce((s,a)=>s+mToMi(a.distance),0);
-  const tls = calcTLS(swimMi, runMi, bikeMi);
   const activeDays = new Set(acts.map(a => a.start_date_local.split('T')[0])).size;
   const targets = { swim: 1.2, bike: 25, run: 15 };
+  const tls = calcTLS(live.weekSwimMi, live.weekRunMi, live.weekBikeMi);
 
-  return { swimMi, runMi, bikeMi, tls, activeDays, count: acts.length, targets, weekStart: weekStart.toISOString().split('T')[0] };
+  return {
+    swimMi: live.weekSwimMi,
+    runMi: live.weekRunMi,
+    bikeMi: live.weekBikeMi,
+    tls,
+    activeDays,
+    count: acts.length,
+    targets,
+    weekStart: weekStart.toISOString().split('T')[0]
+  };
 }
 
 function renderWeeklySummaryCard() {
@@ -5628,4 +5636,3 @@ init();
 </script>
 </body>
 </html>
-
