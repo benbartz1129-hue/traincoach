@@ -1058,6 +1058,9 @@ body {
       <button class="nav-item" id="nav-garage" onclick="switchTab('garage')">
         <span class="nav-icon">🚴</span>Garage
       </button>
+      <button class="nav-item" id="nav-shoefinder" onclick="switchTab('shoefinder')">
+        <span class="nav-icon">👟</span>Shoe Finder
+      </button>
     </nav>
     <div class="drawer-footer">
       <div>BRB Training &middot; Track. Train. Triumph.</div>
@@ -1281,6 +1284,41 @@ body {
             <button class="add-race-btn" onclick="addRace()">+ Add Race</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- SHOE FINDER -->
+    <div class="page" id="page-shoefinder">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:20px">
+          <div>
+            <div class="date-greeting" style="font-size:16px">👟 AI Shoe Finder</div>
+            <div class="date-sub">Foot analysis, picks &amp; deals</div>
+          </div>
+        </div>
+
+        <div class="card" style="padding:14px 16px;margin-bottom:16px">
+          <div class="section-label" style="margin-bottom:8px">How it works</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.7">
+            Upload up to 3 photos and the AI will analyze your feet, match shoes to your training, and search the web for current deals. Best photos to include:
+            <div style="margin-top:8px">
+              <div>1️⃣ Top-down of both feet (standing)</div>
+              <div>2️⃣ Side view showing your arch</div>
+              <div>3️⃣ Sole of your current shoes — wear pattern reveals the most</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="padding:14px 16px;margin-bottom:16px">
+          <input type="file" id="shoe-photo-input" accept="image/*" multiple style="display:none" onchange="handleShoePhotos(event)" />
+          <button class="add-race-btn" style="background:var(--surface2);color:var(--text);border:1px dashed var(--border2)" onclick="document.getElementById('shoe-photo-input').click()">
+            📷 Add photos (up to 3)
+          </button>
+          <div id="shoe-photo-thumbs" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"></div>
+          <button class="add-race-btn" id="shoe-analyze-btn" style="margin-top:10px;display:none" onclick="analyzeShoes()">✨ Analyze &amp; Find Shoes</button>
+        </div>
+
+        <div id="shoefinder-content"></div>
       </div>
     </div>
 
@@ -1874,6 +1912,7 @@ function switchTab(tab) {
   if (tab === 'stats') renderStatsPage();
   if (tab === 'garage') initGarage();
   if (tab === 'races') { initRacePlanner(); renderRaces(); }
+  if (tab === 'shoefinder') initShoeFinder();
 }
 
 // ── STRAVA OAUTH ──────────────────────────────────────────────────────────
@@ -6222,6 +6261,175 @@ function renderFitnessTrend() {
       }
     }
   });
+}
+
+
+// ── AI SHOE FINDER (vision + web search) ─────────────────────────────────
+const CACHE_KEY_SHOEFINDER = 'brb_shoe_finder';
+let shoePhotos = []; // array of base64 jpeg strings
+
+function initShoeFinder() {
+  shoePhotos = [];
+  renderShoeThumbs();
+  const cached = JSON.parse(localStorage.getItem(CACHE_KEY_SHOEFINDER) || 'null');
+  const contentEl = document.getElementById('shoefinder-content');
+  if (cached && contentEl) {
+    renderShoeResults(cached);
+  } else if (contentEl) {
+    contentEl.innerHTML = '';
+  }
+}
+
+function compressImage(file, maxDim) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (w > maxDim || h > maxDim) {
+          const scale = maxDim / Math.max(w, h);
+          w = Math.round(w * scale); h = Math.round(h * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleShoePhotos(event) {
+  const files = Array.from(event.target.files).slice(0, 3 - shoePhotos.length);
+  for (const file of files) {
+    try {
+      const b64 = await compressImage(file, 1024);
+      shoePhotos.push(b64);
+    } catch(e) { console.warn('Photo compress failed:', e); }
+  }
+  event.target.value = '';
+  renderShoeThumbs();
+}
+
+function removeShoePhoto(idx) {
+  shoePhotos.splice(idx, 1);
+  renderShoeThumbs();
+}
+
+function renderShoeThumbs() {
+  const thumbs = document.getElementById('shoe-photo-thumbs');
+  const analyzeBtn = document.getElementById('shoe-analyze-btn');
+  if (!thumbs) return;
+  thumbs.innerHTML = shoePhotos.map((b64, i) => `
+    <div style="position:relative">
+      <img src="data:image/jpeg;base64,${b64}" style="width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--border2)" />
+      <button onclick="removeShoePhoto(${i})" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--warn);color:#fff;border:none;font-size:11px;cursor:pointer;line-height:1">✕</button>
+    </div>`).join('');
+  if (analyzeBtn) analyzeBtn.style.display = shoePhotos.length ? 'block' : 'none';
+}
+
+async function analyzeShoes() {
+  if (!shoePhotos.length) return;
+  const contentEl = document.getElementById('shoefinder-content');
+  const btn = document.getElementById('shoe-analyze-btn');
+  btn.disabled = true;
+  contentEl.innerHTML = `<div class="loading-state"><div class="loading-dots"><span></span><span></span><span></span></div><div class="loading-text">Analyzing your feet and searching for deals\u2026<br><span style="font-size:10px;color:var(--dim)">This can take 30-45 seconds</span></div></div>`;
+
+  try {
+    // Run training context for shoe matching
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
+    const runs = allActivities.filter(a => a.type === 'Run' && new Date(a.start_date_local) >= cutoff && a.distance > 0 && a.moving_time > 0);
+    const runMi = runs.reduce((s,a) => s + mToMi(a.distance), 0);
+    const avgPace = runs.length ? (runs.reduce((s,a)=>s+a.moving_time,0)/60) / runMi : 0;
+    const longest = runs.length ? Math.max(...runs.map(a => mToMi(a.distance))) : 0;
+    const weeklyMi = (runMi / 8.6).toFixed(1);
+    const runCtx = runs.length
+      ? 'Runner profile: ~' + weeklyMi + ' mi/week, avg pace ' + Math.floor(avgPace) + ':' + String(Math.round((avgPace % 1) * 60)).padStart(2,'0') + '/mi, longest recent run ' + longest.toFixed(1) + 'mi. Races: Olympic tri in ' + daysUntil(TRI_DATE) + ' days, Chicago Marathon in ' + daysUntil(MAR_DATE) + ' days (Boston 2026 PR: 3:38).'
+      : 'Limited recent run data.';
+
+    const imageBlocks = shoePhotos.map(b64 => ({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/jpeg', data: b64 }
+    }));
+
+    const reply = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 3000,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      system: `You are a running shoe fitting expert. Analyze the foot/shoe photos provided: look for arch height, foot width, toe shape, bunions or pressure points, and if a shoe sole is shown, read the wear pattern for pronation clues. Be honest about confidence — photos are an approximation, not a gait analysis. Then recommend specific current shoe models matched to their feet AND their actual training (provided), organized by training type. Finally, use web search to find current prices and active deals on your top recommended models — search for discounts, previous-generation versions, and sale prices. Format your final answer as plain text (NOT JSON) with these exact section headers on their own lines:
+FOOT ANALYSIS
+(what you observed in the photos, confidence level, pronation assessment if wear pattern visible)
+DAILY TRAINER
+(2 models with one-line why)
+TEMPO AND SPEED
+(2 models)
+LONG RUN AND MARATHON
+(2 models, consider Chicago goal)
+RECOVERY
+(1-2 models)
+DEALS FOUND
+(actual current prices and deals you found via search, with retailer names; note prev-gen bargains)
+FIT NOTES
+(sizing quirks of recommended models given their foot shape, and a reminder to confirm with an in-store try-on)
+Keep each section tight, 2-4 lines. Plain ASCII only.`,
+      messages: [{
+        role: 'user',
+        content: [
+          ...imageBlocks,
+          { type: 'text', text: 'Analyze my feet and recommend shoes with current deals. ' + runCtx }
+        ]
+      }]
+    });
+
+    const result = { text: reply, generatedAt: new Date().toISOString().split('T')[0] };
+    localStorage.setItem(CACHE_KEY_SHOEFINDER, JSON.stringify(result));
+    renderShoeResults(result);
+  } catch(e) {
+    contentEl.innerHTML = `<div class="card" style="padding:1.5rem;text-align:center">
+      <div style="font-size:13px;color:var(--warn)">Analysis failed: ${(e.message || 'unknown').slice(0,100)}</div>
+      <button class="add-race-btn" style="margin-top:12px" onclick="analyzeShoes()">Retry</button>
+    </div>`;
+    console.error('Shoe finder error:', e);
+  }
+  btn.disabled = false;
+}
+
+function renderShoeResults(result) {
+  const sectionMeta = {
+    'FOOT ANALYSIS': { icon: '🦶', name: 'Foot Analysis' },
+    'DAILY TRAINER': { icon: '👟', name: 'Daily Trainer' },
+    'TEMPO AND SPEED': { icon: '⚡', name: 'Tempo & Speed' },
+    'LONG RUN AND MARATHON': { icon: '🏃', name: 'Long Run & Marathon' },
+    'RECOVERY': { icon: '🧘', name: 'Recovery' },
+    'DEALS FOUND': { icon: '💰', name: 'Deals Found' },
+    'FIT NOTES': { icon: '📏', name: 'Fit Notes' }
+  };
+  const sections = Object.keys(sectionMeta);
+  const parts = {};
+  let current = null;
+  result.text.split('\n').forEach(line => {
+    const t = line.trim();
+    if (sections.includes(t)) { current = t; parts[current] = []; }
+    else if (current && t) parts[current].push(t);
+  });
+
+  let html;
+  if (Object.keys(parts).length) {
+    html = sections.filter(s => parts[s] && parts[s].length).map(s => `
+      <div class="sim-section-card${s === 'DEALS FOUND' ? '" style="border-left:3px solid var(--mar)"' : '"'}>
+        <div class="sim-section-title">${sectionMeta[s].icon} ${sectionMeta[s].name}</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.7">${parts[s].join('<br>')}</div>
+      </div>`).join('');
+  } else {
+    html = `<div class="sim-section-card"><div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap">${result.text}</div></div>`;
+  }
+
+  document.getElementById('shoefinder-content').innerHTML = html + `
+    <div class="sim-confidence" style="margin-bottom:8px">Photo analysis is approximate — confirm fit in store · Generated ${result.generatedAt || ''}</div>`;
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
