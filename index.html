@@ -1189,6 +1189,8 @@ body {
           <button class="add-race-btn" style="width:auto;padding:0 12px;font-size:12px" onclick="showAddBikeForm()">+ Add Bike</button>
         </div>
 
+        <div id="bike-mileage-section"></div>
+
         <!-- Bike list -->
         <div id="garage-bike-list"></div>
 
@@ -1296,6 +1298,8 @@ body {
             <div class="date-sub">Foot analysis, picks &amp; deals</div>
           </div>
         </div>
+
+        <div id="shoe-mileage-section"></div>
 
         <div class="card" style="padding:14px 16px;margin-bottom:16px">
           <div class="section-label" style="margin-bottom:8px">How it works</div>
@@ -1931,7 +1935,7 @@ function switchTab(tab) {
 function connectStrava() {
   const url = 'https://www.strava.com/oauth/authorize?client_id=' + STRAVA_CLIENT_ID +
     '&redirect_uri=' + encodeURIComponent(REDIRECT_URI) +
-    '&response_type=code&approval_prompt=auto&scope=activity:read_all';
+    '&response_type=code&approval_prompt=auto&scope=activity:read_all,profile:read_all';
   window.location.href = url;
 }
 
@@ -5424,6 +5428,7 @@ function saveGarage() {
 }
 
 function initGarage() {
+  renderBikeMileage();
   hideAddBikeForm();
   document.getElementById('garage-detail-wrap').style.display = 'none';
   renderGarageList();
@@ -6283,6 +6288,7 @@ let shoePhotos = []; // array of base64 jpeg strings
 function initShoeFinder() {
   shoePhotos = [];
   renderShoeThumbs();
+  renderShoeMileage();
   const cached = JSON.parse(localStorage.getItem(CACHE_KEY_SHOEFINDER) || 'null');
   const contentEl = document.getElementById('shoefinder-content');
   if (cached && contentEl) {
@@ -6483,6 +6489,99 @@ async function searchShoeDeals() {
   }
 }
 
+
+// ── STRAVA GEAR MILEAGE (shoes + bikes) ──────────────────────────────────
+const CACHE_KEY_GEAR = 'brb_strava_gear';
+let stravaGear = JSON.parse(localStorage.getItem(CACHE_KEY_GEAR) || '[]');
+// stravaGear = [{ id, name, miles, type:'shoe'|'bike', primary, retired }]
+
+async function fetchStravaGear(token) {
+  try {
+    const r = await fetch('https://www.strava.com/api/v3/athlete', {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    if (!r.ok) return;
+    const athlete = await r.json();
+    const gear = [];
+    (athlete.shoes || []).forEach(s => gear.push({ id: s.id, name: s.name, miles: mToMi(s.distance || 0), type: 'shoe', primary: !!s.primary, retired: !!s.retired }));
+    (athlete.bikes || []).forEach(b => gear.push({ id: b.id, name: b.name, miles: mToMi(b.distance || 0), type: 'bike', primary: !!b.primary, retired: !!b.retired }));
+    if (gear.length) {
+      stravaGear = gear;
+      localStorage.setItem(CACHE_KEY_GEAR, JSON.stringify(stravaGear));
+      console.log('Strava gear loaded:', gear.length, 'items');
+    } else {
+      console.log('No gear returned from /athlete — may need profile:read_all scope (reconnect Strava)');
+    }
+  } catch(e) { console.warn('Gear fetch failed:', e); }
+}
+
+// Recent miles per gear from activities that carry gear_id (newly synced ones)
+function recentGearMiles(gearId, days) {
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
+  return allActivities
+    .filter(a => a.gear_id === gearId && new Date(a.start_date_local) >= cutoff && a.distance > 0)
+    .reduce((s,a) => s + mToMi(a.distance), 0);
+}
+
+function renderShoeMileage() {
+  const el = document.getElementById('shoe-mileage-section');
+  if (!el) return;
+  const shoes = stravaGear.filter(g => g.type === 'shoe' && !g.retired).sort((a,b) => b.miles - a.miles);
+
+  if (!shoes.length) {
+    el.innerHTML = `<div class="card" style="padding:14px 16px;margin-bottom:16px">
+      <div class="section-label" style="margin-bottom:6px">My shoes (Strava)</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6">No shoe data found. If you tag shoes on your Strava runs, reconnect Strava from the login screen to grant gear access — then Sync.</div>
+    </div>`;
+    return;
+  }
+
+  const REPLACE_AT = 300;
+  el.innerHTML = `<div class="card" style="padding:14px 16px;margin-bottom:16px">
+    <div class="section-label" style="margin-bottom:10px">My shoes (Strava mileage)</div>
+    ${shoes.map(s => {
+      const pct = Math.min(100, (s.miles / REPLACE_AT) * 100);
+      const color = s.miles >= REPLACE_AT ? 'var(--warn)' : s.miles >= REPLACE_AT * 0.8 ? 'var(--mar)' : 'var(--tri)';
+      const recent = recentGearMiles(s.id, 30);
+      return `<div style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+          <span style="font-size:12px;font-weight:600;color:var(--text)">${s.name}${s.primary ? ' <span style="font-size:9px;color:var(--tri)">★ default</span>' : ''}</span>
+          <span style="font-family:var(--font-mono);font-size:12px;font-weight:700;color:${color}">${Math.round(s.miles)} mi</span>
+        </div>
+        <div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${pct}%;background:${color};border-radius:3px"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--dim);margin-top:3px">
+          <span>${recent > 0.1 ? recent.toFixed(0) + ' mi last 30d' : ''}</span>
+          <span>${s.miles >= REPLACE_AT ? '⚠ past ' + REPLACE_AT + 'mi — consider replacing' : Math.round(REPLACE_AT - s.miles) + ' mi until ' + REPLACE_AT}</span>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+function renderBikeMileage() {
+  const el = document.getElementById('bike-mileage-section');
+  if (!el) return;
+  const bikes = stravaGear.filter(g => g.type === 'bike' && !g.retired).sort((a,b) => b.miles - a.miles);
+  if (!bikes.length) { el.innerHTML = ''; return; }
+
+  el.innerHTML = `<div class="card" style="padding:14px 16px;margin-bottom:16px">
+    <div class="section-label" style="margin-bottom:10px">Strava bike mileage</div>
+    ${bikes.map(b => {
+      const recent = recentGearMiles(b.id, 30);
+      return `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text)">${b.name}${b.primary ? ' <span style="font-size:9px;color:var(--tri)">★ default</span>' : ''}</div>
+          ${recent > 0.1 ? '<div style="font-size:9px;color:var(--dim)">' + recent.toFixed(0) + ' mi last 30d</div>' : ''}
+        </div>
+        <span style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--tri)">${Math.round(b.miles).toLocaleString()} mi</span>
+      </div>`;
+    }).join('')}
+    <div style="font-size:9px;color:var(--dim);margin-top:8px">Lifetime totals tracked by Strava from your tagged rides</div>
+  </div>`;
+}
+
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
 const CACHE_KEY_ANALYSIS  = 'brb_last_analysis';
 const CACHE_KEY_ACTIVITIES = 'brb_last_activities';
@@ -6544,6 +6643,9 @@ async function refreshData() {
 
     const acts = await fetchActivities(token);
     if (!Array.isArray(acts)) throw new Error('Bad Strava response');
+
+    // Refresh gear mileage in the background (non-blocking)
+    fetchStravaGear(token);
 
     // Merge latest 100 with KV archive and update archive
     let merged = acts;
