@@ -5883,10 +5883,15 @@ async function adaptPlan() {
   const btn = document.getElementById('adapt-plan-btn');
   const resultEl = document.getElementById('adapt-plan-result');
   const todayStr = new Date().toISOString().split('T')[0];
-  const upcoming = trainingPlan.filter(p => p.date >= todayStr);
+
+  // Scope adaptation to the next 21 days only — keeps the AI response small
+  // and reliable; the further-out plan stays untouched and can be re-adapted later
+  const horizon = new Date(); horizon.setDate(horizon.getDate() + 21);
+  const horizonStr = horizon.toISOString().split('T')[0];
+  const upcoming = trainingPlan.filter(p => p.date >= todayStr && p.date <= horizonStr);
 
   if (!upcoming.length) {
-    resultEl.innerHTML = '<div class="card" style="padding:12px 16px;margin-bottom:10px;font-size:12px;color:var(--muted)">No upcoming plan to adapt. Generate a plan in Coach first.</div>';
+    resultEl.innerHTML = '<div class="card" style="padding:12px 16px;margin-bottom:10px;font-size:12px;color:var(--muted)">No upcoming plan in the next 3 weeks to adapt. Generate a plan in Coach first.</div>';
     return;
   }
 
@@ -5917,20 +5922,24 @@ async function adaptPlan() {
 - If they overperformed (unplanned extra sessions or bigger volume), do NOT add more load — if anything, protect recovery
 - Respect race proximity: within 14 days of a race, taper — reduce volume, keep intensity touches, never add load
 - Keep the athlete's early-morning constraint and roughly one session per day
-- Only output sessions for dates from tomorrow onward, covering the same date range as their current upcoming plan
-Return ONLY valid JSON, plain ASCII, no apostrophes:
+- Only output sessions for dates from today onward within the SAME date range as the current upcoming plan provided (do not extend beyond it)
+Return ONLY valid JSON on a single line, plain ASCII, no apostrophes, no line breaks inside the JSON:
 {"summary":"2-3 sentences explaining what you changed and why, referencing their actual compliance","plan":[{"date":"YYYY-MM-DD","sport":"run|swim|ride|rest|strength","title":"short title","detail":"duration and intensity"}]}`,
       messages: [{ role: 'user', content: 'PLANNED vs ACTUAL (last 14 days):\n' + (complianceCtx || 'No planned sessions in window') + '\n\nUnplanned extra activities: ' + c.unplanned + '\n\nThis week so far: ' + live.weekSwimMi.toFixed(1) + 'mi swim, ' + live.weekBikeMi.toFixed(1) + 'mi bike, ' + live.weekRunMi.toFixed(1) + 'mi run\n' + wellnessCtx + '\nRaces: ' + raceCtx + '\n\nCURRENT UPCOMING PLAN:\n' + upcomingCtx + '\n\nAdapt the upcoming plan.' }]
     });
 
-    const cleaned = reply.replace(/```json|```/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
+    let cleaned = reply.replace(/```json|```/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
+    // Robust extraction: grab from first { to last } in case of stray text around JSON
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace > -1 && lastBrace > firstBrace) cleaned = cleaned.slice(firstBrace, lastBrace + 1);
     const data = JSON.parse(cleaned);
 
     if (Array.isArray(data.plan) && data.plan.length) {
-      // Replace all future plan entries with the adapted version
-      trainingPlan = trainingPlan.filter(p => p.date < todayStr);
+      // Replace only plan entries within the 21-day adaptation window — keep past and far-future intact
+      trainingPlan = trainingPlan.filter(p => p.date < todayStr || p.date > horizonStr);
       data.plan.forEach(item => {
-        if (item.date && item.sport && item.title && item.date >= todayStr) {
+        if (item.date && item.sport && item.title && item.date >= todayStr && item.date <= horizonStr) {
           trainingPlan.push({ ...item, id: Date.now() + Math.random() });
         }
       });
@@ -5949,7 +5958,7 @@ Return ONLY valid JSON, plain ASCII, no apostrophes:
       throw new Error('No plan items returned');
     }
   } catch(e) {
-    resultEl.innerHTML = '<div class="card" style="padding:12px 16px;margin-bottom:10px;font-size:12px;color:var(--warn)">Adaptation failed. Please try again.</div>';
+    resultEl.innerHTML = '<div class="card" style="padding:12px 16px;margin-bottom:10px;font-size:12px;color:var(--warn)">Adaptation failed: ' + (e.message || 'unknown error').slice(0, 120) + '<br><span style="color:var(--muted)">Tap the button to try again.</span></div>';
     console.error('Adapt plan error:', e);
   }
 
