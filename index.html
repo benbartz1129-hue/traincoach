@@ -1817,6 +1817,12 @@ function switchTab(tab) {
   const bnavEl = document.getElementById('bnav-' + tab);
   if (bnavEl) bnavEl.classList.add('active');
   currentTab = tab;
+  if (tab === 'dashboard' && window._lastDashboardData && allActivities.length) {
+    // Always refresh dashboard with live week totals when returning to it
+    const updated = { ...window._lastDashboardData, ...calcLiveWeekTotals() };
+    window._lastDashboardData = updated;
+    renderDashboard(updated);
+  }
   if (tab === 'activities' && allActivities.length > 0) renderActivities(allActivities);
   if (tab === 'calendar') renderCalendar();
   if (tab === 'recovery') { updateRecoveryMetrics(); }
@@ -5973,6 +5979,17 @@ async function init() {
     }).catch(e => console.warn('Archive load failed:', e));
   }
 }
+
+
+// Refresh dashboard with live totals whenever the app returns to the foreground
+// (iOS PWAs stay in memory — without this, week totals go stale across day boundaries)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && currentTab === 'dashboard' && window._lastDashboardData && allActivities.length) {
+    const updated = { ...window._lastDashboardData, ...calcLiveWeekTotals() };
+    window._lastDashboardData = updated;
+    renderDashboard(updated);
+  }
+});
 
 init();
 </script>
