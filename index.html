@@ -1318,6 +1318,18 @@ body {
           <button class="add-race-btn" id="shoe-analyze-btn" style="margin-top:10px;display:none" onclick="analyzeShoes()">✨ Analyze &amp; Find Shoes</button>
         </div>
 
+        <!-- Quick deal search -->
+        <div class="card" style="padding:14px 16px;margin-bottom:16px">
+          <div class="section-label" style="margin-bottom:8px">Quick deal search</div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5">Skip the photos — just describe what you want and the AI will hunt for deals.</div>
+          <div style="display:flex;gap:8px">
+            <input class="form-input" id="deal-search-input" placeholder="e.g. size 10 tempo shoes under $120"
+              onkeydown="if(event.key==='Enter') searchShoeDeals()" style="flex:1" />
+            <button class="garage-add-btn" onclick="searchShoeDeals()" style="padding:0 16px">💰 Find</button>
+          </div>
+        </div>
+
+        <div id="deal-search-result"></div>
         <div id="shoefinder-content"></div>
       </div>
     </div>
@@ -6372,7 +6384,7 @@ LONG RUN AND MARATHON
 RECOVERY
 (1-2 models)
 DEALS FOUND
-(actual current prices and deals you found via search, with retailer names; note prev-gen bargains)
+(actual current prices and deals you found via search, with retailer names; note prev-gen bargains. Include the direct URL for each deal on the same line so the athlete can tap through to buy)
 FIT NOTES
 (sizing quirks of recommended models given their foot shape, and a reminder to confirm with an in-store try-on)
 Keep each section tight, 2-4 lines. Plain ASCII only.`,
@@ -6417,19 +6429,58 @@ function renderShoeResults(result) {
     else if (current && t) parts[current].push(t);
   });
 
+  const linkify = linkifyUrls;
+
   let html;
   if (Object.keys(parts).length) {
     html = sections.filter(s => parts[s] && parts[s].length).map(s => `
       <div class="sim-section-card${s === 'DEALS FOUND' ? '" style="border-left:3px solid var(--mar)"' : '"'}>
         <div class="sim-section-title">${sectionMeta[s].icon} ${sectionMeta[s].name}</div>
-        <div style="font-size:12px;color:var(--text);line-height:1.7">${parts[s].join('<br>')}</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.7">${linkify(parts[s].join('<br>'))}</div>
       </div>`).join('');
   } else {
-    html = `<div class="sim-section-card"><div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap">${result.text}</div></div>`;
+    html = `<div class="sim-section-card"><div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap">${linkify(result.text)}</div></div>`;
   }
 
   document.getElementById('shoefinder-content').innerHTML = html + `
     <div class="sim-confidence" style="margin-bottom:8px">Photo analysis is approximate — confirm fit in store · Generated ${result.generatedAt || ''}</div>`;
+}
+
+
+// Shared URL linkifier — turns raw URLs into short tappable retailer links
+function linkifyUrls(text) {
+  return text.replace(/(https?:\/\/[^\s<)\]]+)/g, url => {
+    let display = url.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
+    return '<a href="' + url + '" target="_blank" rel="noopener" style="color:var(--tri);text-decoration:underline;word-break:break-all">' + display + ' &#8599;</a>';
+  });
+}
+
+// Quick deal search — free-text shoe deal hunting with web search
+async function searchShoeDeals() {
+  const input = document.getElementById('deal-search-input');
+  const resultEl = document.getElementById('deal-search-result');
+  const query = input.value.trim();
+  if (!query || !resultEl) return;
+
+  resultEl.innerHTML = `<div class="loading-state" style="padding:1.5rem"><div class="loading-dots"><span></span><span></span><span></span></div><div class="loading-text">Hunting for deals\u2026</div></div>`;
+
+  try {
+    const reply = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 1500,
+      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+      system: `You are a running shoe deal hunter. Use web search to find current, real deals matching the request. Prioritize: legitimate retailers (Running Warehouse, Zappos, REI, Brooks/Hoka/Saucony/Nike/Asics official outlets, Holabird, Fleet Feet), previous-generation models at steep discounts, and actual sale prices you can verify. For each deal include: model name, price (and original price if discounted), retailer, and the direct URL on the same line. List 4-6 deals best-first. If the request mentions a shoe type (tempo, recovery, race, trail), match models to that purpose. End with one line noting anything worth waiting for (upcoming releases that drop prev-gen prices). Plain text, plain ASCII, no markdown headers.`,
+      messages: [{ role: 'user', content: 'Find me deals: ' + query }]
+    });
+
+    resultEl.innerHTML = `
+      <div class="sim-section-card" style="border-left:3px solid var(--mar)">
+        <div class="sim-section-title">💰 Deals: ${query.replace(/</g,'&lt;')}</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.8">${linkifyUrls(reply).replace(/\n/g,'<br>')}</div>
+      </div>`;
+  } catch(e) {
+    resultEl.innerHTML = `<div class="card" style="padding:12px 16px;margin-bottom:16px;font-size:12px;color:var(--warn)">Deal search failed: ${(e.message||'unknown').slice(0,100)}. Tap Find to retry.</div>`;
+    console.error('Deal search error:', e);
+  }
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
