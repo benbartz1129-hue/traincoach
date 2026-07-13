@@ -1162,8 +1162,13 @@ body {
               Ask your Coach to generate or update your training plan — it will appear on the calendar automatically.
             </div>
           </div>
-          <button class="add-race-btn" style="margin-bottom:20px" onclick="switchTab('coach');setTimeout(()=>{ document.getElementById('chat-input').value='Generate a full training plan on the calendar leading up to my next race based on my Strava data'; document.getElementById('chat-input').focus(); },200)">
-            &#128197; Generate training plan in Coach
+          <div id="plan-compliance-card"></div>
+          <div id="adapt-plan-result"></div>
+          <button class="add-race-btn" style="margin-bottom:10px" id="adapt-plan-btn" onclick="adaptPlan()">
+            &#128260; Adapt plan to my actual training
+          </button>
+          <button class="add-race-btn" style="margin-bottom:20px;background:var(--surface2);color:var(--muted)" onclick="switchTab('coach');setTimeout(()=>{ document.getElementById('chat-input').value='Generate a full training plan on the calendar leading up to my next race based on my Strava data'; document.getElementById('chat-input').focus(); },200)">
+            &#128197; Generate new plan in Coach
           </button>
         </div>
       </div>
@@ -1276,6 +1281,20 @@ body {
             <button class="add-race-btn" onclick="addRace()">+ Add Race</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- POST-RACE DEBRIEF -->
+    <div class="page" id="page-debrief">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:20px">
+          <div>
+            <div class="date-greeting" style="font-size:16px" id="debrief-race-name">🏆 Post-Race Debrief</div>
+            <div class="date-sub" id="debrief-race-sub"></div>
+          </div>
+          <button class="refresh-btn" onclick="switchTab('races')" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Back</button>
+        </div>
+        <div id="debrief-content"></div>
       </div>
     </div>
 
@@ -1432,6 +1451,29 @@ body {
             <span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:2px;background:var(--tri);display:inline-block"></span>TLS</span>
             <span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:2px;background:var(--mar);display:inline-block;border-top:2px dashed var(--mar);height:0"></span>4wk avg</span>
           </div>
+        </div>
+
+        <!-- Fitness trend -->
+        <div class="section-label">Fitness trend <span style="color:var(--dim)">(6 months)</span></div>
+        <div class="card" style="padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="section-label" style="margin-bottom:2px">Fitness score</div>
+            <div style="font-size:11px;color:var(--muted)" id="fitness-trend-label">—</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:var(--font-display);font-size:26px;font-weight:800;color:var(--tri)" id="fitness-score">—</div>
+            <div style="font-size:10px;color:var(--dim)" id="fitness-delta"></div>
+          </div>
+        </div>
+        <div class="card" style="padding:14px 16px;margin-bottom:20px">
+          <div style="position:relative;height:180px">
+            <canvas id="fitness-chart" role="img" aria-label="Six month fitness trend chart"></canvas>
+          </div>
+          <div style="display:flex;gap:16px;margin-top:12px;font-size:11px;color:var(--muted);flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:rgba(79,196,168,0.9);display:inline-block"></span>Fitness (4wk rolling load)</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:rgba(139,148,255,0.9);display:inline-block"></span>Run pace index</span>
+          </div>
+          <div style="font-size:10px;color:var(--dim);margin-top:8px;line-height:1.5">Fitness = 4-week rolling average of weekly TLS, the same chronic-load model used by training platforms. Pace index tracks your average run pace improvement (higher = faster).</div>
         </div>
 
         <!-- Weekly breakdown table -->
@@ -1824,11 +1866,11 @@ function switchTab(tab) {
     renderDashboard(updated);
   }
   if (tab === 'activities' && allActivities.length > 0) renderActivities(allActivities);
-  if (tab === 'calendar') renderCalendar();
+  if (tab === 'calendar') { renderCalendar(); renderPlanCompliance(); }
   if (tab === 'recovery') { updateRecoveryMetrics(); }
   if (tab !== 'recovery') { initTimer(); }
   if (tab === 'prs') initPRWall();
-  if (tab === 'load') initLoadPage();
+  if (tab === 'load') { initLoadPage(); renderFitnessTrend(); }
   if (tab === 'stats') renderStatsPage();
   if (tab === 'garage') initGarage();
   if (tab === 'races') { initRacePlanner(); renderRaces(); }
@@ -2541,6 +2583,9 @@ function renderRaces() {
       <button class="race-checklist-btn" onclick="openRaceIntel(${r.id})">
         &#128270; Race Intel
       </button>
+      ${isPast ? `<button class="race-checklist-btn" style="border-color:var(--tri-border);color:var(--tri)" onclick="openRaceDebrief(${r.id})">
+        &#127942; Post-Race Debrief
+      </button>` : ''}
     </div>`;
   }).join('');
 }
@@ -5774,6 +5819,400 @@ function renderIntel(intel) {
   document.getElementById('intel-content').innerHTML = html + `
     <button class="add-race-btn" onclick="generateIntel(${currentIntelRaceId})" style="margin-bottom:8px">↻ Re-research</button>
     <div class="sim-confidence">Web-researched · Generated ${intel.generatedAt || ''}</div>`;
+}
+
+
+// ── ADAPTIVE TRAINING PLAN ───────────────────────────────────────────────
+// Compares planned vs actual over the last 14 days, shows compliance,
+// and lets the AI redistribute/adjust the remaining plan.
+
+function getPlanCompliance(daysBack) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const cutoff = new Date(today); cutoff.setDate(today.getDate() - daysBack);
+  const todayStr = today.toISOString().split('T')[0];
+  const cutoffStr = cutoff.toISOString().split('T')[0];
+
+  // Planned sessions in window (excluding rest days and today/future)
+  const planned = trainingPlan.filter(p => p.date >= cutoffStr && p.date < todayStr && p.sport !== 'rest');
+
+  // Match each planned session to an actual activity of the same sport on the same date
+  const sportMap = { run:'Run', swim:'Swim', ride:'Ride', strength:'WeightTraining' };
+  const results = planned.map(p => {
+    const actType = sportMap[p.sport];
+    const match = allActivities.find(a => a.start_date_local.split('T')[0] === p.date && a.type === actType);
+    return { ...p, completed: !!match, actualMi: match ? mToMi(match.distance) : 0 };
+  });
+
+  const completed = results.filter(r => r.completed).length;
+
+  // Unplanned activities (did something not on the plan)
+  const plannedDates = new Set(planned.map(p => p.date + ':' + sportMap[p.sport]));
+  const unplanned = allActivities.filter(a => {
+    const d = a.start_date_local.split('T')[0];
+    return d >= cutoffStr && d < todayStr && a.distance > 0 &&
+      ['Run','Swim','Ride','WeightTraining'].includes(a.type) &&
+      !plannedDates.has(d + ':' + a.type);
+  }).length;
+
+  return { planned: planned.length, completed, missed: planned.length - completed, unplanned, results };
+}
+
+function renderPlanCompliance() {
+  const el = document.getElementById('plan-compliance-card');
+  if (!el) return;
+  const upcoming = trainingPlan.filter(p => p.date >= new Date().toISOString().split('T')[0]);
+  if (!upcoming.length && !trainingPlan.length) { el.innerHTML = ''; return; }
+
+  const c = getPlanCompliance(14);
+  if (c.planned === 0) { el.innerHTML = ''; return; }
+
+  const pct = Math.round((c.completed / c.planned) * 100);
+  const color = pct >= 80 ? 'var(--ok)' : pct >= 50 ? 'var(--mar)' : 'var(--warn)';
+
+  el.innerHTML = `
+    <div class="card" style="padding:12px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <div>
+        <div class="section-label" style="margin-bottom:2px">Plan compliance (14d)</div>
+        <div style="font-size:11px;color:var(--muted)">${c.completed}/${c.planned} planned done${c.unplanned ? ' · ' + c.unplanned + ' unplanned extra' : ''}</div>
+      </div>
+      <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:${color}">${pct}%</div>
+    </div>`;
+}
+
+async function adaptPlan() {
+  const btn = document.getElementById('adapt-plan-btn');
+  const resultEl = document.getElementById('adapt-plan-result');
+  const todayStr = new Date().toISOString().split('T')[0];
+  const upcoming = trainingPlan.filter(p => p.date >= todayStr);
+
+  if (!upcoming.length) {
+    resultEl.innerHTML = '<div class="card" style="padding:12px 16px;margin-bottom:10px;font-size:12px;color:var(--muted)">No upcoming plan to adapt. Generate a plan in Coach first.</div>';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '&#9203; Analyzing your training vs plan\u2026';
+  resultEl.innerHTML = '';
+
+  try {
+    const c = getPlanCompliance(14);
+    const complianceCtx = c.results.map(r =>
+      r.date + ' planned ' + r.sport + ' (' + r.title + '): ' + (r.completed ? 'DONE' + (r.actualMi > 0.1 ? ' ' + r.actualMi.toFixed(1) + 'mi' : '') : 'MISSED')
+    ).join('\n');
+
+    const upcomingCtx = upcoming.map(p => p.date + ' ' + p.sport + ': ' + p.title + (p.detail ? ' (' + p.detail + ')' : '')).join('\n');
+
+    // Wellness + week load context
+    const live = calcLiveWeekTotals();
+    const latestW = wellnessLog.length ? wellnessLog[wellnessLog.length-1] : null;
+    const wellnessCtx = latestW ? 'Latest wellness: HRV ' + (latestW.hrv||'n/a') + ', RHR ' + (latestW.rhr||'n/a') + ', sleep ' + (latestW.sleep||'n/a') + 'h.' : '';
+    const raceCtx = races.filter(r => daysUntil(new Date(r.date)) >= 0)
+      .map(r => r.name + ' (' + r.subtype + ' ' + r.type + ') in ' + daysUntil(new Date(r.date)) + ' days, goal ' + (r.goal||'none'))
+      .join('; ');
+
+    const reply = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 3000,
+      system: `You are an adaptive training plan coach. Compare what the athlete PLANNED vs what they ACTUALLY did over the last 14 days, then intelligently revise their upcoming plan. Rules for adaptation:
+- If they missed key sessions, redistribute the most important ones into the remaining schedule without cramming
+- If they overperformed (unplanned extra sessions or bigger volume), do NOT add more load — if anything, protect recovery
+- Respect race proximity: within 14 days of a race, taper — reduce volume, keep intensity touches, never add load
+- Keep the athlete's early-morning constraint and roughly one session per day
+- Only output sessions for dates from tomorrow onward, covering the same date range as their current upcoming plan
+Return ONLY valid JSON, plain ASCII, no apostrophes:
+{"summary":"2-3 sentences explaining what you changed and why, referencing their actual compliance","plan":[{"date":"YYYY-MM-DD","sport":"run|swim|ride|rest|strength","title":"short title","detail":"duration and intensity"}]}`,
+      messages: [{ role: 'user', content: 'PLANNED vs ACTUAL (last 14 days):\n' + (complianceCtx || 'No planned sessions in window') + '\n\nUnplanned extra activities: ' + c.unplanned + '\n\nThis week so far: ' + live.weekSwimMi.toFixed(1) + 'mi swim, ' + live.weekBikeMi.toFixed(1) + 'mi bike, ' + live.weekRunMi.toFixed(1) + 'mi run\n' + wellnessCtx + '\nRaces: ' + raceCtx + '\n\nCURRENT UPCOMING PLAN:\n' + upcomingCtx + '\n\nAdapt the upcoming plan.' }]
+    });
+
+    const cleaned = reply.replace(/```json|```/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
+    const data = JSON.parse(cleaned);
+
+    if (Array.isArray(data.plan) && data.plan.length) {
+      // Replace all future plan entries with the adapted version
+      trainingPlan = trainingPlan.filter(p => p.date < todayStr);
+      data.plan.forEach(item => {
+        if (item.date && item.sport && item.title && item.date >= todayStr) {
+          trainingPlan.push({ ...item, id: Date.now() + Math.random() });
+        }
+      });
+      savePlan();
+      renderCalendar();
+      renderSevenDayStrip();
+      renderPlanCompliance();
+
+      resultEl.innerHTML = `
+        <div class="card" style="padding:14px 16px;margin-bottom:10px;border-left:3px solid var(--tri)">
+          <div class="section-label" style="margin-bottom:6px;color:var(--tri)">&#128260; Plan adapted</div>
+          <div style="font-size:12px;color:var(--text);line-height:1.7">${data.summary}</div>
+          <div style="font-size:10px;color:var(--dim);margin-top:8px">${data.plan.length} sessions updated on your calendar</div>
+        </div>`;
+    } else {
+      throw new Error('No plan items returned');
+    }
+  } catch(e) {
+    resultEl.innerHTML = '<div class="card" style="padding:12px 16px;margin-bottom:10px;font-size:12px;color:var(--warn)">Adaptation failed. Please try again.</div>';
+    console.error('Adapt plan error:', e);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '&#128260; Adapt plan to my actual training';
+}
+
+
+// ── POST-RACE DEBRIEF ────────────────────────────────────────────────────
+const CACHE_KEY_DEBRIEFS = 'brb_race_debriefs';
+let raceDebriefs = JSON.parse(localStorage.getItem(CACHE_KEY_DEBRIEFS) || '{}');
+let currentDebriefRaceId = null;
+
+function saveDebriefs() {
+  localStorage.setItem(CACHE_KEY_DEBRIEFS, JSON.stringify(raceDebriefs));
+}
+
+function openRaceDebrief(raceId) {
+  currentDebriefRaceId = raceId;
+  const race = races.find(r => r.id === raceId);
+  if (!race) return;
+
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-debrief').classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
+  currentTab = 'debrief';
+
+  document.getElementById('debrief-race-name').textContent = '🏆 ' + race.name;
+  document.getElementById('debrief-race-sub').textContent = race.subtype + ' ' + (race.type === 'triathlon' ? 'Triathlon' : 'Run') + ' · ' + new Date(race.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+  const cached = raceDebriefs[raceId];
+  if (cached) {
+    renderDebrief(cached);
+  } else {
+    document.getElementById('debrief-content').innerHTML = `
+      <div class="card" style="padding:2rem;text-align:center">
+        <div style="font-size:32px;margin-bottom:12px">🏆</div>
+        <div style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:8px">How did it really go?</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:16px">The AI will find your race-day activities on Strava, compare them against the pre-race simulation prediction, and write an honest debrief — where you beat the projection, where time slipped, and what it means for your next race.</div>
+        <button class="add-race-btn" onclick="generateDebrief(${raceId})">🏆 Generate Debrief</button>
+      </div>`;
+  }
+}
+
+async function generateDebrief(raceId) {
+  const race = races.find(r => r.id === raceId);
+  if (!race) return;
+
+  document.getElementById('debrief-content').innerHTML = `<div class="loading-state"><div class="loading-dots"><span></span><span></span><span></span></div><div class="loading-text">Analyzing your race-day performance\u2026</div></div>`;
+
+  try {
+    // Find race-day activities (race date +/- same day)
+    const raceDateStr = race.date;
+    const raceDayActs = allActivities.filter(a => a.start_date_local.split('T')[0] === raceDateStr && a.distance > 0)
+      .sort((a,b) => new Date(a.start_date_local) - new Date(b.start_date_local));
+
+    if (!raceDayActs.length) {
+      document.getElementById('debrief-content').innerHTML = `
+        <div class="card" style="padding:1.5rem;text-align:center">
+          <div style="font-size:13px;color:var(--muted);line-height:1.6">No Strava activities found on ${new Date(race.date).toLocaleDateString('en-US',{month:'long',day:'numeric'})}.<br><br><span style="font-size:11px;color:var(--dim)">Sync your Strava data first, then try again.</span></div>
+          <button class="add-race-btn" style="margin-top:12px" onclick="generateDebrief(${raceId})">Retry</button>
+        </div>`;
+      return;
+    }
+
+    function fmtHMS(sec) {
+      const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = Math.round(sec%60);
+      return (h > 0 ? h + ':' + String(m).padStart(2,'0') : m) + ':' + String(s).padStart(2,'0');
+    }
+
+    const actualCtx = raceDayActs.map(a =>
+      a.type + ': ' + mToMi(a.distance).toFixed(2) + 'mi in ' + fmtHMS(a.moving_time) + ' (' + a.name + ')'
+    ).join('\n');
+
+    // Pre-race simulation if one exists
+    const sim = raceSimulations[raceId];
+    const simCtx = sim
+      ? 'PRE-RACE SIMULATION PREDICTED:\n' + sim.splits.map(s => s.segment + ': ' + s.time + ' (' + s.detail + ')').join('\n') + '\nPredicted finish: ' + sim.finishTime
+      : 'No pre-race simulation was generated.';
+
+    // Next upcoming race for forward-looking advice
+    const nextRace = races.filter(r => r.id !== raceId && daysUntil(new Date(r.date)) >= 0)
+      .sort((a,b) => new Date(a.date) - new Date(b.date))[0];
+    const nextCtx = nextRace ? 'Next race: ' + nextRace.name + ' (' + nextRace.subtype + ' ' + nextRace.type + ') in ' + daysUntil(new Date(nextRace.date)) + ' days, goal ' + (nextRace.goal || 'none') + '.' : 'No next race scheduled.';
+
+    const reply = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 1500,
+      system: `You are an honest, insightful post-race analyst. Compare the athlete's actual race-day performance against their pre-race simulation prediction (if available) and their goal. Be genuinely honest — celebrate what went well with specifics, and name where time was lost without sugarcoating. End with forward-looking takeaways for their next race. Return ONLY valid JSON, plain ASCII, no apostrophes:
+{"headline":"one punchy sentence summarizing the race","comparison":[{"segment":"Swim","predicted":"32:15","actual":"30:50","verdict":"beat prediction by 1:25"}],"wins":["specific thing that went well","another"],"losses":["specific place time slipped","another"],"nextRace":["forward takeaway 1","takeaway 2","takeaway 3"]}
+If no simulation existed, put the goal time comparison in the comparison array instead. Keep strings short and specific with real numbers.`,
+      messages: [{ role: 'user', content: 'RACE: ' + race.name + ' (' + race.subtype + ' ' + race.type + '), goal: ' + (race.goal || 'none') + '\n\nACTUAL RACE-DAY ACTIVITIES:\n' + actualCtx + '\n\n' + simCtx + '\n\n' + nextCtx + '\n\nGenerate the debrief.' }]
+    });
+
+    const cleaned = reply.replace(/```json|```/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
+    const debrief = JSON.parse(cleaned);
+    debrief.generatedAt = new Date().toISOString().split('T')[0];
+
+    raceDebriefs[raceId] = debrief;
+    saveDebriefs();
+    renderDebrief(debrief);
+  } catch(e) {
+    document.getElementById('debrief-content').innerHTML = `<div class="card" style="padding:1.5rem;text-align:center">
+      <div style="font-size:13px;color:var(--warn)">Debrief failed. Please try again.</div>
+      <button class="add-race-btn" style="margin-top:12px" onclick="generateDebrief(${raceId})">Retry</button>
+    </div>`;
+    console.error('Debrief error:', e);
+  }
+}
+
+function renderDebrief(d) {
+  document.getElementById('debrief-content').innerHTML = `
+    <div class="sim-section-card" style="border-left:3px solid var(--tri)">
+      <div style="font-family:var(--font-display);font-size:15px;font-weight:700;line-height:1.5">${d.headline}</div>
+    </div>
+
+    ${d.comparison && d.comparison.length ? `
+    <div class="sim-splits-card">
+      <div class="sim-section-title">📊 Predicted vs actual</div>
+      ${d.comparison.map(c => `
+        <div class="sim-split-row">
+          <div style="flex:1">
+            <div class="sim-split-label">${c.segment}</div>
+            <div class="sim-split-detail">${c.verdict}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:10px;color:var(--dim);font-family:var(--font-mono)">${c.predicted}</div>
+            <div class="sim-split-time">${c.actual}</div>
+          </div>
+        </div>`).join('')}
+    </div>` : ''}
+
+    <div class="sim-section-card">
+      <div class="sim-section-title">✅ What went well</div>
+      ${d.wins.map(w => `<div class="sim-strategy-item"><div class="sim-strategy-num" style="background:rgba(80,200,120,0.15);color:var(--ok)">✓</div><div class="sim-strategy-text">${w}</div></div>`).join('')}
+    </div>
+
+    <div class="sim-section-card">
+      <div class="sim-section-title">📉 Where time slipped</div>
+      ${d.losses.map(l => `<div class="sim-strategy-item"><div class="sim-strategy-num" style="background:rgba(232,112,112,0.15);color:var(--warn)">!</div><div class="sim-strategy-text">${l}</div></div>`).join('')}
+    </div>
+
+    <div class="sim-section-card">
+      <div class="sim-section-title">🎯 For your next race</div>
+      ${d.nextRace.map((n,i) => `<div class="sim-strategy-item"><div class="sim-strategy-num">${i+1}</div><div class="sim-strategy-text">${n}</div></div>`).join('')}
+    </div>
+
+    <button class="add-race-btn" onclick="generateDebrief(${currentDebriefRaceId})" style="margin-bottom:8px">↻ Regenerate</button>
+    <div class="sim-confidence">Generated ${d.generatedAt || ''}</div>`;
+}
+
+
+// ── FITNESS TREND SCORE (pure math, no AI) ───────────────────────────────
+let fitnessChartInstance = null;
+
+function buildFitnessTrend() {
+  const weeks = buildWeeklyTLS();
+  if (weeks.length < 4) return null;
+
+  // Limit to last 26 weeks (6 months)
+  const recent = weeks.slice(-26);
+
+  // Fitness = 4-week rolling average of TLS (CTL-style chronic load)
+  const fitness = recent.map((w, i) => {
+    const window = recent.slice(Math.max(0, i-3), i+1);
+    return +(window.reduce((s,x) => s + x.tls, 0) / window.length).toFixed(1);
+  });
+
+  // Run pace index per week: 60min / avg run pace in min-per-mi, scaled.
+  // Higher = faster. Weeks without runs carry the previous value forward.
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 26*7);
+  const paceByWeek = {};
+  allActivities.forEach(a => {
+    if (a.type !== 'Run' || !a.distance || !a.moving_time) return;
+    const d = new Date(a.start_date_local);
+    if (d < cutoff) return;
+    const wk = isoWeek(d);
+    if (!paceByWeek[wk]) paceByWeek[wk] = { mi: 0, sec: 0 };
+    paceByWeek[wk].mi += mToMi(a.distance);
+    paceByWeek[wk].sec += a.moving_time;
+  });
+
+  let lastIdx = null;
+  const paceIndex = recent.map(w => {
+    const p = paceByWeek[w.weekStart];
+    if (p && p.mi >= 2) {
+      const paceMinPerMi = (p.sec / 60) / p.mi;
+      lastIdx = +((60 / paceMinPerMi) * 10).toFixed(1); // e.g. 8:00/mi -> 75.0
+    }
+    return lastIdx;
+  });
+
+  return { weeks: recent, fitness, paceIndex };
+}
+
+function renderFitnessTrend() {
+  const data = buildFitnessTrend();
+  const scoreEl = document.getElementById('fitness-score');
+  const deltaEl = document.getElementById('fitness-delta');
+  const labelEl = document.getElementById('fitness-trend-label');
+  const canvas = document.getElementById('fitness-chart');
+  if (!canvas || !scoreEl) return;
+
+  if (!data) {
+    scoreEl.textContent = '—';
+    if (labelEl) labelEl.textContent = 'Need at least 4 weeks of data';
+    return;
+  }
+
+  const current = data.fitness[data.fitness.length - 1];
+  const fourWeeksAgo = data.fitness[Math.max(0, data.fitness.length - 5)];
+  const delta = +(current - fourWeeksAgo).toFixed(1);
+
+  scoreEl.textContent = current.toFixed(1);
+  if (deltaEl) {
+    deltaEl.textContent = (delta >= 0 ? '+' : '') + delta + ' vs 4wk ago';
+    deltaEl.style.color = delta > 0 ? 'var(--ok)' : delta < 0 ? 'var(--warn)' : 'var(--dim)';
+  }
+  if (labelEl) {
+    labelEl.textContent = delta > 2 ? 'Building — fitness is climbing' : delta < -2 ? 'Declining or tapering' : 'Holding steady';
+  }
+
+  const labels = data.weeks.map(w => {
+    const d = new Date(w.weekStart + 'T12:00:00');
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  });
+
+  if (fitnessChartInstance) { fitnessChartInstance.destroy(); fitnessChartInstance = null; }
+
+  fitnessChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Fitness', data: data.fitness,
+          borderColor: 'rgba(79,196,168,0.9)', backgroundColor: 'rgba(79,196,168,0.08)',
+          borderWidth: 2, pointRadius: 0, tension: 0.35, fill: true, yAxisID: 'y'
+        },
+        {
+          label: 'Pace index', data: data.paceIndex,
+          borderColor: 'rgba(139,148,255,0.85)', backgroundColor: 'transparent',
+          borderWidth: 2, pointRadius: 0, tension: 0.35, fill: false, yAxisID: 'y1', spanGaps: true
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(20,20,30,0.92)', titleColor: 'rgba(255,255,255,0.7)',
+          bodyColor: 'rgba(255,255,255,0.9)', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1
+        }
+      },
+      scales: {
+        x: { ticks: { color:'rgba(255,255,255,0.45)', font:{size:10,family:"'DM Mono', monospace"}, maxRotation:45, autoSkip:true, maxTicksLimit:7 }, grid:{display:false}, border:{color:'rgba(255,255,255,0.08)'} },
+        y: { position:'left', ticks:{ color:'rgba(79,196,168,0.7)', font:{size:10,family:"'DM Mono', monospace"} }, grid:{ color:'rgba(255,255,255,0.06)' }, border:{color:'transparent'} },
+        y1: { position:'right', ticks:{ color:'rgba(139,148,255,0.7)', font:{size:10,family:"'DM Mono', monospace"} }, grid:{display:false}, border:{color:'transparent'} }
+      }
+    }
+  });
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
