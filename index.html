@@ -879,6 +879,53 @@ body {
 .taper-item-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; line-height: 1.5; }
 .taper-item-text { font-size: 12px; color: var(--muted); line-height: 1.5; }
 
+
+/* ── RACE SIMULATOR ── */
+.sim-splits-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px; margin-bottom: 16px;
+}
+.sim-split-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.sim-split-row:last-child { border-bottom: none; }
+.sim-split-row.total { border-top: 2px solid var(--tri-border); margin-top: 4px; padding-top: 14px; }
+.sim-split-icon { font-size: 16px; width: 28px; text-align: center; flex-shrink: 0; }
+.sim-split-label { flex: 1; font-size: 12px; color: var(--muted); font-family: var(--font-display); font-weight: 600; }
+.sim-split-detail { font-size: 10px; color: var(--dim); }
+.sim-split-time { font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--text); }
+.sim-split-row.total .sim-split-time { font-size: 20px; color: var(--tri); }
+.sim-section-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 14px 16px; margin-bottom: 16px;
+}
+.sim-section-title {
+  font-size: 11px; font-family: var(--font-display); font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--tri);
+  margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+}
+.sim-strategy-item {
+  display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-start;
+}
+.sim-strategy-item:last-child { margin-bottom: 0; }
+.sim-strategy-num {
+  width: 20px; height: 20px; border-radius: 50%; background: var(--tri-dim);
+  color: var(--tri); font-size: 10px; font-weight: 700; font-family: var(--font-display);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+}
+.sim-strategy-text { font-size: 12px; color: var(--text); line-height: 1.6; }
+.sim-whatif-item {
+  background: var(--surface2); border-radius: 10px; padding: 10px 12px;
+  margin-bottom: 8px; font-size: 12px; color: var(--muted); line-height: 1.5;
+}
+.sim-whatif-item:last-child { margin-bottom: 0; }
+.sim-whatif-item strong { color: var(--tri); font-weight: 600; }
+.sim-confidence {
+  font-size: 10px; color: var(--dim); text-align: center; margin-top: 4px;
+  font-style: italic;
+}
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -1229,6 +1276,20 @@ body {
             <button class="add-race-btn" onclick="addRace()">+ Add Race</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- RACE SIMULATOR -->
+    <div class="page" id="page-simulator">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:20px">
+          <div>
+            <div class="date-greeting" style="font-size:16px" id="sim-race-name">🏁 Race Simulator</div>
+            <div class="date-sub" id="sim-race-sub"></div>
+          </div>
+          <button class="refresh-btn" onclick="switchTab('races')" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Back</button>
+        </div>
+        <div id="simulator-content"></div>
       </div>
     </div>
 
@@ -2453,6 +2514,9 @@ function renderRaces() {
       </div>
       <button class="race-checklist-btn" onclick="openRaceChecklist(${r.id})">
         &#128203; Race Morning Checklist ${raceChecklists[r.id] ? '<span class="race-checklist-progress">' + checklistProgressText(r.id) + '</span>' : ''}
+      </button>
+      <button class="race-checklist-btn" onclick="openRaceSimulator(${r.id})">
+        &#127937; AI Race Simulator
       </button>
     </div>`;
   }).join('');
@@ -5415,6 +5479,163 @@ function deleteGarageEntry(bikeId, logKey, entryId) {
 }
 
 
+
+// ── AI RACE SIMULATOR ────────────────────────────────────────────────────
+const CACHE_KEY_SIMULATIONS = 'brb_race_simulations';
+let raceSimulations = JSON.parse(localStorage.getItem(CACHE_KEY_SIMULATIONS) || '{}');
+let currentSimRaceId = null;
+
+function saveSimulations() {
+  localStorage.setItem(CACHE_KEY_SIMULATIONS, JSON.stringify(raceSimulations));
+}
+
+function openRaceSimulator(raceId) {
+  currentSimRaceId = raceId;
+  const race = races.find(r => r.id === raceId);
+  if (!race) return;
+
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-simulator').classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
+  currentTab = 'simulator';
+
+  document.getElementById('sim-race-name').textContent = '🏁 ' + race.name;
+  const days = daysUntil(new Date(race.date));
+  document.getElementById('sim-race-sub').textContent = race.subtype + ' ' + (race.type === 'triathlon' ? 'Triathlon' : 'Run') + ' · ' + days + ' days out' + (race.goal ? ' · Goal: ' + race.goal : '');
+
+  const cached = raceSimulations[raceId];
+  if (cached) {
+    renderSimulation(cached);
+  } else {
+    document.getElementById('simulator-content').innerHTML = `
+      <div class="card" style="padding:2rem;text-align:center">
+        <div style="font-size:32px;margin-bottom:12px">🔮</div>
+        <div style="font-family:var(--font-display);font-size:15px;font-weight:700;margin-bottom:8px">Predict your race day</div>
+        <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:16px">The AI will analyze your recent training paces and volume to project your splits, build a pacing strategy, and show what-if scenarios.</div>
+        <button class="add-race-btn" onclick="generateSimulation(${raceId})">✨ Run Simulation</button>
+      </div>`;
+  }
+}
+
+function buildPaceContext() {
+  // Extract recent pace data per sport from the last 60 days
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
+  const recent = allActivities.filter(a => new Date(a.start_date_local) >= cutoff && a.distance > 0 && a.moving_time > 0);
+
+  function sportStats(type) {
+    const acts = recent.filter(a => a.type === type);
+    if (!acts.length) return null;
+    const totalMi = acts.reduce((s,a) => s + mToMi(a.distance), 0);
+    const totalSec = acts.reduce((s,a) => s + a.moving_time, 0);
+    const avgPaceSecPerMi = totalSec / totalMi;
+    const longest = Math.max(...acts.map(a => mToMi(a.distance)));
+    // Best pace from any single session over 1mi
+    const paced = acts.filter(a => mToMi(a.distance) >= 1);
+    const bestPace = paced.length ? Math.min(...paced.map(a => a.moving_time / mToMi(a.distance))) : avgPaceSecPerMi;
+    return { count: acts.length, totalMi: totalMi.toFixed(1), avgPaceSecPerMi: Math.round(avgPaceSecPerMi), bestPaceSecPerMi: Math.round(bestPace), longestMi: longest.toFixed(1) };
+  }
+
+  function fmtPace(sec) {
+    const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+    return m + ':' + String(s).padStart(2,'0');
+  }
+
+  const swim = sportStats('Swim');
+  const bike = sportStats('Ride');
+  const run = sportStats('Run');
+
+  let ctx = 'Training data (last 60 days):\n';
+  if (swim) ctx += `Swim: ${swim.count} sessions, ${swim.totalMi}mi total, avg pace ${fmtPace(swim.avgPaceSecPerMi)}/mi, best ${fmtPace(swim.bestPaceSecPerMi)}/mi, longest ${swim.longestMi}mi\n`;
+  else ctx += 'Swim: no recent data\n';
+  if (bike) ctx += `Bike: ${bike.count} rides, ${bike.totalMi}mi total, avg pace ${fmtPace(bike.avgPaceSecPerMi)}/mi (${(3600/bike.avgPaceSecPerMi).toFixed(1)}mph avg), longest ${bike.longestMi}mi\n`;
+  else ctx += 'Bike: no recent data\n';
+  if (run) ctx += `Run: ${run.count} runs, ${run.totalMi}mi total, avg pace ${fmtPace(run.avgPaceSecPerMi)}/mi, best ${fmtPace(run.bestPaceSecPerMi)}/mi, longest ${run.longestMi}mi\n`;
+  else ctx += 'Run: no recent data\n';
+
+  return ctx;
+}
+
+async function generateSimulation(raceId) {
+  const race = races.find(r => r.id === raceId);
+  if (!race) return;
+
+  document.getElementById('simulator-content').innerHTML = `<div class="loading-state"><div class="loading-dots"><span></span><span></span><span></span></div><div class="loading-text">Analyzing your training data and simulating race day…</div></div>`;
+
+  try {
+    const paceCtx = buildPaceContext();
+    const days = daysUntil(new Date(race.date));
+    const distances = race.type === 'triathlon' ? getTriDistanceTargets(race.subtype) : null;
+    const distCtx = race.type === 'triathlon'
+      ? `Race distances: swim ${distances.swimMi}mi, bike ${distances.bikeMi}mi, run ${distances.runMi}mi.`
+      : `Race distance: ${race.subtype}.`;
+
+    const reply = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 1500,
+      system: `You are an expert race predictor and pacing strategist. Analyze the athlete's real training data and produce a realistic race-day simulation. Be honest — base predictions on their actual paces with realistic race-day adjustments (race adrenaline helps, but open water is slower than pool, transitions take time, running off the bike is slower). Return ONLY valid JSON, no markdown, plain ASCII only, no apostrophes:
+{"splits":[{"segment":"Swim","time":"32:15","detail":"2:05/100yd pace"},{"segment":"T1","time":"3:00","detail":"wetsuit strip, run to bike"},{"segment":"Bike","time":"1:18:45","detail":"18.9 mph avg"},{"segment":"T2","time":"2:00","detail":"rack bike, shoe swap"},{"segment":"Run","time":"52:30","detail":"8:28/mi pace"}],"finishTime":"2:48:30","goalComparison":"18 min slower than 2:30 goal - goal is aggressive but reachable with improvements","strategy":[{"tip":"specific pacing tip 1"},{"tip":"tip 2"},{"tip":"tip 3"},{"tip":"tip 4"}],"whatIfs":[{"scenario":"If you improve swim pace by 10 sec/100yd","impact":"saves ~3 min"},{"scenario":"scenario 2","impact":"impact 2"},{"scenario":"scenario 3","impact":"impact 3"}],"confidence":"Based on X training sessions over 60 days"}
+For running races: splits should be mile or 5k segments instead of tri legs. Keep all strings short and specific. Reference their actual training numbers in strategy tips.`,
+      messages: [{ role: 'user', content: `Race: ${race.name}, ${race.subtype} ${race.type}. ${distCtx} Goal time: ${race.goal || 'none set'}. Days until race: ${days}.\n\n${paceCtx}\n\nGenerate the race simulation.` }]
+    });
+
+    const cleaned = reply.replace(/```json|```/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
+    const sim = JSON.parse(cleaned);
+    sim.generatedAt = new Date().toISOString().split('T')[0];
+
+    raceSimulations[raceId] = sim;
+    saveSimulations();
+    renderSimulation(sim);
+  } catch(e) {
+    document.getElementById('simulator-content').innerHTML = `<div class="card" style="padding:1.5rem;text-align:center">
+      <div style="font-size:13px;color:var(--warn)">Simulation failed. Please try again.</div>
+      <button class="add-race-btn" style="margin-top:12px" onclick="generateSimulation(${raceId})">Retry</button>
+    </div>`;
+    console.error('Simulation error:', e);
+  }
+}
+
+function renderSimulation(sim) {
+  const icons = { 'Swim':'🏊', 'T1':'⚡', 'Bike':'🚴', 'T2':'⚡', 'Run':'🏃' };
+
+  document.getElementById('simulator-content').innerHTML = `
+    <div class="sim-splits-card">
+      <div class="sim-section-title">🔮 Projected splits</div>
+      ${sim.splits.map(s => `
+        <div class="sim-split-row">
+          <span class="sim-split-icon">${icons[s.segment] || '📍'}</span>
+          <div style="flex:1">
+            <div class="sim-split-label">${s.segment}</div>
+            <div class="sim-split-detail">${s.detail}</div>
+          </div>
+          <span class="sim-split-time">${s.time}</span>
+        </div>`).join('')}
+      <div class="sim-split-row total">
+        <span class="sim-split-icon">🏁</span>
+        <div class="sim-split-label" style="font-size:13px;color:var(--text)">Projected finish</div>
+        <span class="sim-split-time">${sim.finishTime}</span>
+      </div>
+      ${sim.goalComparison ? `<div style="font-size:11px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border);line-height:1.5">${sim.goalComparison}</div>` : ''}
+    </div>
+
+    <div class="sim-section-card">
+      <div class="sim-section-title">🎯 Pacing strategy</div>
+      ${sim.strategy.map((s,i) => `
+        <div class="sim-strategy-item">
+          <div class="sim-strategy-num">${i+1}</div>
+          <div class="sim-strategy-text">${s.tip}</div>
+        </div>`).join('')}
+    </div>
+
+    <div class="sim-section-card">
+      <div class="sim-section-title">💡 What-if scenarios</div>
+      ${sim.whatIfs.map(w => `
+        <div class="sim-whatif-item"><strong>${w.scenario}</strong> → ${w.impact}</div>`).join('')}
+    </div>
+
+    <button class="add-race-btn" onclick="generateSimulation(${currentSimRaceId})" style="margin-bottom:8px">↻ Re-run simulation</button>
+    <div class="sim-confidence">${sim.confidence || ''} · Generated ${sim.generatedAt || ''}</div>`;
+}
+
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
 const CACHE_KEY_ANALYSIS  = 'brb_last_analysis';
 const CACHE_KEY_ACTIVITIES = 'brb_last_activities';
@@ -5607,24 +5828,11 @@ async function init() {
         activitySummary = buildSummary(allActivities);
         if (currentTab === 'activities') renderActivities(allActivities);
         if (currentTab === 'prs') initPRWall();
-        // Re-render dashboard metrics with fresh archive data
-        if (currentTab === 'dashboard') {
-          const liveWeekTotals = calcLiveWeekTotals();
-          // Update This Week metric cards directly without full re-render
-          const dashContent = document.getElementById('dashboard-content');
-          if (dashContent && window._lastDashboardData) {
-            const updated = { ...window._lastDashboardData, ...liveWeekTotals };
-            window._lastDashboardData = updated;
-            // Re-render the weekly summary card inline
-            const wkCard = document.querySelector('.card[style*="border-left:3px solid var(--tri)"]');
-            if (wkCard && isSunday()) {
-              const freshCard = renderWeeklySummaryCard();
-              const tempDiv = document.createElement('div');
-              tempDiv.innerHTML = freshCard;
-              const newCard = tempDiv.querySelector('.card');
-              if (newCard) wkCard.replaceWith(newCard);
-            }
-          }
+        // Re-render dashboard with fresh archive data so This Week and Week in Review match
+        if (currentTab === 'dashboard' && window._lastDashboardData) {
+          const updated = { ...window._lastDashboardData, ...calcLiveWeekTotals() };
+          window._lastDashboardData = updated;
+          renderDashboard(updated);
         }
         console.log('Loaded full archive:', allActivities.length, 'activities');
       }
