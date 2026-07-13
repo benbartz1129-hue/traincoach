@@ -32,7 +32,8 @@ function slimActivity(a) {
     start_date_local: a.start_date_local,
     calories: a.calories || null,
     kudos_count: a.kudos_count || 0,
-    average_speed: a.average_speed || null
+    average_speed: a.average_speed || null,
+    gear_id: a.gear_id || null
   };
 }
 
