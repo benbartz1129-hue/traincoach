@@ -1065,6 +1065,7 @@ body {
     <div class="drawer-footer">
       <div>BRB Training &middot; Track. Train. Triumph.</div>
       <div id="import-history-btn" onclick="importFullHistory()" style="margin-top:8px;color:var(--tri);cursor:pointer;text-decoration:underline;font-size:11px">Import full Strava history</div>
+      <div onclick="reconnectStrava()" style="margin-top:6px;color:var(--muted);cursor:pointer;text-decoration:underline;font-size:11px">Reconnect Strava (update permissions)</div>
     </div>
   </div>
 
@@ -6580,6 +6581,15 @@ function renderBikeMileage() {
     }).join('')}
     <div style="font-size:9px;color:var(--dim);margin-top:8px">Lifetime totals tracked by Strava from your tagged rides</div>
   </div>`;
+}
+
+
+// Clears the Strava session and returns to the login screen so the user can
+// re-authorize with updated permission scopes (activity + profile/gear access)
+function reconnectStrava() {
+  if (!confirm('Reconnect to Strava? Your training data stays saved — you will just re-authorize the app with updated permissions.')) return;
+  localStorage.removeItem('strava_auth');
+  window.location.href = window.location.pathname; // reload clean, no OAuth params
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
