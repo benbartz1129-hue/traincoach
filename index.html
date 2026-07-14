@@ -2157,7 +2157,10 @@ async function callClaude(payload, feature) {
     const outTok = data.usage.output_tokens || 0;
     const usesWebSearch = Array.isArray(payload.tools) && payload.tools.some(t => t.name === 'web_search');
     const searchCost = usesWebSearch ? 0.01 : 0; // rough per-call web search estimate
-    const cost = (inTok / 1e6) * 3 + (outTok / 1e6) * 15 + searchCost;
+    const isHaiku = (payload.model || '').includes('haiku');
+    const inRate = isHaiku ? 1 : 3;
+    const outRate = isHaiku ? 5 : 15;
+    const cost = (inTok / 1e6) * inRate + (outTok / 1e6) * outRate + searchCost;
     logApiUsage(feature || 'other', inTok, outTok, cost);
   }
 
@@ -5287,7 +5290,7 @@ async function generateChecklistForRace(raceId) {
 
   try {
     const reply = await callClaude({
-      model: 'claude-sonnet-4-6', max_tokens: 1200,
+      model: 'claude-haiku-4-5-20251001', max_tokens: 1200,
       system: `You are an expert race-day logistics coach. Generate a race morning checklist tailored to the specific race type and distance. Return ONLY valid JSON, no markdown, no apostrophes or curly quotes (plain ASCII only):
 {"categories":[{"title":"Gear","items":["item 1","item 2"]},{"title":"Nutrition","items":["item 1"]},{"title":"Race Morning","items":["item 1"]},{"title":"Logistics","items":["item 1"]}]}
 For a triathlon include swim/bike/run specific gear (wetsuit, goggles, swim cap if open water, bike shoes, helmet, race belt, running shoes, transition setup items). For a running race focus on running-specific gear, pacing plan, and fueling. Keep items short and specific, 4-6 items per category, 4 categories total. Tailor everything to the specific distance given.`,
@@ -5903,8 +5906,8 @@ async function generateIntel(raceId) {
 
     const reply = await callClaude({
       model: 'claude-sonnet-4-6', max_tokens: 2500,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      system: `You are a race research specialist and coach. Use web search to find real, current information about the specific race — course profile, typical weather and water conditions for the race date, elevation, transition setup, parking/logistics, and anything notable racers mention. Then combine findings with the athlete's training data for tailored advice. If you cannot find specifics about this exact race, research the location and race type instead and say so honestly. After your research, structure your final answer as plain readable text (NOT JSON) with these sections, using these exact headers:
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 4 }],
+      system: `You are a race research specialist. Do at most 4 web searches total and coach. Use web search to find real, current information about the specific race — course profile, typical weather and water conditions for the race date, elevation, transition setup, parking/logistics, and anything notable racers mention. Then combine findings with the athlete's training data for tailored advice. If you cannot find specifics about this exact race, research the location and race type instead and say so honestly. After your research, structure your final answer as plain readable text (NOT JSON) with these sections, using these exact headers:
 CONDITIONS
 (weather patterns, water temp if triathlon, wetsuit legality likelihood)
 COURSE
@@ -6468,8 +6471,8 @@ async function analyzeShoes() {
 
     const reply = await callClaude({
       model: 'claude-sonnet-4-6', max_tokens: 3000,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      system: `You are a running shoe fitting expert. Analyze the foot/shoe photos provided: look for arch height, foot width, toe shape, bunions or pressure points, and if a shoe sole is shown, read the wear pattern for pronation clues. Be honest about confidence — photos are an approximation, not a gait analysis. Then recommend specific current shoe models matched to their feet AND their actual training (provided), organized by training type. Finally, use web search to find current prices and active deals on your top recommended models — search for discounts, previous-generation versions, and sale prices. Format your final answer as plain text (NOT JSON) with these exact section headers on their own lines:
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
+      system: `You are a running shoe fitting expert. Do at most 3 web searches total when hunting for deals. Analyze the foot/shoe photos provided: look for arch height, foot width, toe shape, bunions or pressure points, and if a shoe sole is shown, read the wear pattern for pronation clues. Be honest about confidence — photos are an approximation, not a gait analysis. Then recommend specific current shoe models matched to their feet AND their actual training (provided), organized by training type. Finally, use web search to find current prices and active deals on your top recommended models — search for discounts, previous-generation versions, and sale prices. Format your final answer as plain text (NOT JSON) with these exact section headers on their own lines:
 FOOT ANALYSIS
 (what you observed in the photos, confidence level, pronation assessment if wear pattern visible)
 DAILY TRAINER
@@ -6563,9 +6566,9 @@ async function searchShoeDeals() {
 
   try {
     const reply = await callClaude({
-      model: 'claude-sonnet-4-6', max_tokens: 1500,
-      tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-      system: `You are a running shoe deal hunter. Use web search to find current, real deals matching the request. Prioritize: legitimate retailers (Running Warehouse, Zappos, REI, Brooks/Hoka/Saucony/Nike/Asics official outlets, Holabird, Fleet Feet), previous-generation models at steep discounts, and actual sale prices you can verify. For each deal include: model name, price (and original price if discounted), retailer, and the direct URL on the same line. List 4-6 deals best-first. If the request mentions a shoe type (tempo, recovery, race, trail), match models to that purpose. End with one line noting anything worth waiting for (upcoming releases that drop prev-gen prices). Plain text, plain ASCII, no markdown headers.`,
+      model: 'claude-haiku-4-5-20251001', max_tokens: 900,
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }],
+      system: `You are a running shoe deal hunter. Do at most 2 web searches, then answer from what you find. Prioritize legitimate retailers (Running Warehouse, Zappos, REI, brand outlets, Holabird, Fleet Feet), prev-generation models at steep discounts, and verifiable sale prices. For each deal give: model, price (and original if discounted), retailer, and direct URL on one line. List 4-5 deals best-first. Match models to any shoe type mentioned. Plain text, plain ASCII, no markdown.`,
       messages: [{ role: 'user', content: 'Find me deals: ' + query }]
     }, 'Deal search');
 
