@@ -6715,15 +6715,41 @@ async function refreshData() {
     allActivities = merged.sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
     activitySummary = buildSummary(allActivities);
 
+    // CRITICAL: persist training data IMMEDIATELY — before the AI call.
+    // If AI analysis fails, the sync itself must never be lost.
+    const prevAnalysis = JSON.parse(localStorage.getItem(CACHE_KEY_ANALYSIS) || 'null') || {};
+    saveCache(prevAnalysis, allActivities, activitySummary);
+
     if (!hasCache) {
       const msgEl = document.getElementById('loading-msg');
       if (msgEl) msgEl.textContent = 'Running AI analysis…';
     }
 
-    const analysis = await runAnalysis(activitySummary);
-    saveCache(analysis, allActivities, activitySummary);
+    let analysis;
+    let aiFailed = null;
+    try {
+      analysis = await runAnalysis(activitySummary);
+      // Re-save with the fresh analysis attached
+      saveCache(analysis, allActivities, activitySummary);
+    } catch(aiErr) {
+      console.error('AI analysis failed (sync data still saved):', aiErr);
+      aiFailed = aiErr;
+      // Fall back to previous analysis + live-calculated numbers so the dashboard still renders correctly
+      analysis = { ...prevAnalysis, ...calcTriReadiness(), ...calcLiveWeekTotals() };
+    }
+
     renderDashboard(analysis);
     updateRefreshBanner(new Date().toISOString());
+
+    if (aiFailed) {
+      // Non-destructive notice at the top of the dashboard — data synced fine, only AI insights failed
+      const dash = document.getElementById('dashboard-content');
+      if (dash) {
+        const note = document.createElement('div');
+        note.innerHTML = `<div class="card" style="padding:10px 14px;margin-bottom:12px;border-left:3px solid var(--mar);font-size:11px;color:var(--muted);line-height:1.5">⚠ Synced OK — but AI insights failed to update: ${(aiFailed.message||'unknown').slice(0,120)}</div>`;
+        dash.prepend(note.firstChild);
+      }
+    }
 
     if (currentTab === 'activities') renderActivities(allActivities);
   } catch(e) {
