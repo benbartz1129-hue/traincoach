@@ -1540,6 +1540,15 @@ body {
           <div style="font-size:10px;color:var(--dim);margin-top:8px;line-height:1.5">Fitness = 4-week rolling average of weekly TLS, the same chronic-load model used by training platforms. Pace index tracks your average run pace improvement (higher = faster).</div>
         </div>
 
+        <!-- Fitness by week (12wk bars) -->
+        <div class="section-label">Fitness score by week</div>
+        <div class="card" style="padding:14px 16px;margin-bottom:20px">
+          <div style="position:relative;height:180px">
+            <canvas id="fitness-bars-chart" role="img" aria-label="Twelve week fitness score chart"></canvas>
+          </div>
+          <div style="font-size:10px;color:var(--dim);margin-top:8px">4-week rolling load per week (last 12 weeks) — the same fitness number as above, week by week</div>
+        </div>
+
         <!-- Weekly breakdown table -->
         <div class="section-label">Week by week</div>
         <div class="card" style="padding:0;margin-bottom:20px;overflow:hidden">
@@ -1547,16 +1556,29 @@ body {
         </div>
 
         <!-- Formula explainer -->
-        <div class="section-label">How TLS is calculated</div>
+        <div class="section-label">How these numbers are calculated</div>
         <div class="card" style="padding:14px 16px;margin-bottom:20px">
           <div style="font-size:12px;color:var(--muted);line-height:1.8">
             <div style="margin-bottom:8px"><strong style="color:var(--text)">TLS = (Swim mi × 4.0) + (Run mi × 1.0) + (Bike mi × 0.25)</strong></div>
             <div>🏊 Swim × 4.0 — highest effort per mile</div>
             <div>🏃 Run × 1.0 — baseline discipline</div>
             <div>🚴 Bike × 0.25 — lowest effort per mile</div>
-            <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
-              <strong style="color:var(--text)">ACWR</strong> = This week TLS ÷ 4-week average TLS<br>
-              Sweet spot: 0.8–1.3 · Danger: above 1.5
+
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+              <strong style="color:var(--text)">ACWR</strong> = this week's TLS ÷ 4-week average TLS<br>
+              Measures how sharply load is ramping. Sweet spot: 0.8–1.3 · Caution: 1.3–1.5 · Danger: above 1.5. Staying in the sweet spot builds fitness while keeping injury risk low.
+            </div>
+
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+              <strong style="color:var(--text)">Training hours</strong> = total moving time across every tagged activity (all sports, including strength), summed per week. Uses moving time, not elapsed — stops and breaks don't count.
+            </div>
+
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+              <strong style="color:var(--text)">Fitness score</strong> = 4-week rolling average of weekly TLS. This is the same chronic-load (CTL-style) model used by platforms like TrainingPeaks — it rises with sustained consistent training and falls during breaks or taper. A slow steady climb is the goal; sudden jumps mean load spikes.
+            </div>
+
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+              <strong style="color:var(--text)">Run pace index</strong> = (60 ÷ average run pace in min/mi) × 10, per week. Purely a normalized speed number so faster weeks plot higher — e.g. 8:00/mi = 75, 7:30/mi = 80. Weeks with under 2 run miles carry the previous value forward.
             </div>
           </div>
         </div>
@@ -1934,7 +1956,7 @@ function switchTab(tab) {
   if (tab === 'recovery') { updateRecoveryMetrics(); }
   if (tab !== 'recovery') { initTimer(); }
   if (tab === 'prs') initPRWall();
-  if (tab === 'load') { initLoadPage(); renderFitnessTrend(); renderWeeklyHours(); }
+  if (tab === 'load') { initLoadPage(); renderFitnessTrend(); renderWeeklyHours(); renderFitnessBars(); }
   if (tab === 'stats') renderStatsPage();
   if (tab === 'garage') initGarage();
   if (tab === 'races') { initRacePlanner(); renderRaces(); }
@@ -6658,6 +6680,54 @@ function renderWeeklyHours() {
       scales: {
         x: { ticks: { color:'rgba(255,255,255,0.45)', font:{size:10,family:"'DM Mono', monospace"}, maxRotation:45, autoSkip:true, maxTicksLimit:7 }, grid:{display:false}, border:{color:'rgba(255,255,255,0.08)'} },
         y: { beginAtZero: true, ticks:{ color:'rgba(255,255,255,0.45)', font:{size:10,family:"'DM Mono', monospace"}, callback: v => v + 'h' }, grid:{ color:'rgba(255,255,255,0.06)' }, border:{color:'transparent'} }
+      }
+    }
+  });
+}
+
+
+// 12-week fitness score bar chart (same style as weekly hours)
+let fitnessBarsInstance = null;
+
+function renderFitnessBars() {
+  const canvas = document.getElementById('fitness-bars-chart');
+  if (!canvas) return;
+  const data = buildFitnessTrend();
+  if (!data) return;
+
+  const weeks = data.weeks.slice(-12);
+  const fitness = data.fitness.slice(-12);
+  const labels = weeks.map(w => {
+    const d = new Date(w.weekStart + 'T12:00:00');
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  });
+
+  if (fitnessBarsInstance) { fitnessBarsInstance.destroy(); fitnessBarsInstance = null; }
+
+  fitnessBarsInstance = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Fitness',
+        data: fitness,
+        backgroundColor: fitness.map((f,i) => i === fitness.length-1 ? 'rgba(139,148,255,0.85)' : 'rgba(139,148,255,0.35)'),
+        borderRadius: 5, borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(20,20,30,0.92)', titleColor: 'rgba(255,255,255,0.7)',
+          bodyColor: 'rgba(255,255,255,0.9)', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
+          callbacks: { label: ctx => 'Fitness: ' + ctx.parsed.y.toFixed(1) }
+        }
+      },
+      scales: {
+        x: { ticks: { color:'rgba(255,255,255,0.45)', font:{size:10,family:"'DM Mono', monospace"}, maxRotation:45, autoSkip:true, maxTicksLimit:7 }, grid:{display:false}, border:{color:'rgba(255,255,255,0.08)'} },
+        y: { beginAtZero: true, ticks:{ color:'rgba(255,255,255,0.45)', font:{size:10,family:"'DM Mono', monospace"} }, grid:{ color:'rgba(255,255,255,0.06)' }, border:{color:'transparent'} }
       }
     }
   });
