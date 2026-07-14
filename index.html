@@ -6763,12 +6763,11 @@ async function init() {
       const el = document.getElementById('cal-plan-summary');
       if (el) el.textContent = upcoming + ' sessions planned. Open Coach to update your plan.';
     }
-    // Load from cache instantly, then refresh in background if data is older than 8 hours
+    // Load from cache instantly — no auto-sync. The Sync button is the only
+    // thing that hits Strava/AI, so opens are instant and cost nothing.
     const loaded = loadFromCache();
-    const timestamp = localStorage.getItem(CACHE_KEY_TIMESTAMP);
-    const ageHours = timestamp ? (Date.now() - new Date(timestamp)) / 3600000 : 999;
-    if (!loaded || ageHours > 8) {
-      await refreshData();
+    if (!loaded) {
+      await refreshData(); // first run only — nothing cached yet
     }
     // Sync races, plan, weight and activity archive from KV in background
     kvSyncAll().then(() => {
@@ -6776,26 +6775,7 @@ async function init() {
       renderCalendar();
       updateRefreshBanner(localStorage.getItem(CACHE_KEY_TIMESTAMP));
     });
-    // Load full activity archive from KV for complete totals
-    fetch('/kv', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'getActivities' })
-    }).then(r => r.json()).then(data => {
-      if (data.activities && data.activities.length > allActivities.length) {
-        allActivities = data.activities.sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
-        activitySummary = buildSummary(allActivities);
-        if (currentTab === 'activities') renderActivities(allActivities);
-        if (currentTab === 'prs') initPRWall();
-        // Re-render dashboard with fresh archive data so This Week and Week in Review match
-        if (currentTab === 'dashboard' && window._lastDashboardData) {
-          const updated = { ...window._lastDashboardData, ...calcLiveWeekTotals() };
-          window._lastDashboardData = updated;
-          renderDashboard(updated);
-        }
-        console.log('Loaded full archive:', allActivities.length, 'activities');
-      }
-    }).catch(e => console.warn('Archive load failed:', e));
+    // (Archive now loads from localStorage cache — KV archive is only pulled during manual Sync)
   }
 }
 
