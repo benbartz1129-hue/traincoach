@@ -1494,7 +1494,18 @@ body {
 
         <!-- TLS breakdown this week -->
         <div class="section-label">This week breakdown</div>
-        <div class="card" id="tls-breakdown" style="padding:14px 16px;margin-bottom:20px"></div>
+        <div class="card" id="tls-breakdown" style="padding:14px 16px;margin-bottom:10px"></div>
+        <div class="card" style="padding:14px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="section-label" style="margin-bottom:2px">Fitness score</div>
+            <div style="font-size:11px;color:var(--muted)" id="fitness-trend-label">—</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:var(--font-display);font-size:26px;font-weight:800;color:var(--tri)" id="fitness-score">—</div>
+            <div style="font-size:10px;color:var(--dim)" id="fitness-delta"></div>
+          </div>
+        </div>
+
 
         <!-- Weekly chart -->
         <div class="section-label">12-week TLS history</div>
@@ -1519,16 +1530,6 @@ body {
 
         <!-- Fitness trend -->
         <div class="section-label">Fitness trend <span style="color:var(--dim)">(6 months)</span></div>
-        <div class="card" style="padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <div class="section-label" style="margin-bottom:2px">Fitness score</div>
-            <div style="font-size:11px;color:var(--muted)" id="fitness-trend-label">—</div>
-          </div>
-          <div style="text-align:right">
-            <div style="font-family:var(--font-display);font-size:26px;font-weight:800;color:var(--tri)" id="fitness-score">—</div>
-            <div style="font-size:10px;color:var(--dim)" id="fitness-delta"></div>
-          </div>
-        </div>
         <div class="card" style="padding:14px 16px;margin-bottom:20px">
           <div style="position:relative;height:180px">
             <canvas id="fitness-chart" role="img" aria-label="Six month fitness trend chart"></canvas>
