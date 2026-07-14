@@ -6598,13 +6598,43 @@ const CACHE_KEY_ACTIVITIES = 'brb_last_activities';
 const CACHE_KEY_SUMMARY   = 'brb_last_summary';
 const CACHE_KEY_TIMESTAMP = 'brb_last_updated';
 
+// Keep only the fields the app actually uses — full Strava objects are 10x bigger
+function slimForCache(a) {
+  return {
+    id: a.id, name: a.name, type: a.type, distance: a.distance,
+    moving_time: a.moving_time, total_elevation_gain: a.total_elevation_gain,
+    start_date_local: a.start_date_local, calories: a.calories || null,
+    kudos_count: a.kudos_count || 0, average_speed: a.average_speed || null,
+    gear_id: a.gear_id || null
+  };
+}
+
+function trySaveCache(analysis, slimmedActs, summary) {
+  // Activities first — they're the critical piece
+  localStorage.setItem(CACHE_KEY_ACTIVITIES, JSON.stringify(slimmedActs));
+  localStorage.setItem(CACHE_KEY_ANALYSIS,   JSON.stringify(analysis));
+  localStorage.setItem(CACHE_KEY_SUMMARY,    summary);
+  localStorage.setItem(CACHE_KEY_TIMESTAMP,  new Date().toISOString());
+}
+
 function saveCache(analysis, acts, summary) {
+  const slimmed = acts.map(slimForCache);
   try {
-    localStorage.setItem(CACHE_KEY_ANALYSIS,   JSON.stringify(analysis));
-    localStorage.setItem(CACHE_KEY_ACTIVITIES,  JSON.stringify(acts));
-    localStorage.setItem(CACHE_KEY_SUMMARY,     summary);
-    localStorage.setItem(CACHE_KEY_TIMESTAMP,   new Date().toISOString());
-  } catch(e) { console.warn('Cache save failed', e); }
+    trySaveCache(analysis, slimmed, summary);
+    console.log('Cache saved:', slimmed.length, 'activities,', Math.round(JSON.stringify(slimmed).length/1024) + 'KB');
+  } catch(e) {
+    console.warn('Cache save failed, freeing space and retrying:', e);
+    // Free non-essential cached AI text (regenerable) and retry once
+    try {
+      ['brb_race_intel','brb_shoe_finder','brb_race_simulations','brb_race_debriefs','brb_weekly_summary','brb_daily_insight'].forEach(k => localStorage.removeItem(k));
+      trySaveCache(analysis, slimmed, summary);
+      console.log('Cache saved after freeing space');
+    } catch(e2) {
+      console.error('Cache save failed twice:', e2);
+      const sub = document.querySelector('.header-sub, #last-updated');
+      showError('Storage full — data could not be saved locally. Error: ' + e2.message);
+    }
+  }
 }
 
 function loadCache() {
