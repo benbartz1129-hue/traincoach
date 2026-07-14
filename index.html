@@ -1508,6 +1508,15 @@ body {
           </div>
         </div>
 
+        <!-- Weekly hours -->
+        <div class="section-label">Weekly training hours</div>
+        <div class="card" style="padding:14px 16px;margin-bottom:20px">
+          <div style="position:relative;height:180px">
+            <canvas id="hours-chart" role="img" aria-label="Weekly training hours chart"></canvas>
+          </div>
+          <div style="font-size:10px;color:var(--dim);margin-top:8px">Total moving time across all sports, per week (last 12 weeks)</div>
+        </div>
+
         <!-- Fitness trend -->
         <div class="section-label">Fitness trend <span style="color:var(--dim)">(6 months)</span></div>
         <div class="card" style="padding:14px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
@@ -1925,7 +1934,7 @@ function switchTab(tab) {
   if (tab === 'recovery') { updateRecoveryMetrics(); }
   if (tab !== 'recovery') { initTimer(); }
   if (tab === 'prs') initPRWall();
-  if (tab === 'load') { initLoadPage(); renderFitnessTrend(); }
+  if (tab === 'load') { initLoadPage(); renderFitnessTrend(); renderWeeklyHours(); }
   if (tab === 'stats') renderStatsPage();
   if (tab === 'garage') initGarage();
   if (tab === 'races') { initRacePlanner(); renderRaces(); }
@@ -2249,6 +2258,10 @@ function renderDashboard(d) {
           <div class="load-badge" style="color:${loadColors[d.weeklyLoad]||'var(--ok)'};font-size:18px;font-weight:500" id="tls-score-badge">${calcTLS(d.weekSwimMi||0,d.weekRunMi||0,d.weekBikeMi||0).toFixed(1)}</div>
           <div class="metric-sub" style="color:${loadColors[d.weeklyLoad]||'var(--ok)'}">${d.weeklyLoad}</div>
         </div>
+      </div>
+      <div class="card" onclick="switchTab('load')" style="cursor:pointer;margin-top:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-display);font-weight:600">⏱ Training hours <span style="font-size:9px;color:var(--tri)">↗</span></div>
+        <div style="font-family:var(--font-mono);font-size:16px;font-weight:700;color:var(--text)">${(d.weekHours||0).toFixed(1)}<span style="font-size:10px;color:var(--muted)">h this week</span></div>
       </div>
     </div>
 
@@ -6592,6 +6605,64 @@ function reconnectStrava() {
   window.location.href = window.location.pathname; // reload clean, no OAuth params
 }
 
+
+// ── WEEKLY TRAINING HOURS ────────────────────────────────────────────────
+let hoursChartInstance = null;
+
+function buildWeeklyHours() {
+  const weekMap = {};
+  allActivities.forEach(a => {
+    if (!a.moving_time) return;
+    const wk = isoWeek(new Date(a.start_date_local));
+    if (!weekMap[wk]) weekMap[wk] = { weekStart: wk, hours: 0 };
+    weekMap[wk].hours += a.moving_time / 3600;
+  });
+  return Object.values(weekMap).sort((a,b) => a.weekStart.localeCompare(b.weekStart)).slice(-12);
+}
+
+function renderWeeklyHours() {
+  const canvas = document.getElementById('hours-chart');
+  if (!canvas) return;
+  const weeks = buildWeeklyHours();
+  if (!weeks.length) return;
+
+  const labels = weeks.map(w => {
+    const d = new Date(w.weekStart + 'T12:00:00');
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  });
+  const hours = weeks.map(w => +w.hours.toFixed(1));
+
+  if (hoursChartInstance) { hoursChartInstance.destroy(); hoursChartInstance = null; }
+
+  hoursChartInstance = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Hours',
+        data: hours,
+        backgroundColor: hours.map((h,i) => i === hours.length-1 ? 'rgba(79,196,168,0.85)' : 'rgba(79,196,168,0.35)'),
+        borderRadius: 5, borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(20,20,30,0.92)', titleColor: 'rgba(255,255,255,0.7)',
+          bodyColor: 'rgba(255,255,255,0.9)', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
+          callbacks: { label: ctx => ctx.parsed.y.toFixed(1) + ' hours' }
+        }
+      },
+      scales: {
+        x: { ticks: { color:'rgba(255,255,255,0.45)', font:{size:10,family:"'DM Mono', monospace"}, maxRotation:45, autoSkip:true, maxTicksLimit:7 }, grid:{display:false}, border:{color:'rgba(255,255,255,0.08)'} },
+        y: { beginAtZero: true, ticks:{ color:'rgba(255,255,255,0.45)', font:{size:10,family:"'DM Mono', monospace"}, callback: v => v + 'h' }, grid:{ color:'rgba(255,255,255,0.06)' }, border:{color:'transparent'} }
+      }
+    }
+  });
+}
+
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
 const CACHE_KEY_ANALYSIS  = 'brb_last_analysis';
 const CACHE_KEY_ACTIVITIES = 'brb_last_activities';
@@ -6784,7 +6855,11 @@ function calcLiveWeekTotals() {
   const weekBikeMi = thisWeek.filter(a=>a.type==='Ride'&&a.distance>0).reduce((s,a)=>s+mToMi(a.distance),0);
   const weekRunMi  = thisWeek.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
   const totalWeekMi = weekSwimMi + weekBikeMi + weekRunMi;
-  return { weekSwimMi, weekBikeMi, weekRunMi, totalWeekMi };
+  // Hours across ALL sports (incl. strength etc), from moving_time
+  const weekHours = allActivities
+    .filter(a => new Date(a.start_date_local) >= startOfWeek && a.moving_time > 0)
+    .reduce((s,a) => s + a.moving_time, 0) / 3600;
+  return { weekSwimMi, weekBikeMi, weekRunMi, totalWeekMi, weekHours };
 }
 
 async function init() {
