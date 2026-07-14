@@ -1061,6 +1061,10 @@ body {
       <button class="nav-item" id="nav-shoefinder" onclick="switchTab('shoefinder')">
         <span class="nav-icon">👟</span>Shoe Closet
       </button>
+      <div class="drawer-section-label">App</div>
+      <button class="nav-item" id="nav-usage" onclick="switchTab('usage')">
+        <span class="nav-icon">📊</span>AI Usage
+      </button>
     </nav>
     <div class="drawer-footer">
       <div>BRB Training &middot; Track. Train. Triumph.</div>
@@ -1287,6 +1291,19 @@ body {
             <button class="add-race-btn" onclick="addRace()">+ Add Race</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- AI USAGE -->
+    <div class="page" id="page-usage">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:20px">
+          <div>
+            <div class="date-greeting" style="font-size:16px">📊 AI Usage</div>
+            <div class="date-sub">Estimated API spend</div>
+          </div>
+        </div>
+        <div id="usage-content"></div>
       </div>
     </div>
 
@@ -1962,6 +1979,7 @@ function switchTab(tab) {
   if (tab === 'garage') initGarage();
   if (tab === 'races') { initRacePlanner(); renderRaces(); }
   if (tab === 'shoefinder') initShoeFinder();
+  if (tab === 'usage') renderUsagePage();
 }
 
 // ── STRAVA OAUTH ──────────────────────────────────────────────────────────
@@ -2125,14 +2143,50 @@ function buildSummary(acts) {
   }).join('\n');
 }
 
-async function callClaude(payload) {
+async function callClaude(payload, feature) {
   const r = await fetch('/claude', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify(payload)
   });
   const data = await r.json();
   if (!data.content) throw new Error('API error: ' + JSON.stringify(data));
+
+  // Track real token usage + estimated cost (Sonnet: $3/M input, $15/M output)
+  if (data.usage) {
+    const inTok = data.usage.input_tokens || 0;
+    const outTok = data.usage.output_tokens || 0;
+    const usesWebSearch = Array.isArray(payload.tools) && payload.tools.some(t => t.name === 'web_search');
+    const searchCost = usesWebSearch ? 0.01 : 0; // rough per-call web search estimate
+    const cost = (inTok / 1e6) * 3 + (outTok / 1e6) * 15 + searchCost;
+    logApiUsage(feature || 'other', inTok, outTok, cost);
+  }
+
   return data.content.filter(b => b.type === 'text').map(b => b.text).join('');
+}
+
+// ── API USAGE TRACKING ───────────────────────────────────────────────────
+const CACHE_KEY_USAGE = 'brb_api_usage';
+
+function logApiUsage(feature, inTok, outTok, cost) {
+  let usage;
+  try { usage = JSON.parse(localStorage.getItem(CACHE_KEY_USAGE) || 'null'); } catch(e) {}
+  if (!usage) usage = { totalCalls: 0, totalCost: 0, totalIn: 0, totalOut: 0, byFeature: {}, byMonth: {}, firstDate: new Date().toISOString().split('T')[0] };
+
+  usage.totalCalls++;
+  usage.totalCost += cost;
+  usage.totalIn += inTok;
+  usage.totalOut += outTok;
+
+  if (!usage.byFeature[feature]) usage.byFeature[feature] = { calls: 0, cost: 0 };
+  usage.byFeature[feature].calls++;
+  usage.byFeature[feature].cost += cost;
+
+  const month = new Date().toISOString().slice(0, 7); // YYYY-MM
+  if (!usage.byMonth[month]) usage.byMonth[month] = { calls: 0, cost: 0 };
+  usage.byMonth[month].calls++;
+  usage.byMonth[month].cost += cost;
+
+  localStorage.setItem(CACHE_KEY_USAGE, JSON.stringify(usage));
 }
 
 async function runAnalysis(summary) {
@@ -2166,7 +2220,7 @@ Return ONLY valid JSON, all distances in miles:
 "weekDays":[{"day":"Mon","sport":"rest","mi":0},{"day":"Tue","sport":"rest","mi":0},{"day":"Wed","sport":"rest","mi":0},{"day":"Thu","sport":"rest","mi":0},{"day":"Fri","sport":"rest","mi":0},{"day":"Sat","sport":"rest","mi":0},{"day":"Sun","sport":"rest","mi":0}],
 "insights":[{"type":"warning|success|info","tag":"tri|mar|both","title":"specific title referencing recent data","detail":"specific 1-2 sentence insight referencing actual recent activities"},{"type":"warning|success|info","tag":"tri|mar|both","title":"","detail":""},{"type":"warning|success|info","tag":"tri|mar|both","title":"","detail":""}]}`,
     messages: [{ role: 'user', content: `Recent activities:\n${summary}\n\nThis week totals (already calculated): Swim ${weekSwimMi.toFixed(1)}mi, Bike ${weekBikeMi.toFixed(1)}mi, Run ${weekRunMi.toFixed(1)}mi, Total ${totalWeekMi.toFixed(1)}mi\n\nGenerate fresh insights based specifically on the most recent activities listed above.` }]
-  });
+  }, 'Dashboard analysis');
 
   const ai = JSON.parse(text.replace(/```json|```/g,'').trim());
   // Merge accurate calculated totals + deterministic readiness with AI insights
@@ -2428,7 +2482,7 @@ Rules: name is a short drill title. description includes what it is, how to do i
       model: 'claude-sonnet-4-6', max_tokens: 4000,
       system: systemPrompt,
       messages: chatHistory
-    });
+    }, 'Coach chat');
 
     typing.remove();
 
@@ -2691,7 +2745,7 @@ async function generateRaceInsight(id) {
       model: 'claude-sonnet-4-6', max_tokens: 200,
       system: 'You are a concise triathlon and marathon coach. Give a 2-sentence coaching insight for the athlete specific to this race and their recent training. Use miles not km. Be direct and specific.',
       messages: [{ role: 'user', content: `Race: ${race.name} (${race.subtype} ${race.type}), ${daysAway} days away. Goal: ${race.goal || 'not set'}. Recent training: ${activitySummary.split('\n').slice(0,15).join(', ')}` }]
-    });
+    }, 'Race insight');
     race.insight = reply;
     saveRaces();
     const el = document.getElementById('insight-' + id);
@@ -3023,7 +3077,7 @@ Return ONLY valid JSON, no markdown, no special characters, no apostrophes in va
 {"intro":"1 short sentence referencing their specific recent training pattern","totalTime":"8 min","stretches":[{"name":"name","duration":"30 sec","focus":"quads","detail":"Short instruction under 15 words.","why":"Short reason under 12 words."}],"tips":[{"title":"title","detail":"Short tip."},{"title":"title","detail":"Short tip."},{"title":"title","detail":"Short tip."}]}
 Include exactly 6 stretches, prioritized by what this athlete's recent training actually stressed. No curly quotes, no apostrophes, no em-dashes \u2014 plain ASCII only.`,
       messages: [{ role: 'user', content: `Recent training (most recent 15 activities): ${recentActs}\n\n${weekSummary}\n\n${raceContext} ${tomorrowContext}\n\n${wellnessContext}\n\nGenerate recovery stretches tailored to this full picture, not just the most recent workout.` }]
-    });
+    }, 'Recovery');
 
     // Clean and parse
     const cleaned = text
@@ -4580,7 +4634,7 @@ async function generateSportInsights() {
       model: 'claude-sonnet-4-6', max_tokens: 500,
       system: `You are an expert triathlon and marathon coach. Analyze the athlete's recent ${SPORT_LABELS[sportType]} activities. Olympic Tri in ${triDays} days, Chicago Marathon in ${marDays} days. Be specific, reference actual numbers from the data, and give 2-3 concise actionable observations. Keep it under 100 words total. Use miles not km.`,
       messages: [{ role: 'user', content: `Recent ${SPORT_LABELS[sportType]} activities:\n${summary}\n\nWhat patterns or recommendations do you see?` }]
-    });
+    }, 'Sport insights');
 
     content.innerHTML = `<div class="card" style="padding:14px 16px;border-left:3px solid var(--tri)">
       <div style="font-size:12px;color:var(--text);line-height:1.7">${reply.replace(/\n/g,'<br>')}</div>
@@ -5174,7 +5228,7 @@ async function generateWeeklySummary(forceRefresh) {
       model: 'claude-sonnet-4-6', max_tokens: 300,
       system: `You are a supportive but honest triathlon and marathon coach. Write a 2-3 sentence weekly recap for the athlete. Reference their actual numbers. Be encouraging but note anything worth flagging (imbalance between sports, low volume, great consistency, etc). Olympic Tri in ${triDays} days, Chicago Marathon in ${marDays} days. Keep it warm and conversational, not clinical.`,
       messages: [{ role: 'user', content: `This week: ${wk.swimMi.toFixed(1)}mi swim, ${wk.bikeMi.toFixed(1)}mi bike, ${wk.runMi.toFixed(1)}mi run, TLS ${wk.tls.toFixed(1)}, ${wk.count} activities across ${wk.activeDays} active days. Targets: swim ${wk.targets.swim}mi/wk, bike ${wk.targets.bike}mi/wk, run ${wk.targets.run}mi/wk. Write the recap.` }]
-    });
+    }, 'Weekly recap');
 
     localStorage.setItem(CACHE_KEY_WEEKLY_SUMMARY, JSON.stringify({ weekStart: wk.weekStart, text: reply }));
     container.innerHTML = `<div style="font-size:12px;color:var(--text);line-height:1.7;padding-top:10px;border-top:1px solid var(--border)">${reply}</div>`;
@@ -5238,7 +5292,7 @@ async function generateChecklistForRace(raceId) {
 {"categories":[{"title":"Gear","items":["item 1","item 2"]},{"title":"Nutrition","items":["item 1"]},{"title":"Race Morning","items":["item 1"]},{"title":"Logistics","items":["item 1"]}]}
 For a triathlon include swim/bike/run specific gear (wetsuit, goggles, swim cap if open water, bike shoes, helmet, race belt, running shoes, transition setup items). For a running race focus on running-specific gear, pacing plan, and fueling. Keep items short and specific, 4-6 items per category, 4 categories total. Tailor everything to the specific distance given.`,
       messages: [{ role: 'user', content: `Generate a race morning checklist for: ${race.name}, a ${race.subtype} ${race.type === 'triathlon' ? 'triathlon' : 'running race'}. Goal time: ${race.goal || 'not set'}.` }]
-    });
+    }, 'Race checklist');
 
     const cleaned = reply
       .replace(/```json|```/g,'')
@@ -5435,7 +5489,7 @@ async function generateDailyInsight(forceRefresh) {
       model: 'claude-sonnet-4-6', max_tokens: 250,
       system: `You are a triathlon and marathon coach giving a quick daily check-in. Write 2-3 short sentences interpreting the athlete's stats holistically — wellness signals, training load, and race proximity. Be warm, direct, and specific. Reference actual numbers. No bullet points, no headers — just a natural paragraph like a coach would say it. Flag anything worth noting but keep it positive and actionable.`,
       messages: [{ role: 'user', content: wellnessCtx + '\n' + weightCtx + '\n' + trainingCtx + '\n' + raceCtx + (drillCtx ? '\n' + drillCtx : '') }]
-    });
+    }, 'Daily insight');
 
     // Cache for today
     localStorage.setItem(CACHE_KEY_DAILY_INSIGHT, JSON.stringify({ date: today, text: reply }));
@@ -5737,7 +5791,7 @@ async function generateSimulation(raceId) {
 {"splits":[{"segment":"Swim","time":"32:15","detail":"2:05/100yd pace"},{"segment":"T1","time":"3:00","detail":"wetsuit strip, run to bike"},{"segment":"Bike","time":"1:18:45","detail":"18.9 mph avg"},{"segment":"T2","time":"2:00","detail":"rack bike, shoe swap"},{"segment":"Run","time":"52:30","detail":"8:28/mi pace"}],"finishTime":"2:48:30","goalComparison":"18 min slower than 2:30 goal - goal is aggressive but reachable with improvements","strategy":[{"tip":"specific pacing tip 1"},{"tip":"tip 2"},{"tip":"tip 3"},{"tip":"tip 4"}],"whatIfs":[{"scenario":"If you improve swim pace by 10 sec/100yd","impact":"saves ~3 min"},{"scenario":"scenario 2","impact":"impact 2"},{"scenario":"scenario 3","impact":"impact 3"}],"confidence":"Based on X training sessions over 60 days"}
 For running races: splits should be mile or 5k segments instead of tri legs. Keep all strings short and specific. Reference their actual training numbers in strategy tips.`,
       messages: [{ role: 'user', content: `Race: ${race.name}, ${race.subtype} ${race.type}. ${distCtx} Goal time: ${race.goal || 'none set'}. Days until race: ${days}.\n\n${paceCtx}\n\nGenerate the race simulation.` }]
-    });
+    }, 'Race simulator');
 
     const cleaned = reply.replace(/```json|```/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
     const sim = JSON.parse(cleaned);
@@ -5861,7 +5915,7 @@ YOUR EDGE
 (3-4 specific tips combining race intel with their actual training data)
 Keep each section to 2-4 short sentences. Be specific with numbers where you found them. Plain ASCII only.`,
       messages: [{ role: 'user', content: `Research this race: ${race.name} on ${raceDate} (${race.subtype} ${race.type === 'triathlon' ? 'triathlon' : 'running race'}). ${days} days from now. Athlete goal: ${race.goal || 'not set'}.\n\nAthlete training context:\n${paceCtx}` }]
-    });
+    }, 'Race intel');
 
     const intel = { text: reply, generatedAt: new Date().toISOString().split('T')[0] };
     raceIntel[raceId] = intel;
@@ -6019,7 +6073,7 @@ async function adaptPlan() {
 Return ONLY valid JSON on a single line, plain ASCII, no apostrophes, no line breaks inside the JSON:
 {"summary":"2-3 sentences explaining what you changed and why, referencing their actual compliance","plan":[{"date":"YYYY-MM-DD","sport":"run|swim|ride|rest|strength","title":"short title","detail":"duration and intensity"}]}`,
       messages: [{ role: 'user', content: 'PLANNED vs ACTUAL (last 14 days):\n' + (complianceCtx || 'No planned sessions in window') + '\n\nUnplanned extra activities: ' + c.unplanned + '\n\nThis week so far: ' + live.weekSwimMi.toFixed(1) + 'mi swim, ' + live.weekBikeMi.toFixed(1) + 'mi bike, ' + live.weekRunMi.toFixed(1) + 'mi run\n' + wellnessCtx + '\nRaces: ' + raceCtx + '\n\nCURRENT UPCOMING PLAN:\n' + upcomingCtx + '\n\nAdapt the upcoming plan.' }]
-    });
+    }, 'Adapt plan');
 
     let cleaned = reply.replace(/```json|```/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
     // Robust extraction: grab from first { to last } in case of stray text around JSON
@@ -6144,7 +6198,7 @@ async function generateDebrief(raceId) {
 {"headline":"one punchy sentence summarizing the race","comparison":[{"segment":"Swim","predicted":"32:15","actual":"30:50","verdict":"beat prediction by 1:25"}],"wins":["specific thing that went well","another"],"losses":["specific place time slipped","another"],"nextRace":["forward takeaway 1","takeaway 2","takeaway 3"]}
 If no simulation existed, put the goal time comparison in the comparison array instead. Keep strings short and specific with real numbers.`,
       messages: [{ role: 'user', content: 'RACE: ' + race.name + ' (' + race.subtype + ' ' + race.type + '), goal: ' + (race.goal || 'none') + '\n\nACTUAL RACE-DAY ACTIVITIES:\n' + actualCtx + '\n\n' + simCtx + '\n\n' + nextCtx + '\n\nGenerate the debrief.' }]
-    });
+    }, 'Post-race debrief');
 
     const cleaned = reply.replace(/```json|```/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
     const debrief = JSON.parse(cleaned);
@@ -6438,7 +6492,7 @@ Keep each section tight, 2-4 lines. Plain ASCII only.`,
           { type: 'text', text: 'Analyze my feet and recommend shoes with current deals. ' + runCtx }
         ]
       }]
-    });
+    }, 'Shoe analysis');
 
     const result = { text: reply, generatedAt: new Date().toISOString().split('T')[0] };
     localStorage.setItem(CACHE_KEY_SHOEFINDER, JSON.stringify(result));
@@ -6513,7 +6567,7 @@ async function searchShoeDeals() {
       tools: [{ type: 'web_search_20250305', name: 'web_search' }],
       system: `You are a running shoe deal hunter. Use web search to find current, real deals matching the request. Prioritize: legitimate retailers (Running Warehouse, Zappos, REI, Brooks/Hoka/Saucony/Nike/Asics official outlets, Holabird, Fleet Feet), previous-generation models at steep discounts, and actual sale prices you can verify. For each deal include: model name, price (and original price if discounted), retailer, and the direct URL on the same line. List 4-6 deals best-first. If the request mentions a shoe type (tempo, recovery, race, trail), match models to that purpose. End with one line noting anything worth waiting for (upcoming releases that drop prev-gen prices). Plain text, plain ASCII, no markdown headers.`,
       messages: [{ role: 'user', content: 'Find me deals: ' + query }]
-    });
+    }, 'Deal search');
 
     resultEl.innerHTML = `
       <div class="sim-section-card" style="border-left:3px solid var(--mar)">
@@ -6732,6 +6786,83 @@ function renderFitnessBars() {
       }
     }
   });
+}
+
+
+// ── AI USAGE DASHBOARD ───────────────────────────────────────────────────
+function renderUsagePage() {
+  const el = document.getElementById('usage-content');
+  if (!el) return;
+  let usage;
+  try { usage = JSON.parse(localStorage.getItem(CACHE_KEY_USAGE) || 'null'); } catch(e) {}
+
+  if (!usage || !usage.totalCalls) {
+    el.innerHTML = '<div class="card" style="padding:2rem;text-align:center"><div style="font-size:32px;margin-bottom:12px">📊</div><div style="font-size:13px;color:var(--muted);line-height:1.6">No AI usage tracked yet.<br><br><span style="font-size:11px;color:var(--dim)">Costs will appear here as you use Coach, simulations, and other AI features.</span></div></div>';
+    return;
+  }
+
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const monthCost = usage.byMonth[thisMonth] ? usage.byMonth[thisMonth].cost : 0;
+  const monthCalls = usage.byMonth[thisMonth] ? usage.byMonth[thisMonth].calls : 0;
+
+  // Sort features by cost descending
+  const features = Object.entries(usage.byFeature).sort((a,b) => b[1].cost - a[1].cost);
+  const maxCost = features.length ? features[0][1].cost : 1;
+
+  // Sorted months for the trend
+  const months = Object.keys(usage.byMonth).sort();
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div class="card" style="padding:14px 16px">
+        <div class="section-label" style="margin-bottom:4px">This month</div>
+        <div style="font-family:var(--font-display);font-size:24px;font-weight:800;color:var(--tri)">$${monthCost.toFixed(2)}</div>
+        <div style="font-size:10px;color:var(--dim)">${monthCalls} AI calls</div>
+      </div>
+      <div class="card" style="padding:14px 16px">
+        <div class="section-label" style="margin-bottom:4px">All time</div>
+        <div style="font-family:var(--font-display);font-size:24px;font-weight:800;color:var(--text)">$${usage.totalCost.toFixed(2)}</div>
+        <div style="font-size:10px;color:var(--dim)">${usage.totalCalls} calls since ${usage.firstDate || '—'}</div>
+      </div>
+    </div>
+
+    <div class="section-label">By feature (all time)</div>
+    <div class="card" style="padding:14px 16px;margin-bottom:16px">
+      ${features.map(([name, f]) => `
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px">
+            <span style="font-size:12px;color:var(--text)">${name}</span>
+            <span style="font-family:var(--font-mono);font-size:12px;color:var(--muted)">$${f.cost.toFixed(2)} <span style="color:var(--dim);font-size:10px">(${f.calls})</span></span>
+          </div>
+          <div style="height:4px;background:var(--surface2);border-radius:2px;overflow:hidden">
+            <div style="height:100%;width:${Math.max(2,(f.cost/maxCost)*100)}%;background:var(--tri);border-radius:2px"></div>
+          </div>
+        </div>`).join('')}
+    </div>
+
+    ${months.length > 1 ? `
+    <div class="section-label">By month</div>
+    <div class="card" style="padding:14px 16px;margin-bottom:16px">
+      ${months.map(m => `
+        <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px">
+          <span style="color:var(--muted)">${m}</span>
+          <span style="font-family:var(--font-mono);color:var(--text)">$${usage.byMonth[m].cost.toFixed(2)} <span style="color:var(--dim);font-size:10px">(${usage.byMonth[m].calls})</span></span>
+        </div>`).join('')}
+    </div>` : ''}
+
+    <div class="card" style="padding:12px 16px;margin-bottom:16px">
+      <div style="font-size:11px;color:var(--muted);line-height:1.6">
+        Estimates use actual token counts from each API response at Sonnet rates ($3/M input, $15/M output), plus ~$0.01 per web search. Your real bill is on the <strong style="color:var(--text)">Anthropic Console usage dashboard</strong> — these figures are a close local approximation.
+      </div>
+    </div>
+
+    <button class="add-race-btn" style="background:var(--surface2);color:var(--muted)" onclick="resetUsageStats()">Reset usage stats</button>`;
+}
+
+function resetUsageStats() {
+  if (!confirm('Clear all tracked AI usage stats? This only affects the local counter, not your actual Anthropic billing.')) return;
+  localStorage.removeItem(CACHE_KEY_USAGE);
+  renderUsagePage();
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
