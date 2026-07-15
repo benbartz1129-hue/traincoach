@@ -2167,6 +2167,29 @@ async function callClaude(payload, feature) {
   return data.content.filter(b => b.type === 'text').map(b => b.text).join('');
 }
 
+
+// Safe localStorage write — never throws, frees regenerable caches on quota error
+function safeSetItem(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch(e) {
+    console.warn('Storage full writing ' + key + ', freeing regenerable caches', e);
+    ['brb_race_intel','brb_shoe_finder','brb_race_simulations','brb_race_debriefs','brb_weekly_summary','brb_daily_insight'].forEach(k => { if (k !== key) localStorage.removeItem(k); });
+    try { localStorage.setItem(key, value); return true; }
+    catch(e2) { console.error('Storage still full after cleanup:', e2); return false; }
+  }
+}
+
+
+// Days since an ISO date string, for cache-age display
+function daysSinceDate(isoDate) {
+  if (!isoDate) return null;
+  const then = new Date(isoDate + 'T00:00:00');
+  const now = new Date(); now.setHours(0,0,0,0);
+  return Math.round((now - then) / 86400000);
+}
+
 // ── API USAGE TRACKING ───────────────────────────────────────────────────
 const CACHE_KEY_USAGE = 'brb_api_usage';
 
@@ -2484,7 +2507,7 @@ Rules: name is a short drill title. description includes what it is, how to do i
     const rawReply = await callClaude({
       model: 'claude-sonnet-4-6', max_tokens: 4000,
       system: systemPrompt,
-      messages: chatHistory
+      messages: chatHistory.slice(-10)
     }, 'Coach chat');
 
     typing.remove();
@@ -5233,7 +5256,7 @@ async function generateWeeklySummary(forceRefresh) {
       messages: [{ role: 'user', content: `This week: ${wk.swimMi.toFixed(1)}mi swim, ${wk.bikeMi.toFixed(1)}mi bike, ${wk.runMi.toFixed(1)}mi run, TLS ${wk.tls.toFixed(1)}, ${wk.count} activities across ${wk.activeDays} active days. Targets: swim ${wk.targets.swim}mi/wk, bike ${wk.targets.bike}mi/wk, run ${wk.targets.run}mi/wk. Write the recap.` }]
     }, 'Weekly recap');
 
-    localStorage.setItem(CACHE_KEY_WEEKLY_SUMMARY, JSON.stringify({ weekStart: wk.weekStart, text: reply }));
+    safeSetItem(CACHE_KEY_WEEKLY_SUMMARY, JSON.stringify({ weekStart: wk.weekStart, text: reply }));
     container.innerHTML = `<div style="font-size:12px;color:var(--text);line-height:1.7;padding-top:10px;border-top:1px solid var(--border)">${reply}</div>`;
   } catch(e) {
     container.innerHTML = `<div style="font-size:12px;color:var(--warn);text-align:center">Could not generate recap. <span style="color:var(--tri);cursor:pointer;text-decoration:underline" onclick="generateWeeklySummary()">Try again</span></div>`;
@@ -5495,7 +5518,7 @@ async function generateDailyInsight(forceRefresh) {
     }, 'Daily insight');
 
     // Cache for today
-    localStorage.setItem(CACHE_KEY_DAILY_INSIGHT, JSON.stringify({ date: today, text: reply }));
+    safeSetItem(CACHE_KEY_DAILY_INSIGHT, JSON.stringify({ date: today, text: reply }));
     showDailyInsight(reply);
   } catch(e) {
     el.innerHTML = '<div style="font-size:11px;color:var(--warn);text-align:center">Could not generate insight. <span style="color:var(--tri);cursor:pointer;text-decoration:underline" onclick="generateDailyInsight(true)">Try again</span></div>';
@@ -5704,7 +5727,7 @@ let raceSimulations = JSON.parse(localStorage.getItem(CACHE_KEY_SIMULATIONS) || 
 let currentSimRaceId = null;
 
 function saveSimulations() {
-  localStorage.setItem(CACHE_KEY_SIMULATIONS, JSON.stringify(raceSimulations));
+  safeSetItem(CACHE_KEY_SIMULATIONS, JSON.stringify(raceSimulations));
 }
 
 function openRaceSimulator(raceId) {
@@ -5861,7 +5884,7 @@ let raceIntel = JSON.parse(localStorage.getItem(CACHE_KEY_INTEL) || '{}');
 let currentIntelRaceId = null;
 
 function saveIntel() {
-  localStorage.setItem(CACHE_KEY_INTEL, JSON.stringify(raceIntel));
+  safeSetItem(CACHE_KEY_INTEL, JSON.stringify(raceIntel));
 }
 
 function openRaceIntel(raceId) {
@@ -5968,7 +5991,7 @@ function renderIntel(intel) {
 
   document.getElementById('intel-content').innerHTML = html + `
     <button class="add-race-btn" onclick="generateIntel(${currentIntelRaceId})" style="margin-bottom:8px">↻ Re-research</button>
-    <div class="sim-confidence">Web-researched · Generated ${intel.generatedAt || ''}</div>`;
+    <div class="sim-confidence">Web-researched · Generated ${intel.generatedAt || ''}${(() => { const d = daysSinceDate(intel.generatedAt); return d >= 3 ? ' · <span style=\'color:var(--mar)\'>' + d + 'd old, tap Re-research for latest</span>' : ''; })()}</div>`;
 }
 
 
@@ -6123,7 +6146,7 @@ let raceDebriefs = JSON.parse(localStorage.getItem(CACHE_KEY_DEBRIEFS) || '{}');
 let currentDebriefRaceId = null;
 
 function saveDebriefs() {
-  localStorage.setItem(CACHE_KEY_DEBRIEFS, JSON.stringify(raceDebriefs));
+  safeSetItem(CACHE_KEY_DEBRIEFS, JSON.stringify(raceDebriefs));
 }
 
 function openRaceDebrief(raceId) {
@@ -6498,7 +6521,7 @@ Keep each section tight, 2-4 lines. Plain ASCII only.`,
     }, 'Shoe analysis');
 
     const result = { text: reply, generatedAt: new Date().toISOString().split('T')[0] };
-    localStorage.setItem(CACHE_KEY_SHOEFINDER, JSON.stringify(result));
+    safeSetItem(CACHE_KEY_SHOEFINDER, JSON.stringify(result));
     renderShoeResults(result);
   } catch(e) {
     contentEl.innerHTML = `<div class="card" style="padding:1.5rem;text-align:center">
