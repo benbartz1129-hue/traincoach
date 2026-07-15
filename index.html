@@ -1267,6 +1267,10 @@ body {
               <div class="form-label">Race name</div>
               <input class="form-input" id="race-name" placeholder="e.g. Chicago Sprint Tri" />
             </div>
+            <div class="form-field">
+              <div class="form-label">Location <span style="color:var(--dim);font-weight:400">(for weather)</span></div>
+              <input class="form-input" id="race-location" placeholder="e.g. Wauconda, IL" />
+            </div>
             <div class="form-row">
               <div class="form-field">
                 <div class="form-label">Date</div>
@@ -2386,6 +2390,8 @@ function renderDashboard(d) {
     </div>
     <div class="app-footer">Last updated ${new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})} · BRB Training</div>`;
   updateRaceCountdowns();
+  // Load race-day weather into the taper card (async, non-blocking)
+  if (taperRace) loadWeatherInto('taper-weather-slot', taperRace, true);
 }
 
 function toggleAIInsights() {
@@ -2696,18 +2702,20 @@ function selectSubtype(sub) {
 
 async function addRace() {
   const name = document.getElementById('race-name').value.trim();
+  const location = document.getElementById('race-location').value.trim();
   const date = document.getElementById('race-date').value;
   const goal = document.getElementById('race-goal').value.trim();
   if (!name || !date || !selectedSubtype) {
     alert('Please fill in race name, date, and select a distance.');
     return;
   }
-  const race = { id: Date.now(), name, date, goal, type: selectedRaceType, subtype: selectedSubtype, insight: null };
+  const race = { id: Date.now(), name, location, date, goal, type: selectedRaceType, subtype: selectedSubtype, insight: null };
   races.push(race);
   races.sort((a,b) => new Date(a.date) - new Date(b.date));
   saveRaces();
   // Clear form
   document.getElementById('race-name').value = '';
+  document.getElementById('race-location').value = '';
   document.getElementById('race-date').value = '';
   document.getElementById('race-goal').value = '';
   selectedSubtype = '';
@@ -2758,8 +2766,15 @@ function renderRaces() {
       ${isPast ? `<button class="race-checklist-btn" style="border-color:var(--tri-border);color:var(--tri)" onclick="openRaceDebrief(${r.id})">
         &#127942; Post-Race Debrief
       </button>` : ''}
+      <div id="race-weather-${r.id}"></div>
     </div>`;
   }).join('');
+
+  // Load weather into each upcoming race card within forecast range (async)
+  races.forEach(r => {
+    const daysAway = Math.ceil((new Date(r.date) - new Date()) / 86400000);
+    if (daysAway >= 0 && daysAway <= 16) loadWeatherInto('race-weather-' + r.id, r, false);
+  });
 }
 
 async function generateRaceInsight(id) {
@@ -4443,6 +4458,7 @@ function renderTaperBanner(race) {
             <span class="taper-item-text">${item.text}</span>
           </div>`).join('')}
       </div>
+      <div id="taper-weather-slot"></div>
     </div>`;
 }
 
@@ -6889,6 +6905,119 @@ function resetUsageStats() {
   if (!confirm('Clear all tracked AI usage stats? This only affects the local counter, not your actual Anthropic billing.')) return;
   localStorage.removeItem(CACHE_KEY_USAGE);
   renderUsagePage();
+}
+
+
+// ── RACE DAY WEATHER (Open-Meteo, no AI) ─────────────────────────────────
+const CACHE_KEY_WEATHER = 'brb_race_weather';
+
+// WMO weather code -> emoji + label
+function decodeWeather(code) {
+  const map = {
+    0:['☀️','Clear'], 1:['🌤','Mostly clear'], 2:['⛅','Partly cloudy'], 3:['☁️','Overcast'],
+    45:['🌫','Fog'], 48:['🌫','Rime fog'],
+    51:['🌦','Light drizzle'], 53:['🌦','Drizzle'], 55:['🌧','Heavy drizzle'],
+    61:['🌦','Light rain'], 63:['🌧','Rain'], 65:['🌧','Heavy rain'],
+    66:['🌧','Freezing rain'], 67:['🌧','Freezing rain'],
+    71:['🌨','Light snow'], 73:['🌨','Snow'], 75:['❄️','Heavy snow'],
+    77:['🌨','Snow grains'],
+    80:['🌦','Light showers'], 81:['🌧','Showers'], 82:['⛈','Heavy showers'],
+    85:['🌨','Snow showers'], 86:['❄️','Snow showers'],
+    95:['⛈','Thunderstorm'], 96:['⛈','Storm w/ hail'], 99:['⛈','Severe storm']
+  };
+  return map[code] || ['🌡','—'];
+}
+
+async function fetchRaceWeather(race, force) {
+  const cacheKey = CACHE_KEY_WEATHER;
+  let cache = {};
+  try { cache = JSON.parse(localStorage.getItem(cacheKey) || '{}'); } catch(e) {}
+
+  const cached = cache[race.id];
+  const todayStr = new Date().toISOString().split('T')[0];
+  // Reuse cache if it's from today (forecasts update ~daily, no need to refetch on every open)
+  if (!force && cached && cached.fetchedOn === todayStr) {
+    return cached;
+  }
+
+  const location = race.location || race.name; // fall back to race name for geocoding
+  try {
+    const r = await fetch('/weather', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ location, date: race.date })
+    });
+    const data = await r.json();
+    const result = {
+      fetchedOn: todayStr,
+      inRange: data.inRange,
+      forecast: data.forecast || null,
+      error: data.error || null
+    };
+    cache[race.id] = result;
+    safeSetItem(cacheKey, JSON.stringify(cache));
+    return result;
+  } catch(e) {
+    console.warn('Weather fetch failed:', e);
+    return cached || { inRange: false, error: 'fetch failed' };
+  }
+}
+
+function renderWeatherWidget(wx, compact) {
+  if (!wx) return '';
+  if (wx.error && !wx.forecast) {
+    return compact ? '' : '<div style="font-size:11px;color:var(--dim)">Weather unavailable</div>';
+  }
+  if (!wx.inRange || !wx.forecast) {
+    return compact
+      ? ''
+      : '<div style="font-size:11px;color:var(--dim)">🗓 Forecast available closer to race day (within ~16 days)</div>';
+  }
+  const f = wx.forecast;
+  const [emoji, label] = decodeWeather(f.weatherCode);
+  const rain = f.precipProb != null ? f.precipProb + '%' : '—';
+  const wind = f.windMax != null ? Math.round(f.windMax) + ' mph' : '—';
+  const gust = f.windGust != null ? Math.round(f.windGust) : null;
+  const hi = f.tempMax != null ? Math.round(f.tempMax) : '—';
+  const lo = f.tempMin != null ? Math.round(f.tempMin) : '—';
+  const feels = f.feelsMax != null ? Math.round(f.feelsMax) : null;
+
+  if (compact) {
+    return `<div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);margin-top:8px">
+      <span style="font-size:16px">${emoji}</span>
+      <span style="font-weight:600">${hi}°/${lo}°</span>
+      <span style="color:var(--muted);font-size:11px">${label} · 💧${rain} · 💨${wind}</span>
+    </div>`;
+  }
+
+  return `<div class="card" style="padding:14px 16px;margin-top:10px">
+    <div class="section-label" style="margin-bottom:10px">🌤 Race day forecast</div>
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
+      <div style="font-size:36px;line-height:1">${emoji}</div>
+      <div>
+        <div style="font-family:var(--font-display);font-size:20px;font-weight:800">${hi}° <span style="font-size:13px;color:var(--muted);font-weight:500">/ ${lo}°</span></div>
+        <div style="font-size:12px;color:var(--muted)">${label}${feels != null ? ' · feels ' + feels + '°' : ''}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:16px;font-size:11px;color:var(--muted);flex-wrap:wrap">
+      <span>💧 ${rain} rain</span>
+      <span>💨 ${wind}${gust ? ' (gusts ' + gust + ')' : ''}</span>
+      ${f.sunrise ? '<span>🌅 ' + new Date(f.sunrise).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) + '</span>' : ''}
+    </div>
+    <div style="font-size:9px;color:var(--dim);margin-top:8px">Forecast via Open-Meteo · updates daily as race approaches</div>
+  </div>`;
+}
+
+// Populate a weather slot asynchronously (used by both taper + race cards)
+async function loadWeatherInto(elementId, race, compact) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const daysOut = daysUntil(new Date(race.date));
+  if (daysOut < 0 || daysOut > 16) {
+    el.innerHTML = compact ? '' : renderWeatherWidget({ inRange: false });
+    return;
+  }
+  const wx = await fetchRaceWeather(race);
+  el.innerHTML = renderWeatherWidget(wx, compact);
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
