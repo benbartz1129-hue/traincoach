@@ -2700,6 +2700,23 @@ function selectSubtype(sub) {
   renderSubtypes();
 }
 
+
+function editRaceLocation(id) {
+  const race = races.find(r => r.id === id);
+  if (!race) return;
+  const loc = prompt('Race location (city, state) for weather:', race.location || '');
+  if (loc === null) return; // cancelled
+  race.location = loc.trim();
+  saveRaces();
+  // Clear cached weather for this race so it refetches with the new location
+  try {
+    const cache = JSON.parse(localStorage.getItem(CACHE_KEY_WEATHER) || '{}');
+    delete cache[id];
+    localStorage.setItem(CACHE_KEY_WEATHER, JSON.stringify(cache));
+  } catch(e) {}
+  renderRaces();
+}
+
 async function addRace() {
   const name = document.getElementById('race-name').value.trim();
   const location = document.getElementById('race-location').value.trim();
@@ -2750,6 +2767,7 @@ function renderRaces() {
         <span class="race-type-badge ${r.type}">${r.subtype} ${r.type === 'triathlon' ? 'Tri' : ''}</span>
         <span class="race-item-date">${new Date(r.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} · ${isPast ? 'Completed' : daysAway + 'd away'}</span>
       </div>
+      <div style="font-size:11px;color:var(--muted);margin:2px 0 4px">📍 ${r.location || '<span style="color:var(--dim)">no location set</span>'} <span onclick="editRaceLocation(${r.id})" style="color:var(--tri);cursor:pointer;margin-left:4px">✏️ edit</span></div>
       ${r.goal ? `<div class="race-item-goal">&#127945; Goal: ${r.goal}</div>` : ''}
       <div class="race-item-insight ${r.insight ? '' : 'loading'}" id="insight-${r.id}">
         ${r.insight || '&#8230; Generating coaching insight'}
@@ -6940,7 +6958,10 @@ async function fetchRaceWeather(race, force) {
     return cached;
   }
 
-  const location = race.location || race.name; // fall back to race name for geocoding
+  // Prefer explicit location; else strip common race words from the name to help geocoding
+  const location = (race.location && race.location.trim())
+    ? race.location.trim()
+    : race.name.replace(/\b(olympic|sprint|half|full|marathon|triathlon|tri|ironman|70\.3|140\.6|race|run|5k|10k|classic|challenge|championship)\b/gi, '').replace(/\s+/g,' ').trim();
   try {
     const r = await fetch('/weather', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -6965,7 +6986,7 @@ async function fetchRaceWeather(race, force) {
 function renderWeatherWidget(wx, compact) {
   if (!wx) return '';
   if (wx.error && !wx.forecast) {
-    return compact ? '' : '<div style="font-size:11px;color:var(--dim)">Weather unavailable</div>';
+    return compact ? '' : '<div style="font-size:11px;color:var(--mar)">📍 Couldn\'t find race location for weather. Tap ✏️ on the race to set a city (e.g. Wauconda, IL).</div>';
   }
   if (!wx.inRange || !wx.forecast) {
     return compact
