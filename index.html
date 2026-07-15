@@ -1360,6 +1360,20 @@ body {
       </div>
     </div>
 
+    <!-- RACE RESULTS ENTRY -->
+    <div class="page" id="page-results">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:20px">
+          <div>
+            <div class="date-greeting" style="font-size:16px" id="results-race-name">⏱ Race Results</div>
+            <div class="date-sub" id="results-race-sub"></div>
+          </div>
+          <button class="refresh-btn" onclick="switchTab('races')" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Back</button>
+        </div>
+        <div id="results-form"></div>
+      </div>
+    </div>
+
     <!-- POST-RACE DEBRIEF -->
     <div class="page" id="page-debrief">
       <div class="page-inner">
@@ -2781,6 +2795,10 @@ function renderRaces() {
       <button class="race-checklist-btn" onclick="openRaceIntel(${r.id})">
         &#128270; Race Intel
       </button>
+      ${isPast ? `<button class="race-checklist-btn" onclick="openRaceResults(${r.id})">
+        &#9201; ${r.results ? 'Edit Race Results' : 'Log Race Results'}${r.results ? ' <span class="race-checklist-progress">' + (r.results.overall || 'done') + '</span>' : ''}
+      </button>` : ''}
+      ${isPast && r.results ? renderRaceResultsSummary(r) : ''}
       ${isPast ? `<button class="race-checklist-btn" style="border-color:var(--tri-border);color:var(--tri)" onclick="openRaceDebrief(${r.id})">
         &#127942; Post-Race Debrief
       </button>` : ''}
@@ -6241,6 +6259,14 @@ async function generateDebrief(raceId) {
       a.type + ': ' + mToMi(a.distance).toFixed(2) + 'mi in ' + fmtHMS(a.moving_time) + ' (' + a.name + ')'
     ).join('\n');
 
+    // If the athlete logged official race splits, include them — more accurate than Strava moving time
+    const rr = race.results;
+    const loggedCtx = rr
+      ? '\nOFFICIAL LOGGED RESULTS:\n' + (race.type === 'triathlon'
+          ? ['Swim: ' + (rr.swim||'?'), 'T1: ' + (rr.t1||'?'), 'Bike: ' + (rr.bike||'?'), 'T2: ' + (rr.t2||'?'), 'Run: ' + (rr.run||'?'), 'Overall: ' + rr.overall].join('\n')
+          : 'Finish: ' + rr.overall)
+      : '';
+
     // Pre-race simulation if one exists
     const sim = raceSimulations[raceId];
     const simCtx = sim
@@ -6257,7 +6283,7 @@ async function generateDebrief(raceId) {
       system: `You are an honest, insightful post-race analyst. Compare the athlete's actual race-day performance against their pre-race simulation prediction (if available) and their goal. Be genuinely honest — celebrate what went well with specifics, and name where time was lost without sugarcoating. End with forward-looking takeaways for their next race. Return ONLY valid JSON, plain ASCII, no apostrophes:
 {"headline":"one punchy sentence summarizing the race","comparison":[{"segment":"Swim","predicted":"32:15","actual":"30:50","verdict":"beat prediction by 1:25"}],"wins":["specific thing that went well","another"],"losses":["specific place time slipped","another"],"nextRace":["forward takeaway 1","takeaway 2","takeaway 3"]}
 If no simulation existed, put the goal time comparison in the comparison array instead. Keep strings short and specific with real numbers.`,
-      messages: [{ role: 'user', content: 'RACE: ' + race.name + ' (' + race.subtype + ' ' + race.type + '), goal: ' + (race.goal || 'none') + '\n\nACTUAL RACE-DAY ACTIVITIES:\n' + actualCtx + '\n\n' + simCtx + '\n\n' + nextCtx + '\n\nGenerate the debrief.' }]
+      messages: [{ role: 'user', content: 'RACE: ' + race.name + ' (' + race.subtype + ' ' + race.type + '), goal: ' + (race.goal || 'none') + '\n\nACTUAL RACE-DAY ACTIVITIES:\n' + actualCtx + loggedCtx + '\n\n' + simCtx + '\n\n' + nextCtx + '\n\nGenerate the debrief.' }]
     }, 'Post-race debrief');
 
     const cleaned = reply.replace(/```json|```/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
@@ -7080,6 +7106,120 @@ async function loadWeatherInto(elementId, race, compact) {
   }
   const wx = await fetchRaceWeather(race);
   el.innerHTML = renderWeatherWidget(wx, compact);
+}
+
+
+// ── RACE RESULTS (actual finish times / splits) ──────────────────────────
+let currentResultsRaceId = null;
+
+function openRaceResults(raceId) {
+  currentResultsRaceId = raceId;
+  const race = races.find(r => r.id === raceId);
+  if (!race) return;
+
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-results').classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
+  currentTab = 'results';
+
+  document.getElementById('results-race-name').textContent = '⏱ ' + race.name;
+  document.getElementById('results-race-sub').textContent = race.subtype + ' ' + (race.type === 'triathlon' ? 'Triathlon' : 'Run') + ' · ' + new Date(race.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+
+  const r = race.results || {};
+  const isTri = race.type === 'triathlon';
+
+  function field(id, label, placeholder, val) {
+    return `<div class="form-field" style="margin-bottom:10px">
+      <div class="form-label">${label}</div>
+      <input class="form-input" id="result-${id}" placeholder="${placeholder}" value="${val || ''}" inputmode="numeric" />
+    </div>`;
+  }
+
+  const triFields = `
+    ${field('swim', '🏊 Swim', 'e.g. 30:50', r.swim)}
+    ${field('t1', '⚡ T1 (swim→bike)', 'e.g. 2:45', r.t1)}
+    ${field('bike', '🚴 Bike', 'e.g. 1:18:30', r.bike)}
+    ${field('t2', '⚡ T2 (bike→run)', 'e.g. 1:30', r.t2)}
+    ${field('run', '🏃 Run', 'e.g. 52:10', r.run)}
+    <div style="border-top:1px solid var(--border);margin:6px 0 12px"></div>
+    ${field('overall', '🏁 Overall finish', 'e.g. 2:45:45', r.overall)}`;
+
+  const runFields = `
+    ${field('overall', '🏁 Finish time', 'e.g. 3:38:00', r.overall)}`;
+
+  document.getElementById('results-form').innerHTML = `
+    <div class="card" style="padding:16px;margin-bottom:16px">
+      <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:14px">
+        Enter your actual times${isTri ? ' for each leg' : ''}. Format as MM:SS or H:MM:SS. These save with the race for your history.
+      </div>
+      ${isTri ? triFields : runFields}
+      ${race.goal ? `<div style="font-size:11px;color:var(--dim);margin-top:4px">Your goal was ${race.goal}</div>` : ''}
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="add-race-btn" onclick="saveRaceResults()" style="flex:1">Save Results</button>
+        ${race.results ? `<button class="add-race-btn" onclick="clearRaceResults()" style="flex:1;background:rgba(232,112,112,0.1);color:var(--warn);border-color:rgba(232,112,112,0.3)">Clear</button>` : ''}
+      </div>
+      <div id="results-msg" style="font-size:11px;color:var(--tri);margin-top:8px;text-align:center;min-height:14px"></div>
+    </div>`;
+}
+
+function saveRaceResults() {
+  const race = races.find(r => r.id === currentResultsRaceId);
+  if (!race) return;
+  const isTri = race.type === 'triathlon';
+  const get = id => { const el = document.getElementById('result-' + id); return el ? el.value.trim() : ''; };
+
+  const overall = get('overall');
+  if (!overall) { document.getElementById('results-msg').textContent = 'Please enter at least your overall finish time.'; return; }
+
+  const results = { overall, loggedOn: new Date().toISOString().split('T')[0] };
+  if (isTri) {
+    results.swim = get('swim');
+    results.t1 = get('t1');
+    results.bike = get('bike');
+    results.t2 = get('t2');
+    results.run = get('run');
+  }
+  race.results = results;
+  saveRaces();
+  renderRaces();
+  switchTab('races');
+}
+
+function clearRaceResults() {
+  const race = races.find(r => r.id === currentResultsRaceId);
+  if (!race) return;
+  if (!confirm('Clear the logged results for this race?')) return;
+  delete race.results;
+  saveRaces();
+  renderRaces();
+  switchTab('races');
+}
+
+function renderRaceResultsSummary(race) {
+  const r = race.results;
+  if (!r) return '';
+  const isTri = race.type === 'triathlon';
+  const row = (label, val) => val ? `<div style="display:flex;justify-content:space-between;padding:3px 0"><span style="color:var(--muted)">${label}</span><span style="font-family:var(--font-mono);color:var(--text)">${val}</span></div>` : '';
+
+  return `<div class="card" style="padding:12px 14px;margin-bottom:8px;border-left:3px solid var(--tri)">
+    <div style="font-size:10px;font-family:var(--font-display);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--tri);margin-bottom:8px">Race results</div>
+    <div style="font-size:12px">
+      ${isTri ? `
+        ${row('🏊 Swim', r.swim)}
+        ${row('⚡ T1', r.t1)}
+        ${row('🚴 Bike', r.bike)}
+        ${row('⚡ T2', r.t2)}
+        ${row('🏃 Run', r.run)}
+        <div style="border-top:1px solid var(--border);margin:4px 0"></div>
+      ` : ''}
+      <div style="display:flex;justify-content:space-between;padding:3px 0">
+        <span style="color:var(--text);font-weight:600">🏁 Finish</span>
+        <span style="font-family:var(--font-mono);color:var(--tri);font-weight:700">${r.overall}</span>
+      </div>
+      ${race.goal ? `<div style="font-size:10px;color:var(--dim);margin-top:4px;text-align:right">Goal was ${race.goal}</div>` : ''}
+    </div>
+  </div>`;
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
