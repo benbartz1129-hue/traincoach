@@ -6972,8 +6972,20 @@ async function fetchRaceWeather(race, force) {
       fetchedOn: todayStr,
       inRange: data.inRange,
       forecast: data.forecast || null,
-      error: data.error || null
+      error: data.error || null,
+      history: (cached && Array.isArray(cached.history)) ? cached.history : []
     };
+    // Append today's snapshot to history (one per day, keep last 10)
+    if (result.forecast) {
+      result.history = result.history.filter(h => h.date !== todayStr);
+      result.history.push({
+        date: todayStr,
+        tempMax: result.forecast.tempMax,
+        precipProb: result.forecast.precipProb,
+        windMax: result.forecast.windMax
+      });
+      result.history = result.history.slice(-10);
+    }
     cache[race.id] = result;
     safeSetItem(cacheKey, JSON.stringify(cache));
     return result;
@@ -7024,7 +7036,36 @@ function renderWeatherWidget(wx, compact) {
       <span>💨 ${wind}${gust ? ' (gusts ' + gust + ')' : ''}</span>
       ${f.sunrise ? '<span>🌅 ' + new Date(f.sunrise).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) + '</span>' : ''}
     </div>
+    ${renderWeatherTrend(wx.history)}
     <div style="font-size:9px;color:var(--dim);margin-top:8px">Forecast via Open-Meteo · updates daily as race approaches</div>
+  </div>`;
+}
+
+// Shows how the race-day forecast has shifted across the days we've checked
+function renderWeatherTrend(history) {
+  if (!Array.isArray(history) || history.length < 2) return '';
+  const rows = history.slice(-6);
+  const first = rows[0], last = rows[rows.length - 1];
+
+  function arrow(delta, unit, goodDown) {
+    if (Math.abs(delta) < 0.5) return '<span style="color:var(--dim)">no change</span>';
+    const up = delta > 0;
+    const color = goodDown ? (up ? 'var(--mar)' : 'var(--ok)') : 'var(--muted)';
+    return `<span style="color:${color}">${up ? '↑' : '↓'} ${Math.abs(Math.round(delta))}${unit}</span>`;
+  }
+
+  const tempDelta = last.tempMax - first.tempMax;
+  const windDelta = last.windMax - first.windMax;
+  const rainDelta = (last.precipProb || 0) - (first.precipProb || 0);
+
+  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+    <div style="font-size:10px;font-family:var(--font-display);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin-bottom:8px">Forecast trend (${rows.length} checks)</div>
+    <div style="display:flex;justify-content:space-around;font-size:11px;color:var(--muted);text-align:center">
+      <div>🌡<br><span style="font-family:var(--font-mono)">${Math.round(last.tempMax)}°</span><br>${arrow(tempDelta,'°',true)}</div>
+      <div>💧<br><span style="font-family:var(--font-mono)">${last.precipProb||0}%</span><br>${arrow(rainDelta,'%',true)}</div>
+      <div>💨<br><span style="font-family:var(--font-mono)">${Math.round(last.windMax)}</span><br>${arrow(windDelta,'',true)}</div>
+    </div>
+    <div style="font-size:9px;color:var(--dim);margin-top:8px;text-align:center">Change since first checked ${first.date}</div>
   </div>`;
 }
 
