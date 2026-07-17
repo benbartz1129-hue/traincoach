@@ -21,7 +21,7 @@
   --border2: rgba(255,255,255,0.13);
   --text: #f0eff8;
   --muted: #7a7990;
-  --dim: #3d3c50;
+  --dim: #5a5972;
   --tri: #4fc4a8;
   --tri-dim: rgba(79,196,168,0.15);
   --tri-border: rgba(79,196,168,0.3);
@@ -2967,7 +2967,7 @@ function showCalDay(dateStr) {
   }
 
   if (stravaActs.length) {
-    html += `<div style="font-size:10px;font-family:var(--font-display);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:8px 0 4px">Completed</div>`;
+    html += `<div style="font-size:10px;font-family:var(--font-display);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:8px 0 4px">Completed</div>`;
     stravaActs.forEach(a => {
       const mi = mToMi(a.distance);
       html += `<div class="cal-strava-item">
@@ -2979,7 +2979,7 @@ function showCalDay(dateStr) {
   }
 
   if (planItems.length) {
-    html += `<div style="font-size:10px;font-family:var(--font-display);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin:8px 0 4px">Planned</div>`;
+    html += `<div style="font-size:10px;font-family:var(--font-display);font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:8px 0 4px">Planned</div>`;
     planItems.forEach(p => {
       html += `<div class="cal-plan-item">
         <div class="cal-plan-icon ${p.sport}">${sportEmoji(p.sport)}</div>
@@ -7085,7 +7085,7 @@ function renderWeatherTrend(history) {
   const rainDelta = (last.precipProb || 0) - (first.precipProb || 0);
 
   return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-    <div style="font-size:10px;font-family:var(--font-display);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin-bottom:8px">Forecast trend (${rows.length} checks)</div>
+    <div style="font-size:10px;font-family:var(--font-display);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Forecast trend (${rows.length} checks)</div>
     <div style="display:flex;justify-content:space-around;font-size:11px;color:var(--muted);text-align:center">
       <div>🌡<br><span style="font-family:var(--font-mono)">${Math.round(last.tempMax)}°</span><br>${arrow(tempDelta,'°',true)}</div>
       <div>💧<br><span style="font-family:var(--font-mono)">${last.precipProb||0}%</span><br>${arrow(rainDelta,'%',true)}</div>
