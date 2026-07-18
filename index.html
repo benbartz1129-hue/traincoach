@@ -5931,7 +5931,7 @@ async function generateSimulation(raceId) {
 
     const reply = await callClaude({
       model: 'claude-sonnet-4-6', max_tokens: 1500,
-      system: `You are an expert race predictor and pacing strategist. Analyze the athlete's real training data and produce a realistic race-day simulation. Be honest — base predictions on their actual paces with realistic race-day adjustments (race adrenaline helps, but open water is slower than pool, transitions take time, running off the bike is slower). Return ONLY valid JSON, no markdown, plain ASCII only, no apostrophes:
+      system: `You are an expert race predictor and pacing strategist. Analyze the athlete's real training data and produce a realistic race-day simulation. Be honest — base predictions on their actual paces with realistic race-day adjustments (race adrenaline helps, but open water is slower than pool, transitions take time, running off the bike is slower). CRITICAL: finishTime MUST equal the exact arithmetic sum of every split time listed - add hours, minutes, seconds carefully and double-check before responding. goalComparison MUST be computed against that summed finishTime, not a guessed number. Return ONLY valid JSON, no markdown, plain ASCII only, no apostrophes:
 {"splits":[{"segment":"Swim","time":"32:15","detail":"2:05/100yd pace"},{"segment":"T1","time":"3:00","detail":"wetsuit strip, run to bike"},{"segment":"Bike","time":"1:18:45","detail":"18.9 mph avg"},{"segment":"T2","time":"2:00","detail":"rack bike, shoe swap"},{"segment":"Run","time":"52:30","detail":"8:28/mi pace"}],"finishTime":"2:48:30","goalComparison":"18 min slower than 2:30 goal - goal is aggressive but reachable with improvements","strategy":[{"tip":"specific pacing tip 1"},{"tip":"tip 2"},{"tip":"tip 3"},{"tip":"tip 4"}],"whatIfs":[{"scenario":"If you improve swim pace by 10 sec/100yd","impact":"saves ~3 min"},{"scenario":"scenario 2","impact":"impact 2"},{"scenario":"scenario 3","impact":"impact 3"}],"confidence":"Based on X training sessions over 60 days"}
 For running races: splits should be mile or 5k segments instead of tri legs. Keep all strings short and specific. Reference their actual training numbers in strategy tips.`,
       messages: [{ role: 'user', content: `Race: ${race.name}, ${race.subtype} ${race.type}. ${distCtx} Goal time: ${race.goal || 'none set'}. Days until race: ${days}.\n\n${paceCtx}\n\nGenerate the race simulation.` }]
@@ -5956,6 +5956,26 @@ For running races: splits should be mile or 5k segments instead of tri legs. Kee
 function renderSimulation(sim) {
   const icons = { 'Swim':'🏊', 'T1':'⚡', 'Bike':'🚴', 'T2':'⚡', 'Run':'🏃' };
 
+  // Compute the finish by summing the actual splits — never trust the AI's own total,
+  // which can drift from the parts it generated.
+  function parseTimeToSec(t) {
+    if (!t || typeof t !== 'string') return 0;
+    const parts = t.trim().split(':').map(Number);
+    if (parts.some(isNaN)) return 0;
+    if (parts.length === 3) return parts[0]*3600 + parts[1]*60 + parts[2];
+    if (parts.length === 2) return parts[0]*60 + parts[1];
+    return parts[0] || 0;
+  }
+  function fmtSec(s) {
+    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+    return (h > 0 ? h + ':' + String(m).padStart(2,'0') : m) + ':' + String(sec).padStart(2,'0');
+  }
+  const computedSec = sim.splits.reduce((sum, s) => sum + parseTimeToSec(s.time), 0);
+  const computedFinish = fmtSec(computedSec);
+  // Flag if the AI's stated finish differed meaningfully from the true sum
+  const aiSec = parseTimeToSec(sim.finishTime);
+  const mismatch = Math.abs(aiSec - computedSec) > 30;
+
   document.getElementById('simulator-content').innerHTML = `
     <div class="sim-splits-card">
       <div class="sim-section-title">🔮 Projected splits</div>
@@ -5971,9 +5991,25 @@ function renderSimulation(sim) {
       <div class="sim-split-row total">
         <span class="sim-split-icon">🏁</span>
         <div class="sim-split-label" style="font-size:13px;color:var(--text)">Projected finish</div>
-        <span class="sim-split-time">${sim.finishTime}</span>
+        <span class="sim-split-time">${computedFinish}</span>
       </div>
-      ${sim.goalComparison ? `<div style="font-size:11px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border);line-height:1.5">${sim.goalComparison}</div>` : ''}
+      ${(() => {
+        // Recompute goal delta from the TRUE finish so the verdict can't contradict the number
+        const race = races.find(r => r.id === currentSimRaceId);
+        if (race && race.goal) {
+          const goalSec = parseTimeToSec(race.goal);
+          if (goalSec > 0) {
+            const diff = computedSec - goalSec;
+            const absStr = fmtSec(Math.abs(diff));
+            const verdict = Math.abs(diff) < 60
+              ? 'right on your ' + race.goal + ' goal'
+              : (diff < 0 ? absStr + ' under your ' + race.goal + ' goal' : absStr + ' over your ' + race.goal + ' goal');
+            const color = diff <= 0 ? 'var(--ok)' : 'var(--mar)';
+            return '<div style="font-size:12px;color:' + color + ';margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-weight:600">' + (diff <= 0 ? '✓ ' : '') + verdict + '</div>';
+          }
+        }
+        return sim.goalComparison ? '<div style="font-size:11px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px solid var(--border);line-height:1.5">' + sim.goalComparison + '</div>' : '';
+      })()}
     </div>
 
     <div class="sim-section-card">
@@ -6336,7 +6372,12 @@ async function generateDebrief(raceId) {
     // Pre-race simulation if one exists
     const sim = raceSimulations[raceId];
     const simCtx = sim
-      ? 'PRE-RACE SIMULATION PREDICTED:\n' + sim.splits.map(s => s.segment + ': ' + s.time + ' (' + s.detail + ')').join('\n') + '\nPredicted finish: ' + sim.finishTime
+      ? 'PRE-RACE SIMULATION PREDICTED:\n' + sim.splits.map(s => s.segment + ': ' + s.time + ' (' + s.detail + ')').join('\n') + '\nPredicted finish: ' + (() => {
+          const toSec = t => { const p = (t||'').split(':').map(Number); if (p.some(isNaN)) return 0; return p.length===3 ? p[0]*3600+p[1]*60+p[2] : p.length===2 ? p[0]*60+p[1] : p[0]||0; };
+          const tot = sim.splits.reduce((s,x) => s + toSec(x.time), 0);
+          const h = Math.floor(tot/3600), m = Math.floor((tot%3600)/60), sec = tot%60;
+          return (h>0 ? h+':'+String(m).padStart(2,'0') : m) + ':' + String(sec).padStart(2,'0');
+        })()
       : 'No pre-race simulation was generated.';
 
     // Next upcoming race for forward-looking advice
