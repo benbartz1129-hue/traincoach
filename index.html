@@ -5994,10 +5994,19 @@ function renderSimulation(sim) {
         <span class="sim-split-time">${computedFinish}</span>
       </div>
       ${(() => {
-        // Recompute goal delta from the TRUE finish so the verdict can't contradict the number
+        // Recompute goal delta from the TRUE finish so the verdict can't contradict the number.
+        // Race goals like "2:30" mean 2 HOURS 30 MIN (H:MM), not 2min30s — parse accordingly.
         const race = races.find(r => r.id === currentSimRaceId);
+        function parseGoalToSec(t) {
+          if (!t || typeof t !== 'string') return 0;
+          const parts = t.trim().split(':').map(Number);
+          if (parts.some(isNaN)) return 0;
+          if (parts.length === 3) return parts[0]*3600 + parts[1]*60 + parts[2]; // H:MM:SS
+          if (parts.length === 2) return parts[0]*3600 + parts[1]*60;            // H:MM (goal convention)
+          return (parts[0]||0)*3600;                                            // bare number = hours
+        }
         if (race && race.goal) {
-          const goalSec = parseTimeToSec(race.goal);
+          const goalSec = parseGoalToSec(race.goal);
           if (goalSec > 0) {
             const diff = computedSec - goalSec;
             const absStr = fmtSec(Math.abs(diff));
