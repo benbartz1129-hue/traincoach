@@ -926,6 +926,45 @@ body {
   font-style: italic;
 }
 
+
+/* ── STRUCTURED WORKOUTS ── */
+.wk-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px; margin-bottom: 12px;
+}
+.wk-header { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px; }
+.wk-title { font-family: var(--font-display); font-size:15px; font-weight:700; color:var(--text); }
+.wk-meta { font-size:11px; color:var(--muted); margin-top:2px; }
+.wk-step {
+  display:flex; gap:10px; align-items:flex-start;
+  padding:9px 0; border-bottom:1px solid var(--border);
+}
+.wk-step:last-child { border-bottom:none; }
+.wk-step-badge {
+  font-size:9px; font-family:var(--font-display); font-weight:700;
+  letter-spacing:.05em; text-transform:uppercase; padding:3px 7px;
+  border-radius:6px; flex-shrink:0; margin-top:1px; min-width:62px; text-align:center;
+}
+.wk-badge-warmup { background:rgba(79,196,168,0.15); color:var(--tri); }
+.wk-badge-work { background:rgba(240,160,80,0.18); color:var(--mar); }
+.wk-badge-recover { background:rgba(255,255,255,0.07); color:var(--muted); }
+.wk-badge-cooldown { background:rgba(139,148,255,0.15); color:#8b94ff; }
+.wk-step-body { flex:1; }
+.wk-step-main { font-size:13px; color:var(--text); font-weight:600; }
+.wk-step-detail { font-size:11px; color:var(--muted); margin-top:1px; line-height:1.5; }
+.wk-repeat {
+  border-left:2px solid var(--mar); padding-left:10px; margin:6px 0 6px 4px;
+}
+.wk-repeat-label {
+  font-size:10px; font-family:var(--font-display); font-weight:700;
+  color:var(--mar); text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px;
+}
+.wk-garmin-box {
+  background:var(--surface2); border:1px dashed var(--border2); border-radius:10px;
+  padding:12px; margin-top:12px; font-family:var(--font-mono); font-size:11px;
+  color:var(--muted); line-height:1.7; white-space:pre-wrap; word-break:break-word;
+}
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -1046,6 +1085,9 @@ body {
       </button>
       <button class="nav-item" id="nav-recovery" onclick="switchTab('recovery')">
         <span class="nav-icon">🧘</span>Recovery
+      </button>
+      <button class="nav-item" id="nav-workouts" onclick="switchTab('workouts')">
+        <span class="nav-icon">⏱</span>Workouts
       </button>
       <div class="drawer-section-label">Race</div>
       <button class="nav-item" id="nav-races" onclick="closeDrawer();scrollToRaces()">
@@ -1357,6 +1399,63 @@ body {
 
         <div id="deal-search-result"></div>
         <div id="shoefinder-content"></div>
+      </div>
+    </div>
+
+    <!-- STRUCTURED WORKOUTS -->
+    <div class="page" id="page-workouts">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:16px">
+          <div>
+            <div class="date-greeting" style="font-size:16px">⏱ Structured Workouts</div>
+            <div class="date-sub">Built for your paces · ready for Garmin</div>
+          </div>
+        </div>
+
+        <div class="card" style="padding:14px 16px;margin-bottom:16px">
+          <div class="section-label" style="margin-bottom:10px">Build a workout</div>
+          <div class="form-row">
+            <div class="form-field">
+              <div class="form-label">Sport</div>
+              <select class="form-select" id="wk-sport">
+                <option value="run">🏃 Run</option>
+                <option value="ride">🚴 Bike</option>
+                <option value="swim">🏊 Swim</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <div class="form-label">Type</div>
+              <select class="form-select" id="wk-type">
+                <option value="easy">Easy / Recovery</option>
+                <option value="longrun">Long</option>
+                <option value="tempo">Tempo / Threshold</option>
+                <option value="intervals">Intervals / VO2</option>
+                <option value="brick">Brick (bike→run)</option>
+                <option value="race-pace">Race pace</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row" style="margin-top:10px">
+            <div class="form-field">
+              <div class="form-label">Duration (min)</div>
+              <input class="form-input" id="wk-duration" type="number" placeholder="45" min="10" max="300" />
+            </div>
+            <div class="form-field">
+              <div class="form-label">Date</div>
+              <input class="form-input" id="wk-date" type="date" />
+            </div>
+          </div>
+          <div class="form-field" style="margin-top:10px">
+            <div class="form-label">Notes <span style="color:var(--dim);font-weight:400">(optional)</span></div>
+            <input class="form-input" id="wk-notes" placeholder="e.g. legs feel heavy, treadmill only" />
+          </div>
+          <button class="add-race-btn" style="margin-top:14px" id="wk-generate-btn" onclick="generateWorkout()">✨ Build Workout</button>
+        </div>
+
+        <div id="workout-result"></div>
+
+        <div class="section-label">Saved workouts</div>
+        <div id="workout-list"></div>
       </div>
     </div>
 
@@ -1902,6 +2001,7 @@ body {
           <button class="suggestion-btn" onclick="sendSuggestion(this)">What should I focus on?</button>
           <button class="suggestion-btn" onclick="sendSuggestion(this)">Chicago marathon strategy</button>
           <button class="suggestion-btn" onclick="sendSuggestion(this)">Recovery advice</button>
+          <button class="suggestion-btn" onclick="switchTab('workouts')">⏱ Build me a workout</button>
           <button class="suggestion-btn" onclick="sendSuggestion(this)">Generate my training calendar to race day</button>
           <button class="suggestion-btn" onclick="sendSuggestion(this)">Update my plan for next 2 weeks</button>
         </div>
@@ -1998,6 +2098,7 @@ function switchTab(tab) {
   if (tab === 'races') { initRacePlanner(); renderRaces(); }
   if (tab === 'shoefinder') initShoeFinder();
   if (tab === 'usage') renderUsagePage();
+  if (tab === 'workouts') initWorkoutsPage();
 }
 
 // ── STRAVA OAUTH ──────────────────────────────────────────────────────────
@@ -7336,6 +7437,222 @@ function renderRaceResultsSummary(race) {
       ${race.goal ? `<div style="font-size:10px;color:var(--dim);margin-top:4px;text-align:right">Goal was ${race.goal}</div>` : ''}
     </div>
   </div>`;
+}
+
+
+// ── STRUCTURED WORKOUTS (VDOT-based, Garmin-ready) ───────────────────────
+const CACHE_KEY_WORKOUTS = 'brb_workouts';
+let savedWorkouts = JSON.parse(localStorage.getItem(CACHE_KEY_WORKOUTS) || '[]');
+
+function saveWorkouts() {
+  safeSetItem(CACHE_KEY_WORKOUTS, JSON.stringify(savedWorkouts));
+}
+
+function initWorkoutsPage() {
+  const dateEl = document.getElementById('wk-date');
+  if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().split('T')[0];
+  document.getElementById('workout-result').innerHTML = '';
+  renderWorkoutList();
+}
+
+// Derive training paces from recent running data (VDOT-style relationships)
+function deriveTrainingPaces() {
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
+  const runs = allActivities.filter(a => a.type === 'Run' && new Date(a.start_date_local) >= cutoff && a.distance > 0 && a.moving_time > 0);
+  if (!runs.length) return null;
+
+  // Use best sustained pace over a meaningful distance as the fitness anchor
+  const qualifying = runs.filter(a => mToMi(a.distance) >= 3);
+  const pool = qualifying.length ? qualifying : runs;
+  const bestPaceSecPerMi = Math.min(...pool.map(a => a.moving_time / mToMi(a.distance)));
+  const avgPaceSecPerMi = pool.reduce((s,a) => s + a.moving_time, 0) / pool.reduce((s,a) => s + mToMi(a.distance), 0);
+
+  // Threshold ~ best sustained effort; derive the rest from standard VDOT ratios
+  const threshold = bestPaceSecPerMi;
+  return {
+    easy:      Math.round(threshold * 1.25),
+    marathon:  Math.round(threshold * 1.09),
+    threshold: Math.round(threshold),
+    interval:  Math.round(threshold * 0.94),
+    repetition:Math.round(threshold * 0.89),
+    avg:       Math.round(avgPaceSecPerMi),
+    sampleSize: pool.length
+  };
+}
+
+function fmtPaceSec(sec) {
+  if (!sec || !isFinite(sec)) return '—';
+  const m = Math.floor(sec/60), s = Math.round(sec%60);
+  return m + ':' + String(s).padStart(2,'0');
+}
+
+async function generateWorkout() {
+  const btn = document.getElementById('wk-generate-btn');
+  const resultEl = document.getElementById('workout-result');
+  const sport = document.getElementById('wk-sport').value;
+  const type = document.getElementById('wk-type').value;
+  const duration = parseInt(document.getElementById('wk-duration').value) || 45;
+  const date = document.getElementById('wk-date').value || new Date().toISOString().split('T')[0];
+  const notes = document.getElementById('wk-notes').value.trim();
+
+  btn.disabled = true;
+  btn.innerHTML = '&#9203; Building\u2026';
+  resultEl.innerHTML = '';
+
+  try {
+    const paces = deriveTrainingPaces();
+    const paceCtx = paces
+      ? 'Derived run paces (from ' + paces.sampleSize + ' recent runs): easy ' + fmtPaceSec(paces.easy) + '/mi, marathon ' + fmtPaceSec(paces.marathon) + '/mi, threshold ' + fmtPaceSec(paces.threshold) + '/mi, interval ' + fmtPaceSec(paces.interval) + '/mi, repetition ' + fmtPaceSec(paces.repetition) + '/mi.'
+      : 'No recent run data to derive paces from.';
+
+    // Sport-specific context
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
+    const sportMap = { run:'Run', ride:'Ride', swim:'Swim' };
+    const acts = allActivities.filter(a => a.type === sportMap[sport] && new Date(a.start_date_local) >= cutoff && a.distance > 0 && a.moving_time > 0);
+    const sportCtx = acts.length
+      ? sport + ': ' + acts.length + ' sessions in 60d, avg ' + fmtPaceSec(acts.reduce((s,a)=>s+a.moving_time,0)/acts.reduce((s,a)=>s+mToMi(a.distance),0)) + '/mi, longest ' + Math.max(...acts.map(a=>mToMi(a.distance))).toFixed(1) + 'mi'
+      : 'No recent ' + sport + ' data.';
+
+    const triDays = daysUntil(TRI_DATE), marDays = daysUntil(MAR_DATE);
+    const latestW = wellnessLog.length ? wellnessLog[wellnessLog.length-1] : null;
+    const wellCtx = latestW ? 'Latest wellness: HRV ' + (latestW.hrv||'n/a') + ', RHR ' + (latestW.rhr||'n/a') + ', sleep ' + (latestW.sleep||'n/a') + 'h.' : '';
+
+    const reply = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 1200,
+      system: `You are an expert endurance coach building a STRUCTURED workout the athlete will enter into Garmin Connect's workout builder. Ground it in the athlete's real derived paces and established methodology (polarized 80/20, VDOT pacing, race-phase appropriateness). Respect where they are relative to their races — never prescribe hard intervals inside a taper week.
+Return ONLY valid JSON, plain ASCII, no apostrophes, no markdown:
+{"title":"short workout name","summary":"1-2 sentence purpose and how it should feel","totalMin":45,"steps":[{"kind":"warmup|work|recover|cooldown","label":"10 min","target":"9:30/mi easy","note":"optional short cue","repeat":null},{"kind":"work","label":"4 x 1200m","target":"7:05/mi","note":"controlled, not all-out","repeat":{"times":4,"work":"1200m @ 7:05/mi","recovery":"3 min @ 10:00/mi"}}],"garminNotes":"1-2 tips for entering this in Garmin Connect builder"}
+Rules: use the derived paces provided rather than inventing numbers. For repeats, set the repeat object AND make label/target describe the set. For swim use per-100yd pace and yards. For bike use mph or perceived effort. Keep every string short.`,
+      messages: [{ role: 'user', content: 'Build a ' + duration + '-minute ' + type + ' ' + sport + ' workout for ' + date + '.\n' + paceCtx + '\n' + sportCtx + '\n' + wellCtx + '\nOlympic tri in ' + triDays + ' days, Chicago Marathon in ' + marDays + ' days.' + (notes ? '\nAthlete notes: ' + notes : '') }]
+    }, 'Workout builder');
+
+    let cleaned = reply.replace(/```json|```/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
+    const fb = cleaned.indexOf('{'), lb = cleaned.lastIndexOf('}');
+    if (fb > -1 && lb > fb) cleaned = cleaned.slice(fb, lb + 1);
+    const wk = JSON.parse(cleaned);
+
+    wk.id = Date.now();
+    wk.sport = sport;
+    wk.type = type;
+    wk.date = date;
+    wk.createdAt = new Date().toISOString().split('T')[0];
+
+    savedWorkouts.unshift(wk);
+    savedWorkouts = savedWorkouts.slice(0, 30);
+    saveWorkouts();
+
+    resultEl.innerHTML = renderWorkoutCard(wk, true);
+    renderWorkoutList();
+  } catch(e) {
+    resultEl.innerHTML = '<div class="card" style="padding:14px 16px;margin-bottom:12px;font-size:12px;color:var(--warn)">Could not build workout: ' + (e.message||'unknown').slice(0,120) + '</div>';
+    console.error('Workout build error:', e);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '\u2728 Build Workout';
+}
+
+const WK_SPORT_ICONS = { run:'🏃', ride:'🚴', swim:'🏊' };
+
+function renderWorkoutCard(wk, isNew) {
+  const badgeClass = { warmup:'wk-badge-warmup', work:'wk-badge-work', recover:'wk-badge-recover', cooldown:'wk-badge-cooldown' };
+
+  const stepsHtml = (wk.steps||[]).map(s => {
+    if (s.repeat && s.repeat.times) {
+      return `<div class="wk-repeat">
+        <div class="wk-repeat-label">Repeat ${s.repeat.times}x</div>
+        <div class="wk-step" style="border:none;padding:4px 0">
+          <span class="wk-step-badge wk-badge-work">Work</span>
+          <div class="wk-step-body"><div class="wk-step-main">${s.repeat.work}</div></div>
+        </div>
+        <div class="wk-step" style="border:none;padding:4px 0">
+          <span class="wk-step-badge wk-badge-recover">Recover</span>
+          <div class="wk-step-body"><div class="wk-step-main">${s.repeat.recovery}</div></div>
+        </div>
+        ${s.note ? '<div class="wk-step-detail" style="padding-left:2px">' + s.note + '</div>' : ''}
+      </div>`;
+    }
+    return `<div class="wk-step">
+      <span class="wk-step-badge ${badgeClass[s.kind]||'wk-badge-recover'}">${s.kind||'step'}</span>
+      <div class="wk-step-body">
+        <div class="wk-step-main">${s.label}${s.target ? ' — ' + s.target : ''}</div>
+        ${s.note ? '<div class="wk-step-detail">' + s.note + '</div>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Plain-text version for easy entry into Garmin Connect
+  const plain = buildGarminText(wk);
+
+  return `<div class="wk-card"${isNew ? ' style="border-left:3px solid var(--tri)"' : ''}>
+    <div class="wk-header">
+      <div>
+        <div class="wk-title">${WK_SPORT_ICONS[wk.sport]||''} ${wk.title}</div>
+        <div class="wk-meta">${new Date(wk.date + 'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})} · ${wk.totalMin||'?'} min · ${wk.type}</div>
+      </div>
+      <button onclick="deleteWorkout(${wk.id})" style="background:none;border:none;color:var(--dim);font-size:14px;cursor:pointer;padding:0">✕</button>
+    </div>
+    ${wk.summary ? '<div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:10px">' + wk.summary + '</div>' : ''}
+    ${stepsHtml}
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="garage-add-btn" style="flex:1;padding:9px" onclick="copyWorkoutText(${wk.id})">📋 Copy for Garmin</button>
+      <button class="garage-add-btn" style="flex:1;padding:9px" onclick="toggleGarminText(${wk.id})">👁 Show text</button>
+    </div>
+    <div id="wk-garmin-${wk.id}" class="wk-garmin-box" style="display:none">${plain}</div>
+    ${wk.garminNotes ? '<div style="font-size:10px;color:var(--dim);margin-top:8px;line-height:1.5">💡 ' + wk.garminNotes + '</div>' : ''}
+  </div>`;
+}
+
+// Plain-text rendering that maps cleanly onto Garmin Connect's workout builder steps
+function buildGarminText(wk) {
+  const lines = [wk.title, ''];
+  (wk.steps||[]).forEach(s => {
+    if (s.repeat && s.repeat.times) {
+      lines.push('REPEAT ' + s.repeat.times + 'x:');
+      lines.push('  Work: ' + s.repeat.work);
+      lines.push('  Recover: ' + s.repeat.recovery);
+    } else {
+      const kind = (s.kind||'step').toUpperCase();
+      lines.push(kind + ': ' + s.label + (s.target ? ' @ ' + s.target : ''));
+    }
+  });
+  return lines.join('\n');
+}
+
+function toggleGarminText(id) {
+  const el = document.getElementById('wk-garmin-' + id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function copyWorkoutText(id) {
+  const wk = savedWorkouts.find(w => w.id === id);
+  if (!wk) return;
+  const text = buildGarminText(wk).replace(/\\n/g, '\n');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('Workout copied. Open Garmin Connect > Training > Workouts > Create a Workout and enter these steps.');
+    }).catch(() => alert('Copy failed - use Show text and copy manually.'));
+  } else {
+    toggleGarminText(id);
+  }
+}
+
+function deleteWorkout(id) {
+  if (!confirm('Delete this workout?')) return;
+  savedWorkouts = savedWorkouts.filter(w => w.id !== id);
+  saveWorkouts();
+  renderWorkoutList();
+  document.getElementById('workout-result').innerHTML = '';
+}
+
+function renderWorkoutList() {
+  const el = document.getElementById('workout-list');
+  if (!el) return;
+  if (!savedWorkouts.length) {
+    el.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted);font-size:12px">No saved workouts yet.<br><span style="font-size:11px;color:var(--dim)">Build one above to get started.</span></div>';
+    return;
+  }
+  el.innerHTML = savedWorkouts.map(w => renderWorkoutCard(w, false)).join('');
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
