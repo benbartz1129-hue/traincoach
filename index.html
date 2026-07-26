@@ -2944,7 +2944,7 @@ function renderRaces() {
   if (!races.length) { list.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--dim);text-align:center">No races added yet</div>'; return; }
   list.innerHTML = races.map(r => {
     const daysAway = Math.ceil((new Date(r.date) - new Date()) / 86400000);
-    const isPast = daysAway < 0;
+    const isPast = daysAway < 0 || r.date === new Date().toISOString().split('T')[0];
     return `<div class="race-item" id="race-${r.id}">
       <div class="race-item-header">
         <div class="race-item-name">${r.name}</div>
@@ -3563,7 +3563,8 @@ function renderRaceHistory() {
   const el = document.getElementById('race-history-section');
   if (!el) return;
 
-  const past = races.filter(r => new Date(r.date) < new Date()).sort((a,b) => new Date(b.date) - new Date(a.date));
+  const todayStr = new Date().toISOString().split('T')[0];
+  const past = races.filter(r => r.date <= todayStr).sort((a,b) => new Date(b.date) - new Date(a.date));
   if (!past.length) { el.innerHTML = ''; return; }
 
   el.innerHTML = '<div class="section-label">Race history</div>' + past.map(r => {
