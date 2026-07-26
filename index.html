@@ -2689,7 +2689,7 @@ CALENDAR UPDATES: If the user asks you to generate, update, or modify their trai
 <<<PLAN>>>
 [{"date":"2026-06-13","sport":"run","title":"Easy 4mi run","detail":"Zone 2, conversational pace. 40min.","id":1},{"date":"2026-06-14","sport":"swim","title":"Pool swim 1mi","detail":"Easy pace, focus on form. 30min.","id":2}]
 <<<END>>>
-Rules: sport must be one of: run, swim, ride, rest, strength. date must be YYYY-MM-DD. Always include 'detail' with duration and intensity. Only dates from today onward. Generate enough sessions to cover the full plan period requested. The <<<PLAN>>> block must be valid JSON array.
+Rules: sport must be one of: run, swim, ride, rest, strength. date must be YYYY-MM-DD. Always include 'detail' with duration and intensity. Only dates from today onward. The <<<PLAN>>> block must be valid JSON array and MUST be closed with the <<<END>>> marker. CRITICAL LENGTH RULE: keep each 'detail' under 90 characters and each 'title' under 30 characters - terse, not prose. If the requested plan spans more than 4 weeks, generate ONLY the first 4 weeks, close the block properly, and tell the user conversationally to ask you to continue for the next block. Never let the JSON get cut off - a short complete plan is far better than a long truncated one.
 
 SWIM DRILLS: If the user explicitly asks you to remember, save, or log a swim drill (phrases like "remember this drill", "save this drill", "log this drill for future use"), you MUST include a drill block. First confirm conversationally in 1-2 sentences, then ALWAYS end with this exact format — the <<<DRILL>>> and <<<END>>> markers are required:
 <<<DRILL>>>
@@ -2698,7 +2698,7 @@ SWIM DRILLS: If the user explicitly asks you to remember, save, or log a swim dr
 Rules: name is a short drill title. description includes what it is, how to do it, and any distance/rep guidance the user gave. Only create a drill block when the user explicitly asks you to remember/save/log a drill — never do this automatically just because swimming or drills are mentioned in conversation. You can reference saved drills naturally in any future conversation when relevant.`;
 
     const rawReply = await callClaude({
-      model: 'claude-sonnet-4-6', max_tokens: 4000,
+      model: 'claude-sonnet-4-6', max_tokens: 8000,
       system: systemPrompt,
       messages: chatHistory.slice(-10)
     }, 'Coach chat');
@@ -2706,7 +2706,27 @@ Rules: name is a short drill title. description includes what it is, how to do i
     typing.remove();
 
     // Check if reply contains a calendar plan (JSON block wrapped in <<<PLAN>>>...<<<END>>>)
-    const planMatch = rawReply.match(/<<<PLAN>>>([\s\S]*?)<<<END>>>/);
+    let planMatch = rawReply.match(/<<<PLAN>>>([\s\S]*?)<<<END>>>/);
+    let planTruncated = false;
+    // Fallback: if the opening marker exists but the response was cut off before <<<END>>>,
+    // salvage whatever complete objects we can rather than dumping raw JSON to the user.
+    if (!planMatch && rawReply.includes('<<<PLAN>>>')) {
+      const partial = rawReply.split('<<<PLAN>>>')[1] || '';
+      const lastComplete = partial.lastIndexOf('},');
+      if (lastComplete > -1) {
+        planMatch = [null, partial.slice(0, lastComplete + 1) + ']'];
+        planTruncated = true;
+      }
+    }
+    // Fallback 2: no markers at all but the reply is clearly a bare plan array
+    if (!planMatch) {
+      const bare = rawReply.trim();
+      if (bare.startsWith('[') && bare.includes('"sport"') && bare.includes('"date"')) {
+        const lastComplete = bare.lastIndexOf('},');
+        const salvaged = bare.endsWith(']') ? bare : (lastComplete > -1 ? bare.slice(0, lastComplete + 1) + ']' : null);
+        if (salvaged) { planMatch = [null, salvaged]; planTruncated = !bare.endsWith(']'); }
+      }
+    }
     let reply = rawReply;
     if (planMatch) {
       try {
@@ -2716,14 +2736,17 @@ Rules: name is a short drill title. description includes what it is, how to do i
           .replace(/[“”]/g, '"')
           .replace(/[–—]/g, '-')
           .replace(/\n/g, ' ');
-        console.log('Plan JSON found, length:', jsonStr.length, 'preview:', jsonStr.slice(0,100));
+        console.log('Plan JSON found, length:', jsonStr.length, 'truncated:', planTruncated);
         const planItems = JSON.parse(jsonStr);
         console.log('Plan items parsed:', planItems.length);
         const applied = applyPlanUpdates(planItems);
         console.log('Plan applied:', applied);
-        reply = rawReply.replace(/<<<PLAN>>>[\s\S]*?<<<END>>>/, '').trim();
+        // Strip the plan block (or bare JSON) from what the user sees
+        reply = rawReply.replace(/<<<PLAN>>>[\s\S]*?(<<<END>>>|$)/, '').trim();
+        if (reply.trim().startsWith('[')) reply = '';
         if (applied) {
-          reply += '\n\n📅 Training plan updated — check your Calendar tab.';
+          reply += (reply ? '\n\n' : '') + '📅 Training plan updated — ' + planItems.length + ' sessions added. Check your Calendar tab.';
+          if (planTruncated) reply += '\n\n⚠ The plan was long and got cut off partway. Ask me to continue from the last date to add the rest.';
           renderCalendar();
           renderSevenDayStrip();
         } else {
@@ -2731,7 +2754,9 @@ Rules: name is a short drill title. description includes what it is, how to do i
         }
       } catch(e) {
         console.warn('Plan parse error:', e.message, '\nJSON preview:', planMatch[1].slice(0,300));
-        reply += '\n\n⚠ Could not parse the training plan. Try asking again.';
+        // Never dump raw JSON at the user
+        if (reply.trim().startsWith('[') || reply.includes('"sport"')) reply = '';
+        reply += (reply ? '\n\n' : '') + '⚠ I generated a plan but it did not save correctly. Try asking for a shorter range (e.g. "the next 3 weeks") and I will add it in chunks.';
       }
     } else {
       console.log('No plan block found in reply. Reply length:', rawReply.length);
