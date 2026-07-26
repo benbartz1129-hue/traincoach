@@ -1094,7 +1094,7 @@ body {
         <span class="nav-icon">🏁</span>My Races
       </button>
       <button class="nav-item" id="nav-prs" onclick="switchTab('prs')">
-        <span class="nav-icon">🏆</span>PR Wall
+        <span class="nav-icon">🏆</span>PR &amp; History
       </button>
       <div class="drawer-section-label">Gear</div>
       <button class="nav-item" id="nav-garage" onclick="switchTab('garage')">
@@ -1891,8 +1891,8 @@ body {
       <div class="page-inner">
         <div class="date-banner" style="margin-bottom:20px">
           <div>
-            <div class="date-greeting" style="font-size:16px">🏆 PR Wall</div>
-            <div class="date-sub">Your top 3 performances by distance</div>
+            <div class="date-greeting" style="font-size:16px">🏆 PR &amp; Race History</div>
+            <div class="date-sub">Your best performances &amp; completed races</div>
           </div>
           <div id="pr-total-badge" style="font-size:11px;color:var(--tri);font-family:var(--font-display);font-weight:700;text-align:right"></div>
         </div>
@@ -1902,6 +1902,12 @@ body {
             <div class="loading-text">Loading your PRs…</div>
           </div>
         </div>
+
+        <!-- Triathlon PRs (from logged race results) -->
+        <div id="tri-pr-section"></div>
+
+        <!-- Race history -->
+        <div id="race-history-section"></div>
 
         <!-- Pace trend -->
         <div class="section-label">Run pace trend</div>
@@ -3500,15 +3506,116 @@ function buildPRs() {
   if (badge && totalPRs > 0) badge.textContent = totalPRs + ' PRs tracked';
 }
 
+
+// ── TRIATHLON PRs + RACE HISTORY (from logged race results) ──────────────
+function parseResultToSec(t) {
+  if (!t || typeof t !== 'string') return null;
+  const p = t.trim().split(':').map(Number);
+  if (p.some(isNaN)) return null;
+  if (p.length === 3) return p[0]*3600 + p[1]*60 + p[2];
+  if (p.length === 2) return p[0]*60 + p[1];
+  return null;
+}
+function fmtResultSec(s) {
+  if (s == null) return '—';
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+  return (h>0 ? h+':'+String(m).padStart(2,'0') : m) + ':' + String(sec).padStart(2,'0');
+}
+
+function renderTriPRs() {
+  const el = document.getElementById('tri-pr-section');
+  if (!el) return;
+
+  // Group completed triathlons with logged overall results by distance (subtype)
+  const triResults = races.filter(r => r.type === 'triathlon' && r.results && r.results.overall && new Date(r.date) < new Date());
+  if (!triResults.length) { el.innerHTML = ''; return; }
+
+  const bySubtype = {};
+  triResults.forEach(r => {
+    const key = r.subtype || 'Triathlon';
+    const sec = parseResultToSec(r.results.overall);
+    if (sec == null) return;
+    if (!bySubtype[key]) bySubtype[key] = [];
+    bySubtype[key].push({ race: r, sec });
+  });
+
+  const rankEmoji = ['🥇','🥈','🥉'];
+  let html = '<div class="section-label">Triathlon PRs</div>';
+  Object.keys(bySubtype).forEach(subtype => {
+    const sorted = bySubtype[subtype].sort((a,b) => a.sec - b.sec).slice(0,3);
+    html += `<div class="card" style="padding:14px 16px;margin-bottom:12px">
+      <div style="font-family:var(--font-display);font-size:13px;font-weight:700;margin-bottom:10px">🏊🚴🏃 ${subtype} Triathlon</div>
+      ${sorted.map((item, i) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:6px 0${i < sorted.length-1 ? ';border-bottom:1px solid var(--border)' : ''}">
+          <span style="font-size:16px">${rankEmoji[i]}</span>
+          <div style="flex:1">
+            <div style="font-size:13px;color:var(--text);font-weight:600">${fmtResultSec(item.sec)}</div>
+            <div style="font-size:10px;color:var(--muted)">${item.race.name} · ${new Date(item.race.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>
+          </div>
+          ${item.race.results.swim || item.race.results.bike || item.race.results.run ? `<div style="font-size:9px;color:var(--dim);text-align:right;font-family:var(--font-mono);line-height:1.5">${item.race.results.swim ? '🏊 '+item.race.results.swim+'<br>' : ''}${item.race.results.bike ? '🚴 '+item.race.results.bike+'<br>' : ''}${item.race.results.run ? '🏃 '+item.race.results.run : ''}</div>` : ''}
+        </div>`).join('')}
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+function renderRaceHistory() {
+  const el = document.getElementById('race-history-section');
+  if (!el) return;
+
+  const past = races.filter(r => new Date(r.date) < new Date()).sort((a,b) => new Date(b.date) - new Date(a.date));
+  if (!past.length) { el.innerHTML = ''; return; }
+
+  el.innerHTML = '<div class="section-label">Race history</div>' + past.map(r => {
+    const hasResults = r.results && r.results.overall;
+    const hasDebrief = raceDebriefs[r.id];
+    const goalSec = parseResultToSec(r.goal);
+    const actualSec = hasResults ? parseResultToSec(r.results.overall) : null;
+    let goalBadge = '';
+    if (goalSec != null && actualSec != null) {
+      const diff = actualSec - goalSec;
+      const color = diff <= 0 ? 'var(--ok)' : 'var(--mar)';
+      goalBadge = `<span style="font-size:10px;color:${color};font-weight:600">${diff <= 0 ? '✓ ' : ''}${fmtResultSec(Math.abs(diff))} ${diff <= 0 ? 'under' : 'over'} goal</span>`;
+    }
+
+    return `<div class="card" style="padding:14px 16px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div style="flex:1">
+          <div style="font-family:var(--font-display);font-size:14px;font-weight:700">${r.type === 'triathlon' ? '🏊🚴🏃' : '🏃'} ${r.name}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${r.subtype} ${r.type === 'triathlon' ? 'Tri' : ''} · ${new Date(r.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>
+        </div>
+        ${hasResults ? `<div style="text-align:right"><div style="font-family:var(--font-mono);font-size:16px;font-weight:700;color:var(--tri)">${r.results.overall}</div>${goalBadge}</div>` : '<div style="font-size:10px;color:var(--dim)">no result logged</div>'}
+      </div>
+      ${hasResults && r.type === 'triathlon' && (r.results.swim || r.results.bike || r.results.run) ? `
+        <div style="display:flex;gap:12px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:10px;color:var(--muted);font-family:var(--font-mono);flex-wrap:wrap">
+          ${r.results.swim ? '<span>🏊 '+r.results.swim+'</span>' : ''}
+          ${r.results.t1 ? '<span>⚡ '+r.results.t1+'</span>' : ''}
+          ${r.results.bike ? '<span>🚴 '+r.results.bike+'</span>' : ''}
+          ${r.results.t2 ? '<span>⚡ '+r.results.t2+'</span>' : ''}
+          ${r.results.run ? '<span>🏃 '+r.results.run+'</span>' : ''}
+        </div>` : ''}
+      <div style="display:flex;gap:8px;margin-top:10px">
+        ${!hasResults ? `<button class="garage-add-btn" style="flex:1;padding:8px" onclick="openRaceResults(${r.id})">⏱ Log Results</button>` : `<button class="garage-add-btn" style="flex:1;padding:8px" onclick="openRaceResults(${r.id})">✏️ Edit Results</button>`}
+        <button class="garage-add-btn" style="flex:1;padding:8px" onclick="openRaceDebrief(${r.id})">🏆 ${hasDebrief ? 'View' : 'Get'} Debrief</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function initPRWall() {
   if (!allActivities.length) {
     document.getElementById('pr-content').innerHTML = `<div class="pr-empty" style="padding:2rem;text-align:center">
       <div style="font-size:32px;margin-bottom:12px">🏆</div>
-      Sync your Strava data to load your PRs.
+      Sync your Strava data to load your distance PRs.
     </div>`;
+    // Race history + tri PRs come from logged results, not Strava — still render them
+    renderTriPRs();
+    renderRaceHistory();
     return;
   }
   buildPRs();
+  renderTriPRs();
+  renderRaceHistory();
   renderPaceChart();
 }
 
