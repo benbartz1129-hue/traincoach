@@ -3527,7 +3527,8 @@ function renderTriPRs() {
   if (!el) return;
 
   // Group completed triathlons with logged overall results by distance (subtype)
-  const triResults = races.filter(r => r.type === 'triathlon' && r.results && r.results.overall && new Date(r.date) < new Date());
+  const todayStr2 = new Date().toISOString().split('T')[0];
+  const triResults = races.filter(r => r.type === 'triathlon' && r.results && r.results.overall && r.date <= todayStr2);
   if (!triResults.length) { el.innerHTML = ''; return; }
 
   const bySubtype = {};
@@ -7457,7 +7458,7 @@ function openRaceResults(raceId) {
   function field(id, label, placeholder, val) {
     return `<div class="form-field" style="margin-bottom:10px">
       <div class="form-label">${label}</div>
-      <input class="form-input" id="result-${id}" placeholder="${placeholder}" value="${val || ''}" inputmode="numeric" />
+      <input class="form-input" id="result-${id}" placeholder="${placeholder}" value="${val || ''}" inputmode="text" autocapitalize="off" autocorrect="off" />
     </div>`;
   }
 
