@@ -6604,17 +6604,54 @@ async function generateDebrief(raceId) {
       .sort((a,b) => new Date(a.date) - new Date(b.date))[0];
     const nextCtx = nextRace ? 'Next race: ' + nextRace.name + ' (' + nextRace.subtype + ' ' + nextRace.type + ') in ' + daysUntil(new Date(nextRace.date)) + ' days, goal ' + (nextRace.goal || 'none') + '.' : 'No next race scheduled.';
 
+    // ── Compute goal + simulation comparison IN CODE (never let the AI do this math) ──
+    function toSecFlexible(t, goalStyle) {
+      if (!t || typeof t !== 'string') return null;
+      const p = t.trim().split(':').map(Number);
+      if (p.some(isNaN)) return null;
+      if (p.length === 3) return p[0]*3600 + p[1]*60 + p[2];
+      if (p.length === 2) return goalStyle ? p[0]*3600 + p[1]*60 : p[0]*60 + p[1];
+      return goalStyle ? p[0]*3600 : p[0];
+    }
+    function fmtSecFull(s) {
+      if (s == null) return null;
+      const neg = s < 0; s = Math.abs(s);
+      const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+      return (neg?'-':'') + (h>0 ? h+':'+String(m).padStart(2,'0') : m) + ':' + String(sec).padStart(2,'0');
+    }
+    // Actual finish: prefer logged overall, else sum of logged tri splits, else Strava
+    const actualFinishSec = race.results && race.results.overall ? toSecFlexible(race.results.overall, false) : null;
+    const goalSec = race.goal ? toSecFlexible(race.goal, true) : null;
+    let goalFact = 'No goal was set.';
+    let goalResult = null;
+    if (actualFinishSec != null && goalSec != null) {
+      const diff = actualFinishSec - goalSec;
+      goalResult = { diff, over: diff > 0 };
+      goalFact = 'FINISH VS GOAL (already computed, use exactly this - do NOT recompute): finish ' + race.results.overall + ' vs goal ' + race.goal + ' = ' + fmtSecFull(Math.abs(diff)) + (diff > 0 ? ' OVER (slower than) goal' : diff < 0 ? ' UNDER (faster than) goal' : ' exactly on goal') + '.';
+    }
+    // Sim comparison in code too
+    let simFact = '';
+    if (sim && actualFinishSec != null) {
+      const simSec = sim.splits.reduce((s,x) => { const v = toSecFlexible(x.time, false); return s + (v||0); }, 0);
+      const simDiff = actualFinishSec - simSec;
+      simFact = ' VS SIMULATION: finish was ' + fmtSecFull(Math.abs(simDiff)) + (simDiff > 0 ? ' slower than' : ' faster than') + ' the predicted ' + fmtSecFull(simSec) + '.';
+    }
+
     const reply = await callClaude({
       model: 'claude-sonnet-4-6', max_tokens: 1500,
-      system: `You are an honest, insightful post-race analyst. Compare the athlete's actual race-day performance against their pre-race simulation prediction (if available) and their goal. Be genuinely honest — celebrate what went well with specifics, and name where time was lost without sugarcoating. End with forward-looking takeaways for their next race. Return ONLY valid JSON, plain ASCII, no apostrophes:
+      system: `You are an honest, insightful post-race analyst. Compare the athlete's actual race-day performance against their pre-race simulation prediction (if available) and their goal. Be genuinely honest — celebrate what went well with specifics, and name where time was lost without sugarcoating. End with forward-looking takeaways for their next race.
+CRITICAL: The finish-vs-goal and finish-vs-simulation comparisons have ALREADY BEEN COMPUTED and are given to you as facts. Use those exact numbers and directions (over/under, faster/slower). NEVER do this arithmetic yourself or second-guess it. Do not write phrases like "wait" or "actually" or show your work — state the computed result cleanly and confidently.
+Return ONLY valid JSON, plain ASCII, no apostrophes:
 {"headline":"one punchy sentence summarizing the race","comparison":[{"segment":"Swim","predicted":"32:15","actual":"30:50","verdict":"beat prediction by 1:25"}],"wins":["specific thing that went well","another"],"losses":["specific place time slipped","another"],"nextRace":["forward takeaway 1","takeaway 2","takeaway 3"]}
-If no simulation existed, put the goal time comparison in the comparison array instead. Keep strings short and specific with real numbers.`,
-      messages: [{ role: 'user', content: 'RACE: ' + race.name + ' (' + race.subtype + ' ' + race.type + '), goal: ' + (race.goal || 'none') + '\n\nACTUAL RACE-DAY ACTIVITIES:\n' + actualCtx + loggedCtx + '\n\n' + simCtx + '\n\n' + nextCtx + '\n\nGenerate the debrief.' }]
+Keep strings short and specific with real numbers. Do not put goal-vs-finish math in the wins/losses - that is shown separately.`,
+      messages: [{ role: 'user', content: 'RACE: ' + race.name + ' (' + race.subtype + ' ' + race.type + ')\n\n' + goalFact + simFact + '\n\nACTUAL RACE-DAY ACTIVITIES:\n' + actualCtx + loggedCtx + '\n\n' + simCtx + '\n\n' + nextCtx + '\n\nGenerate the debrief.' }]
     }, 'Post-race debrief');
 
     const cleaned = reply.replace(/```json|```/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
     const debrief = JSON.parse(cleaned);
     debrief.generatedAt = new Date().toISOString().split('T')[0];
+    // Store the code-computed goal result so the render shows a definitive badge
+    if (goalResult) debrief.goalResult = { diffStr: fmtSecFull(Math.abs(goalResult.diff)), over: goalResult.over, goal: race.goal, finish: race.results.overall };
 
     raceDebriefs[raceId] = debrief;
     saveDebriefs();
@@ -6629,10 +6666,22 @@ If no simulation existed, put the goal time comparison in the comparison array i
 }
 
 function renderDebrief(d) {
+  const goalBadge = d.goalResult ? `
+    <div class="sim-section-card" style="border-left:3px solid ${d.goalResult.over ? 'var(--mar)' : 'var(--ok)'};display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:10px;font-family:var(--font-display);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)">Finish vs goal</div>
+        <div style="font-size:13px;color:var(--text);margin-top:2px">${d.goalResult.finish} vs ${d.goalResult.goal} goal</div>
+      </div>
+      <div style="font-family:var(--font-display);font-size:15px;font-weight:800;color:${d.goalResult.over ? 'var(--mar)' : 'var(--ok)'}">
+        ${d.goalResult.over ? '' : '✓ '}${d.goalResult.diffStr} ${d.goalResult.over ? 'over' : 'under'}
+      </div>
+    </div>` : '';
+
   document.getElementById('debrief-content').innerHTML = `
     <div class="sim-section-card" style="border-left:3px solid var(--tri)">
       <div style="font-family:var(--font-display);font-size:15px;font-weight:700;line-height:1.5">${d.headline}</div>
     </div>
+    ${goalBadge}
 
     ${d.comparison && d.comparison.length ? `
     <div class="sim-splits-card">
