@@ -5953,6 +5953,24 @@ let currentGarageBikeId = null;
 
 const BIKE_TYPE_ICONS = { road:'🚴', tri:'⏱', gravel:'🌲', trainer:'🎰', mtb:'⛰', other:'🔧' };
 
+
+// Resolve a garage bike's mileage — prefer live Strava gear mileage when the names
+// match (case/space-insensitive), otherwise fall back to the manually entered value.
+function resolveBikeMileage(bike) {
+  if (!bike) return { miles: 0, source: 'manual' };
+  const norm = s => (s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  const match = (stravaGear||[]).find(g => g.type === 'bike' && norm(g.name) === norm(bike.name));
+  if (match && match.miles > 0) return { miles: match.miles, source: 'strava' };
+  // Loose match: one name contains the other (handles "Cannondale SuperSix" vs full model name)
+  const loose = (stravaGear||[]).find(g => {
+    if (g.type !== 'bike') return false;
+    const a = norm(g.name), b = norm(bike.name);
+    return a && b && (a.includes(b) || b.includes(a));
+  });
+  if (loose && loose.miles > 0) return { miles: loose.miles, source: 'strava' };
+  return { miles: bike.mileage || 0, source: 'manual' };
+}
+
 function saveGarage() {
   localStorage.setItem(CACHE_KEY_GARAGE, JSON.stringify(garage));
   console.log('Saving garage locally, bikes:', garage.length);
@@ -5983,7 +6001,7 @@ function renderGarageList() {
         </div>
       </div>
       <div class="bike-card-meta">
-        <span class="bike-card-mileage">${(bike.mileage||0).toLocaleString()} mi</span>
+        <span class="bike-card-mileage">${(() => { const m = resolveBikeMileage(bike); return Math.round(m.miles).toLocaleString() + ' mi' + (m.source === 'strava' ? ' ⌁' : ''); })()}</span>
         <span>${(bike.buildLog||[]).length} build entries</span>
         <span>${(bike.maintenanceLog||[]).length} maintenance entries</span>
       </div>
@@ -6098,14 +6116,16 @@ function renderBikeDetail(bikeId) {
           <div style="font-size:12px;color:var(--muted);margin-top:2px">${bike.type.charAt(0).toUpperCase()+bike.type.slice(1)}${bike.year?' · '+bike.year:''}${bike.color?' · '+bike.color:''}</div>
         </div>
         <div style="text-align:right">
-          <div style="font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--tri)">${(bike.mileage||0).toLocaleString()}</div>
-          <div style="font-size:10px;color:var(--dim)">miles</div>
+          ${(() => { const m = resolveBikeMileage(bike); return `
+          <div style="font-family:var(--font-mono);font-size:20px;font-weight:700;color:var(--tri)">${Math.round(m.miles).toLocaleString()}</div>
+          <div style="font-size:10px;color:var(--muted)">miles${m.source === 'strava' ? ' · from Strava' : ''}</div>`; })()}
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="add-race-btn" style="flex:1;font-size:11px;padding:8px" onclick="showAddBikeForm(${bikeId})">✏️ Edit</button>
         <button class="add-race-btn" style="flex:1;font-size:11px;padding:8px;background:rgba(232,112,112,0.1);color:var(--warn);border-color:rgba(232,112,112,0.3)" onclick="if(confirm('Delete this bike?')) deleteBike(${bikeId})">🗑 Delete</button>
       </div>
+      <button class="add-race-btn" style="width:100%;font-size:11px;padding:9px;margin-top:8px;background:var(--surface2);color:var(--text)" onclick="switchTab('fitcheck')">📐 Run AI Bike Fit Check</button>
     </div>
 
     ${logSection('Build log', '🔧', 'buildLog', 'Parts added, upgrades, swaps...')}
