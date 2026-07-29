@@ -2537,8 +2537,15 @@ function renderDashboard(d) {
         <div class="metric-card run" onclick="openSportDetail('Run')" style="cursor:pointer"><div class="metric-label">Run <span style="font-size:9px;color:var(--tri)">↗</span></div><div class="metric-value">${(d.weekRunMi||0).toFixed(1)}<span>mi</span></div><div class="metric-sub">target 15 mi/wk</div></div>
         <div class="metric-card load" onclick="switchTab('load')" style="cursor:pointer">
           <div class="metric-label">TLS Score <span style="font-size:9px;color:var(--tri)">↗ details</span></div>
-          <div class="load-badge" style="color:${loadColors[d.weeklyLoad]||'var(--ok)'};font-size:18px;font-weight:500" id="tls-score-badge">${calcTLS(d.weekSwimMi||0,d.weekRunMi||0,d.weekBikeMi||0).toFixed(1)}</div>
-          <div class="metric-sub" style="color:${loadColors[d.weeklyLoad]||'var(--ok)'}">${d.weeklyLoad}</div>
+          ${(() => {
+            // Derive the label and color from the ACTUAL computed TLS — never from the
+            // cached AI analysis, which goes stale and can show "high" on a 0.0 week.
+            const tls = calcTLS(d.weekSwimMi||0, d.weekRunMi||0, d.weekBikeMi||0);
+            const label = tls > 35 ? 'very high' : tls > 22 ? 'high' : tls > 10 ? 'moderate' : 'low';
+            const color = loadColors[label];
+            return `<div class="load-badge" style="color:${color};font-size:18px;font-weight:500" id="tls-score-badge">${tls.toFixed(1)}</div>
+          <div class="metric-sub" style="color:${color}">${label}</div>`;
+          })()}
         </div>
       </div>
       <div class="card" onclick="switchTab('load')" style="cursor:pointer;margin-top:10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
