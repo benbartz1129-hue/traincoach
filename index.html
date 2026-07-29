@@ -3548,6 +3548,16 @@ function parseResultToSec(t) {
   if (p.length === 2) return p[0]*60 + p[1];
   return null;
 }
+
+// Goal times use a different convention: "2:30" means 2 HOURS 30 MIN, not 2min30s.
+function parseGoalTimeToSec(t) {
+  if (!t || typeof t !== 'string') return null;
+  const p = t.trim().split(':').map(Number);
+  if (p.some(isNaN)) return null;
+  if (p.length === 3) return p[0]*3600 + p[1]*60 + p[2];  // H:MM:SS
+  if (p.length === 2) return p[0]*3600 + p[1]*60;          // H:MM
+  return p[0] ? p[0]*3600 : null;                          // bare = hours
+}
 function fmtResultSec(s) {
   if (s == null) return '—';
   const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
@@ -3603,7 +3613,7 @@ function renderRaceHistory() {
   el.innerHTML = '<div class="section-label">Race history</div>' + past.map(r => {
     const hasResults = r.results && r.results.overall;
     const hasDebrief = raceDebriefs[r.id];
-    const goalSec = parseResultToSec(r.goal);
+    const goalSec = parseGoalTimeToSec(r.goal);
     const actualSec = hasResults ? parseResultToSec(r.results.overall) : null;
     let goalBadge = '';
     if (goalSec != null && actualSec != null) {
