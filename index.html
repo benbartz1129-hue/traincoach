@@ -917,12 +917,12 @@ body {
 .sim-strategy-text { font-size: 12px; color: var(--text); line-height: 1.6; }
 .sim-whatif-item {
   background: var(--surface2); border-radius: 10px; padding: 10px 12px;
-  margin-bottom: 8px; font-size: 12px; color: var(--muted); line-height: 1.5;
+  margin-bottom: 8px; font-size: 12px; color: var(--text); line-height: 1.6;
 }
 .sim-whatif-item:last-child { margin-bottom: 0; }
 .sim-whatif-item strong { color: var(--tri); font-weight: 600; }
 .sim-confidence {
-  font-size: 10px; color: var(--dim); text-align: center; margin-top: 4px;
+  font-size: 11px; color: var(--muted); text-align: center; margin-top: 4px;
   font-style: italic;
 }
 
@@ -1102,6 +1102,9 @@ body {
       </button>
       <button class="nav-item" id="nav-shoefinder" onclick="switchTab('shoefinder')">
         <span class="nav-icon">👟</span>Shoe Closet
+      </button>
+      <button class="nav-item" id="nav-fitcheck" onclick="switchTab('fitcheck')">
+        <span class="nav-icon">📐</span>Bike Fit Check
       </button>
       <div class="drawer-section-label">App</div>
       <button class="nav-item" id="nav-usage" onclick="switchTab('usage')">
@@ -1350,6 +1353,47 @@ body {
           </div>
         </div>
         <div id="usage-content"></div>
+      </div>
+    </div>
+
+    <!-- BIKE FIT CHECK -->
+    <div class="page" id="page-fitcheck">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:16px">
+          <div>
+            <div class="date-greeting" style="font-size:16px">📐 Bike Fit Check</div>
+            <div class="date-sub">AI analysis from a trainer video</div>
+          </div>
+        </div>
+
+        <div class="card" style="padding:14px 16px;margin-bottom:16px">
+          <div class="section-label" style="margin-bottom:8px">How to film it</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.7">
+            <div>📱 Phone on a tripod or propped, <strong style="color:var(--text)">directly to your side</strong> at hip height</div>
+            <div>🚴 Ride steady in your normal position, 10-15 seconds</div>
+            <div>👖 Wear fitted clothing so joints are visible</div>
+            <div>💡 Good lighting, whole bike and body in frame</div>
+          </div>
+          <div style="font-size:11px;color:var(--dim);margin-top:10px;line-height:1.5">
+            The app pulls still frames across your pedal stroke and analyzes them together.
+          </div>
+        </div>
+
+        <div class="card" style="padding:14px 16px;margin-bottom:16px">
+          <div class="form-field" style="margin-bottom:10px">
+            <div class="form-label">Which bike?</div>
+            <select class="form-select" id="fit-bike-select"></select>
+          </div>
+          <input type="file" id="fit-video-input" accept="video/*" style="display:none" onchange="handleFitVideo(event)" />
+          <button class="add-race-btn" style="background:var(--surface2);color:var(--text);border:1px dashed var(--border2)" onclick="document.getElementById('fit-video-input').click()">
+            🎥 Choose video
+          </button>
+          <div id="fit-video-status" style="font-size:11px;color:var(--muted);margin-top:8px;text-align:center;min-height:14px"></div>
+          <div id="fit-frame-preview" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"></div>
+          <button class="add-race-btn" id="fit-analyze-btn" style="margin-top:10px;display:none" onclick="analyzeBikeFit()">✨ Analyze Fit</button>
+        </div>
+
+        <div id="fitcheck-content"></div>
       </div>
     </div>
 
@@ -2103,6 +2147,7 @@ function switchTab(tab) {
   if (tab === 'garage') initGarage();
   if (tab === 'races') { initRacePlanner(); renderRaces(); }
   if (tab === 'shoefinder') initShoeFinder();
+  if (tab === 'fitcheck') initFitCheck();
   if (tab === 'usage') renderUsagePage();
   if (tab === 'workouts') initWorkoutsPage();
 }
@@ -7853,6 +7898,244 @@ function renderWorkoutList() {
     return;
   }
   el.innerHTML = savedWorkouts.map(w => renderWorkoutCard(w, false)).join('');
+}
+
+
+// ── BIKE FIT CHECK (video frames -> vision analysis) ─────────────────────
+const CACHE_KEY_FITCHECK = 'brb_fit_checks';
+let fitFrames = [];            // base64 jpegs sampled across the pedal stroke
+let fitChecks = JSON.parse(localStorage.getItem(CACHE_KEY_FITCHECK) || '{}'); // by bike id
+
+function initFitCheck() {
+  fitFrames = [];
+  document.getElementById('fit-frame-preview').innerHTML = '';
+  document.getElementById('fit-video-status').textContent = '';
+  document.getElementById('fit-analyze-btn').style.display = 'none';
+
+  // Populate bike dropdown from the garage
+  const sel = document.getElementById('fit-bike-select');
+  if (sel) {
+    if (!garage.length) {
+      sel.innerHTML = '<option value="">No bikes in Garage — add one first</option>';
+    } else {
+      sel.innerHTML = garage.map(b => '<option value="' + b.id + '">' + b.name + '</option>').join('');
+    }
+  }
+  renderPastFitChecks();
+}
+
+// Extract evenly spaced frames from a video file using canvas
+function extractVideoFrames(file, frameCount, maxDim) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+    const url = URL.createObjectURL(file);
+    const frames = [];
+
+    video.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read video')); };
+
+    video.onloadedmetadata = async () => {
+      const dur = video.duration;
+      if (!isFinite(dur) || dur <= 0) { URL.revokeObjectURL(url); reject(new Error('Invalid video duration')); return; }
+      // Sample from the middle 80% (skip shaky start/end)
+      const start = dur * 0.1, end = dur * 0.9;
+      const times = [];
+      for (let i = 0; i < frameCount; i++) {
+        times.push(start + ((end - start) * i) / Math.max(1, frameCount - 1));
+      }
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      let w = video.videoWidth, h = video.videoHeight;
+      if (w > maxDim || h > maxDim) {
+        const scale = maxDim / Math.max(w, h);
+        w = Math.round(w * scale); h = Math.round(h * scale);
+      }
+      canvas.width = w; canvas.height = h;
+
+      for (const t of times) {
+        await new Promise(res => {
+          const onSeeked = () => { video.removeEventListener('seeked', onSeeked); res(); };
+          video.addEventListener('seeked', onSeeked);
+          video.currentTime = t;
+        });
+        ctx.drawImage(video, 0, 0, w, h);
+        frames.push(canvas.toDataURL('image/jpeg', 0.75).split(',')[1]);
+        const statusEl = document.getElementById('fit-video-status');
+        if (statusEl) statusEl.textContent = 'Extracting frames… ' + frames.length + '/' + frameCount;
+      }
+      URL.revokeObjectURL(url);
+      resolve(frames);
+    };
+
+    video.src = url;
+  });
+}
+
+async function handleFitVideo(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('fit-video-status');
+  const previewEl = document.getElementById('fit-frame-preview');
+  const btn = document.getElementById('fit-analyze-btn');
+  statusEl.textContent = 'Reading video…';
+  previewEl.innerHTML = '';
+  btn.style.display = 'none';
+
+  try {
+    fitFrames = await extractVideoFrames(file, 8, 900);
+    statusEl.textContent = fitFrames.length + ' frames captured across your pedal stroke';
+    previewEl.innerHTML = fitFrames.map((b64, i) =>
+      '<img src="data:image/jpeg;base64,' + b64 + '" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid var(--border2)" alt="frame ' + (i+1) + '" />'
+    ).join('');
+    btn.style.display = 'block';
+  } catch(e) {
+    statusEl.textContent = 'Could not read that video. Try a shorter clip or different format.';
+    console.error('Frame extraction failed:', e);
+  }
+  event.target.value = '';
+}
+
+async function analyzeBikeFit() {
+  if (!fitFrames.length) return;
+  const btn = document.getElementById('fit-analyze-btn');
+  const contentEl = document.getElementById('fitcheck-content');
+  const bikeId = document.getElementById('fit-bike-select').value;
+  const bike = garage.find(b => String(b.id) === String(bikeId));
+
+  btn.disabled = true;
+  contentEl.innerHTML = '<div class="loading-state"><div class="loading-dots"><span></span><span></span><span></span></div><div class="loading-text">Analyzing your position across the pedal stroke\u2026<br><span style="font-size:10px;color:var(--dim)">This can take 30-45 seconds</span></div></div>';
+
+  try {
+    const imageBlocks = fitFrames.map(b64 => ({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/jpeg', data: b64 }
+    }));
+
+    // Existing fit notes give useful history
+    const fitHistory = bike && bike.fitNotes && bike.fitNotes.length
+      ? 'Previous fit notes for this bike: ' + bike.fitNotes.slice(-5).map(n => n.date + ': ' + n.text).join('; ')
+      : 'No previous fit notes recorded.';
+
+    const reply = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 2000,
+      system: `You are an experienced bike fitter analyzing sequential frames sampled across a rider's pedal stroke from a side-view trainer video. The frames are in time order and span roughly one to two full revolutions.
+
+Assess what is genuinely visible: knee extension at the bottom of the stroke (target roughly 25-35 degrees of flex), knee position relative to pedal spindle at the 3 o'clock position, hip rocking or side-to-side motion across frames (a key saddle-height indicator that single photos cannot show), torso and back angle, shoulder and elbow position, and ankle motion pattern.
+
+BE HONEST ABOUT UNCERTAINTY. Camera angle, lens distortion, and clothing all affect what you can judge. If the camera is not square to the rider, or a joint is obscured, say so plainly and lower your confidence rather than guessing. Give DIRECTIONAL guidance with reasoning (for example: saddle may be 5-10mm high based on visible hip rock) rather than false-precision numbers. Never claim to replace a professional fit.
+
+Order recommendations by confidence and impact. Prefer one change at a time - bike fit is iterative.
+
+Return ONLY valid JSON, plain ASCII, no apostrophes:
+{"videoQuality":"honest note on camera angle and what limited your read","confidence":"high|moderate|low","observations":[{"area":"Saddle height","finding":"what you see across the frames","assessment":"what it suggests"}],"recommendations":[{"priority":1,"change":"specific adjustment e.g. lower saddle 5mm","reason":"why, tied to what you observed","confidence":"high|moderate|low"}],"lookingGood":["things that appear well set up"],"caveats":"1-2 sentences on limits of video analysis and when to see a professional fitter"}`,
+      messages: [{
+        role: 'user',
+        content: [
+          ...imageBlocks,
+          { type: 'text', text: 'Analyze my bike fit from these ' + fitFrames.length + ' sequential frames (side view, indoor trainer). Bike: ' + (bike ? bike.name + ' (' + bike.type + ')' : 'not specified') + '. ' + fitHistory + ' Rider context: triathlete and marathoner, Chicago Marathon in ' + daysUntil(MAR_DATE) + ' days.' }
+        ]
+      }]
+    }, 'Bike fit check');
+
+    let cleaned = reply.replace(/```json|```/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
+    const fb = cleaned.indexOf('{'), lb = cleaned.lastIndexOf('}');
+    if (fb > -1 && lb > fb) cleaned = cleaned.slice(fb, lb + 1);
+    const fit = JSON.parse(cleaned);
+    fit.date = new Date().toISOString().split('T')[0];
+    fit.bikeName = bike ? bike.name : 'Unspecified bike';
+
+    if (bikeId) {
+      if (!fitChecks[bikeId]) fitChecks[bikeId] = [];
+      fitChecks[bikeId].unshift(fit);
+      fitChecks[bikeId] = fitChecks[bikeId].slice(0, 5);
+      safeSetItem(CACHE_KEY_FITCHECK, JSON.stringify(fitChecks));
+    }
+
+    renderFitResult(fit, bikeId);
+    renderPastFitChecks();
+  } catch(e) {
+    contentEl.innerHTML = '<div class="card" style="padding:1.5rem;text-align:center"><div style="font-size:13px;color:var(--warn)">Analysis failed: ' + (e.message||'unknown').slice(0,120) + '</div><button class="add-race-btn" style="margin-top:12px" onclick="analyzeBikeFit()">Retry</button></div>';
+    console.error('Fit check error:', e);
+  }
+  btn.disabled = false;
+}
+
+function renderFitResult(fit, bikeId) {
+  const confColor = { high:'var(--ok)', moderate:'var(--mar)', low:'var(--warn)' };
+  document.getElementById('fitcheck-content').innerHTML = `
+    <div class="sim-section-card" style="border-left:3px solid ${confColor[fit.confidence]||'var(--mar)'}">
+      <div class="sim-section-title">🎥 Video quality</div>
+      <div style="font-size:12px;color:var(--text);line-height:1.6">${fit.videoQuality}</div>
+      <div style="font-size:11px;color:${confColor[fit.confidence]||'var(--mar)'};margin-top:6px;font-weight:600">Confidence: ${fit.confidence}</div>
+    </div>
+
+    ${fit.recommendations && fit.recommendations.length ? `
+    <div class="sim-section-card">
+      <div class="sim-section-title">🔧 Suggested adjustments</div>
+      ${fit.recommendations.map(r => `
+        <div class="sim-strategy-item">
+          <div class="sim-strategy-num">${r.priority}</div>
+          <div class="sim-strategy-text">
+            <strong style="color:var(--text)">${r.change}</strong>
+            <div style="color:var(--muted);font-size:11px;margin-top:2px;line-height:1.5">${r.reason}</div>
+            <div style="font-size:10px;color:${confColor[r.confidence]||'var(--muted)'};margin-top:2px">${r.confidence} confidence</div>
+          </div>
+        </div>`).join('')}
+      ${bikeId ? `<button class="garage-add-btn" style="width:100%;margin-top:10px;padding:9px" onclick="saveFitToGarage('${bikeId}')">📝 Save to bike fit notes</button>` : ''}
+    </div>` : ''}
+
+    ${fit.observations && fit.observations.length ? `
+    <div class="sim-section-card">
+      <div class="sim-section-title">👁 What I observed</div>
+      ${fit.observations.map(o => `
+        <div style="padding:8px 0;border-bottom:1px solid var(--border)">
+          <div style="font-size:12px;color:var(--text);font-weight:600">${o.area}</div>
+          <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-top:2px">${o.finding}</div>
+          <div style="font-size:11px;color:var(--text);line-height:1.6;margin-top:3px">→ ${o.assessment}</div>
+        </div>`).join('')}
+    </div>` : ''}
+
+    ${fit.lookingGood && fit.lookingGood.length ? `
+    <div class="sim-section-card">
+      <div class="sim-section-title">✅ Looking good</div>
+      ${fit.lookingGood.map(g => `<div class="sim-strategy-item"><div class="sim-strategy-num" style="background:rgba(80,200,120,0.15);color:var(--ok)">✓</div><div class="sim-strategy-text">${g}</div></div>`).join('')}
+    </div>` : ''}
+
+    <div class="card" style="padding:12px 16px;margin-bottom:16px;border-left:3px solid var(--mar)">
+      <div style="font-size:11px;color:var(--muted);line-height:1.6">⚠️ ${fit.caveats}</div>
+    </div>`;
+}
+
+function saveFitToGarage(bikeId) {
+  const checks = fitChecks[bikeId];
+  if (!checks || !checks.length) return;
+  const fit = checks[0];
+  const bike = garage.find(b => String(b.id) === String(bikeId));
+  if (!bike) return;
+  if (!bike.fitNotes) bike.fitNotes = [];
+  const today = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+  const text = 'AI fit check (' + fit.confidence + ' confidence): ' + fit.recommendations.map(r => r.change).join('; ');
+  bike.fitNotes.push({ id: Date.now() + Math.random(), date: today, text });
+  saveGarage();
+  alert('Saved to ' + bike.name + ' fit notes in your Garage.');
+}
+
+function renderPastFitChecks() {
+  // Show the most recent prior check for the selected bike, if any
+  const sel = document.getElementById('fit-bike-select');
+  if (!sel) return;
+  const bikeId = sel.value;
+  const prior = fitChecks[bikeId];
+  const contentEl = document.getElementById('fitcheck-content');
+  if (prior && prior.length && contentEl && !contentEl.innerHTML.trim()) {
+    contentEl.innerHTML = '<div class="card" style="padding:12px 16px;margin-bottom:16px">'
+      + '<div class="section-label" style="margin-bottom:6px">Last check · ' + prior[0].date + '</div>'
+      + '<div style="font-size:12px;color:var(--muted);line-height:1.6">' + (prior[0].recommendations||[]).map(r => '• ' + r.change).join('<br>') + '</div>'
+      + '</div>';
+  }
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
