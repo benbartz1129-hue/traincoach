@@ -2099,6 +2099,17 @@ const REDIRECT_URI     = 'https://brbtraining.pages.dev/';
 const TRI_DATE = new Date('2026-07-26');
 const MAR_DATE = new Date('2026-10-11');
 
+// Build an accurate race-context string from the user's actual race list, counting
+// only races that are still upcoming. Prevents stale "Olympic Tri in -4 days" phrasing.
+function upcomingRaceContext() {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const upcoming = (typeof races !== 'undefined' ? races : [])
+    .filter(r => r.date >= todayStr)
+    .sort((a,b) => new Date(a.date) - new Date(b.date));
+  if (!upcoming.length) return 'No upcoming races currently scheduled.';
+  return upcoming.map(r => r.name + ' (' + r.subtype + ' ' + (r.type === 'triathlon' ? 'triathlon' : 'run') + ') in ' + daysUntil(new Date(r.date)) + ' days' + (r.goal ? ', goal ' + r.goal : '')).join('; ') + '.';
+}
+
 function daysUntil(d) { const n=new Date();n.setHours(0,0,0,0);return Math.ceil((d-n)/86400000); }
 function getGreeting() { const h=new Date().getHours(); return h<5?'Early start':h<12?'Good morning':h<17?'Good afternoon':'Good evening'; }
 function sportEmoji(s) { return {swim:'🏊',run:'🏃',ride:'🚴',rest:'😴',strength:'🏋️',Run:'🏃',Swim:'🏊',Ride:'🚴',WeightTraining:'🏋️'}[s]||'⚡'; }
@@ -2461,7 +2472,7 @@ async function runAnalysis(summary) {
   const text = await callClaude({
     model: 'claude-sonnet-4-6', max_tokens: 2000,
     system: `You are an expert triathlon and marathon coach. Today is ${today}.
-Athlete: father of 2 kids, full-time job, early morning training only. Olympic Tri Jul 26 (${triDays}d), Chicago Marathon Oct 11 (${marDays}d). Boston 2026: 3:38. Swim volume critically low, needs bricks, strong run base.
+Athlete: father of 2 kids, full-time job, early morning training only. ${upcomingRaceContext()} Boston 2026: 3:38. Swim volume critically low, needs bricks, strong run base.
 Weekly totals have already been calculated from raw data — do NOT recalculate them, just use the values provided.
 IMPORTANT: Always include all 3 insights based on the athlete's MOST RECENT activities — make them specific and current, not generic.
 Return ONLY valid JSON, all distances in miles:
@@ -2708,7 +2719,7 @@ async function sendChat() {
     const planSummary = trainingPlan.length ? trainingPlan.filter(p=>p.date>=today2).slice(0,10).map(p=>p.date+':'+p.sport+' '+p.title).join('; ') : 'none yet';
     const systemPrompt = `You are an expert, friendly triathlon and marathon coach for BRB Training. Today is ${today}.
 Athlete profile: father of 2 young kids, full-time job, early morning training only (~5-6am).
-Goals: Olympic Triathlon July 26 2026 (${triDays} days away), Chicago Marathon October 11 2026 (${marDays} days away).
+Goals / upcoming races: ${upcomingRaceContext()}
 Boston Marathon April 2026: 3:38:18. Strong run base. Swim volume critically low. Needs brick sessions.
 Recent activity data: ${activitySummary || 'Not yet loaded.'}\nDEEPER ANALYSIS (6-week): ${buildCoachAnalytics()}
 Upcoming races: ${races.length ? races.map(r => r.name + ' (' + r.subtype + ' ' + r.type + ', ' + r.date + ', goal: ' + (r.goal||'none') + ')').join('; ') : 'none added'}
@@ -5073,7 +5084,7 @@ async function generateSportInsights() {
     const triDays = daysUntil(TRI_DATE), marDays = daysUntil(MAR_DATE);
     const reply = await callClaude({
       model: 'claude-sonnet-4-6', max_tokens: 500,
-      system: `You are an expert triathlon and marathon coach. Analyze the athlete's recent ${SPORT_LABELS[sportType]} activities. Olympic Tri in ${triDays} days, Chicago Marathon in ${marDays} days. Be specific, reference actual numbers from the data, and give 2-3 concise actionable observations. Keep it under 100 words total. Use miles not km.`,
+      system: `You are an expert triathlon and marathon coach. Analyze the athlete's recent ${SPORT_LABELS[sportType]} activities. Upcoming races: ${upcomingRaceContext()} Be specific, reference actual numbers from the data, and give 2-3 concise actionable observations. Keep it under 100 words total. Use miles not km.`,
       messages: [{ role: 'user', content: `Recent ${SPORT_LABELS[sportType]} activities:\n${summary}\n\nWhat patterns or recommendations do you see?` }]
     }, 'Sport insights');
 
@@ -5667,7 +5678,7 @@ async function generateWeeklySummary(forceRefresh) {
     const triDays = daysUntil(TRI_DATE), marDays = daysUntil(MAR_DATE);
     const reply = await callClaude({
       model: 'claude-sonnet-4-6', max_tokens: 300,
-      system: `You are a supportive but honest triathlon and marathon coach. Write a 2-3 sentence weekly recap for the athlete. Reference their actual numbers. Be encouraging but note anything worth flagging (imbalance between sports, low volume, great consistency, etc). Olympic Tri in ${triDays} days, Chicago Marathon in ${marDays} days. Keep it warm and conversational, not clinical.`,
+      system: `You are a supportive but honest triathlon and marathon coach. Write a 2-3 sentence weekly recap for the athlete. Reference their actual numbers. Be encouraging but note anything worth flagging (imbalance between sports, low volume, great consistency, etc). Upcoming races: ${upcomingRaceContext()} Keep it warm and conversational, not clinical.`,
       messages: [{ role: 'user', content: `This week: ${wk.swimMi.toFixed(1)}mi swim, ${wk.bikeMi.toFixed(1)}mi bike, ${wk.runMi.toFixed(1)}mi run, TLS ${wk.tls.toFixed(1)}, ${wk.count} activities across ${wk.activeDays} active days. Targets: swim ${wk.targets.swim}mi/wk, bike ${wk.targets.bike}mi/wk, run ${wk.targets.run}mi/wk. Write the recap.` }]
     }, 'Weekly recap');
 
@@ -5926,9 +5937,12 @@ async function generateDailyInsight(forceRefresh) {
     const tls = calcTLS(swimMi, runMi, bikeMi);
     const trainingCtx = 'This week: ' + swimMi.toFixed(1) + 'mi swim, ' + runMi.toFixed(1) + 'mi run, ' + bikeMi.toFixed(1) + 'mi bike (TLS ' + tls.toFixed(1) + ')';
 
-    // Races
-    const triDays = daysUntil(TRI_DATE), marDays = daysUntil(MAR_DATE);
-    const raceCtx = 'Olympic Tri in ' + triDays + ' days, Chicago Marathon in ' + marDays + ' days.';
+    // Races — only genuinely upcoming ones (past races have happened, do not reference them as future)
+    const todayStr2 = new Date().toISOString().split('T')[0];
+    const upcomingRaces = races.filter(r => r.date >= todayStr2).sort((a,b) => new Date(a.date) - new Date(b.date));
+    const raceCtx = upcomingRaces.length
+      ? 'Upcoming races: ' + upcomingRaces.map(r => r.name + ' (' + r.subtype + ' ' + r.type + ') in ' + daysUntil(new Date(r.date)) + ' days' + (r.goal ? ', goal ' + r.goal : '')).join('; ') + '.'
+      : 'No upcoming races scheduled right now.';
 
     // Saved swim drills (brief)
     const drillCtx = swimDrills.length ? 'Saved drills: ' + swimDrills.map(d=>d.name).join(', ') : '';
@@ -7033,7 +7047,7 @@ async function analyzeShoes() {
     const longest = runs.length ? Math.max(...runs.map(a => mToMi(a.distance))) : 0;
     const weeklyMi = (runMi / 8.6).toFixed(1);
     const runCtx = runs.length
-      ? 'Runner profile: ~' + weeklyMi + ' mi/week, avg pace ' + Math.floor(avgPace) + ':' + String(Math.round((avgPace % 1) * 60)).padStart(2,'0') + '/mi, longest recent run ' + longest.toFixed(1) + 'mi. Races: Olympic tri in ' + daysUntil(TRI_DATE) + ' days, Chicago Marathon in ' + daysUntil(MAR_DATE) + ' days (Boston 2026 PR: 3:38).'
+      ? 'Runner profile: ~' + weeklyMi + ' mi/week, avg pace ' + Math.floor(avgPace) + ':' + String(Math.round((avgPace % 1) * 60)).padStart(2,'0') + '/mi, longest recent run ' + longest.toFixed(1) + 'mi. Upcoming races: ' + upcomingRaceContext() + ' (Boston 2026 PR: 3:38).'
       : 'Limited recent run data.';
 
     const imageBlocks = shoePhotos.map(b64 => ({
@@ -7795,7 +7809,7 @@ async function generateWorkout() {
 Return ONLY valid JSON, plain ASCII, no apostrophes, no markdown:
 {"title":"short workout name","summary":"1-2 sentence purpose and how it should feel","totalMin":45,"steps":[{"kind":"warmup|work|recover|cooldown","label":"10 min","target":"9:30/mi easy","note":"optional short cue","repeat":null},{"kind":"work","label":"4 x 1200m","target":"7:05/mi","note":"controlled, not all-out","repeat":{"times":4,"work":"1200m @ 7:05/mi","recovery":"3 min @ 10:00/mi"}}],"garminNotes":"1-2 tips for entering this in Garmin Connect builder"}
 Rules: use the derived paces provided rather than inventing numbers. For repeats, set the repeat object AND make label/target describe the set. For swim use per-100yd pace and yards. For bike use mph or perceived effort. Keep every string short.`,
-      messages: [{ role: 'user', content: 'Build a ' + duration + '-minute ' + type + ' ' + sport + ' workout for ' + date + '.\n' + paceCtx + '\n' + sportCtx + '\n' + wellCtx + '\nOlympic tri in ' + triDays + ' days, Chicago Marathon in ' + marDays + ' days.' + (notes ? '\nAthlete notes: ' + notes : '') }]
+      messages: [{ role: 'user', content: 'Build a ' + duration + '-minute ' + type + ' ' + sport + ' workout for ' + date + '.\n' + paceCtx + '\n' + sportCtx + '\n' + wellCtx + '\nUpcoming races: ' + upcomingRaceContext() + (notes ? '\nAthlete notes: ' + notes : '') }]
     }, 'Workout builder');
 
     let cleaned = reply.replace(/```json|```/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
