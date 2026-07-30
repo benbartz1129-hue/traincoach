@@ -5860,11 +5860,18 @@ function restoreZoom() {
 // ── DAILY INSIGHT (Stats page) ────────────────────────────────────────────
 const CACHE_KEY_DAILY_INSIGHT = 'brb_daily_insight';
 
+// A fingerprint of "which races are upcoming" — if this changes (e.g. a race that was
+// upcoming is now completed), any cached insight referencing it is stale regardless of date.
+function racesFingerprint() {
+  const todayStr = new Date().toISOString().split('T')[0];
+  return races.filter(r => r.date >= todayStr).map(r => r.id).sort().join(',');
+}
+
 function loadCachedDailyInsight() {
   try {
     const cached = JSON.parse(localStorage.getItem(CACHE_KEY_DAILY_INSIGHT) || 'null');
     const today = new Date().toISOString().split('T')[0];
-    if (cached && cached.date === today && cached.text) return cached.text;
+    if (cached && cached.date === today && cached.text && cached.racesFp === racesFingerprint()) return cached.text;
   } catch(e) {}
   return null;
 }
@@ -5933,7 +5940,7 @@ async function generateDailyInsight(forceRefresh) {
     }, 'Daily insight');
 
     // Cache for today
-    safeSetItem(CACHE_KEY_DAILY_INSIGHT, JSON.stringify({ date: today, text: reply }));
+    safeSetItem(CACHE_KEY_DAILY_INSIGHT, JSON.stringify({ date: today, text: reply, racesFp: racesFingerprint() }));
     showDailyInsight(reply);
   } catch(e) {
     el.innerHTML = '<div style="font-size:11px;color:var(--warn);text-align:center">Could not generate insight. <span style="color:var(--tri);cursor:pointer;text-decoration:underline" onclick="generateDailyInsight(true)">Try again</span></div>';
