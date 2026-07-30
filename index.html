@@ -965,6 +965,23 @@ body {
   color:var(--muted); line-height:1.7; white-space:pre-wrap; word-break:break-word;
 }
 
+
+/* ── RACE HUB TABS ── */
+.racehub-tabs {
+  display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+  padding-bottom: 8px; margin-bottom: 12px; scrollbar-width: none;
+}
+.racehub-tabs::-webkit-scrollbar { display: none; }
+.racehub-tab {
+  flex-shrink: 0; padding: 8px 14px; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  font-family: var(--font-display); font-size: 12px; font-weight: 600;
+  color: var(--muted); cursor: pointer; white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.racehub-tab.active { background: var(--tri-dim); border-color: var(--tri-border); color: var(--tri); }
+.racehub-tab:active { opacity: 0.8; }
+
 /* ── ACTIVITIES PAGE ── */
 .act-filter { display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .act-filter::-webkit-scrollbar { display: none; }
@@ -1106,14 +1123,11 @@ body {
       <button class="nav-item" id="nav-fitcheck" onclick="switchTab('fitcheck')">
         <span class="nav-icon">📐</span>Bike Fit Check
       </button>
-      <div class="drawer-section-label">App</div>
-      <button class="nav-item" id="nav-usage" onclick="switchTab('usage')">
-        <span class="nav-icon">📊</span>AI Usage
-      </button>
     </nav>
     <div class="drawer-footer">
       <div>BRB Training &middot; Track. Train. Triumph.</div>
-      <div id="import-history-btn" onclick="importFullHistory()" style="margin-top:8px;color:var(--tri);cursor:pointer;text-decoration:underline;font-size:11px">Import full Strava history</div>
+      <div onclick="switchTab('usage')" style="margin-top:8px;color:var(--muted);cursor:pointer;text-decoration:underline;font-size:11px">📊 AI usage &amp; costs</div>
+      <div id="import-history-btn" onclick="importFullHistory()" style="margin-top:6px;color:var(--tri);cursor:pointer;text-decoration:underline;font-size:11px">Import full Strava history</div>
       <div onclick="reconnectStrava()" style="margin-top:6px;color:var(--muted);cursor:pointer;text-decoration:underline;font-size:11px">Reconnect Strava (update permissions)</div>
     </div>
   </div>
@@ -1292,6 +1306,21 @@ body {
           <div id="garage-detail-content"></div>
         </div>
 
+      </div>
+    </div>
+
+    <!-- RACE HUB -->
+    <div class="page" id="page-racehub">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:14px">
+          <div>
+            <div class="date-greeting" style="font-size:16px" id="racehub-name">Race</div>
+            <div class="date-sub" id="racehub-sub"></div>
+          </div>
+          <button class="refresh-btn" onclick="switchTab('races')" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto" data-hubback="1">&larr; Races</button>
+        </div>
+        <div class="racehub-tabs" id="racehub-tabs"></div>
+        <div id="racehub-body"></div>
       </div>
     </div>
 
@@ -1511,7 +1540,7 @@ body {
             <div class="date-greeting" style="font-size:16px" id="results-race-name">⏱ Race Results</div>
             <div class="date-sub" id="results-race-sub"></div>
           </div>
-          <button class="refresh-btn" onclick="switchTab('races')" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Back</button>
+          <button class="refresh-btn" onclick="raceBack()" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Back</button>
         </div>
         <div id="results-form"></div>
       </div>
@@ -1525,7 +1554,7 @@ body {
             <div class="date-greeting" style="font-size:16px" id="debrief-race-name">🏆 Post-Race Debrief</div>
             <div class="date-sub" id="debrief-race-sub"></div>
           </div>
-          <button class="refresh-btn" onclick="switchTab('races')" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Back</button>
+          <button class="refresh-btn" onclick="raceBack()" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Back</button>
         </div>
         <div id="debrief-content"></div>
       </div>
@@ -1539,7 +1568,7 @@ body {
             <div class="date-greeting" style="font-size:16px" id="intel-race-name">🔍 Race Intel</div>
             <div class="date-sub" id="intel-race-sub"></div>
           </div>
-          <button class="refresh-btn" onclick="switchTab('races')" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Back</button>
+          <button class="refresh-btn" onclick="raceBack()" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Back</button>
         </div>
         <div id="intel-content"></div>
       </div>
@@ -1553,7 +1582,7 @@ body {
             <div class="date-greeting" style="font-size:16px" id="sim-race-name">🏁 Race Simulator</div>
             <div class="date-sub" id="sim-race-sub"></div>
           </div>
-          <button class="refresh-btn" onclick="switchTab('races')" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Back</button>
+          <button class="refresh-btn" onclick="raceBack()" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Back</button>
         </div>
         <div id="simulator-content"></div>
       </div>
@@ -3047,22 +3076,10 @@ function renderRaces() {
       <div class="race-item-insight ${r.insight ? '' : 'loading'}" id="insight-${r.id}">
         ${r.insight || '&#8230; Generating coaching insight'}
       </div>
-      <button class="race-checklist-btn" onclick="openRaceChecklist(${r.id})">
-        &#128203; Race Morning Checklist ${raceChecklists[r.id] ? '<span class="race-checklist-progress">' + checklistProgressText(r.id) + '</span>' : ''}
-      </button>
-      <button class="race-checklist-btn" onclick="openRaceSimulator(${r.id})">
-        &#127937; AI Race Simulator
-      </button>
-      <button class="race-checklist-btn" onclick="openRaceIntel(${r.id})">
-        &#128270; Race Intel
-      </button>
-      ${isPast ? `<button class="race-checklist-btn" onclick="openRaceResults(${r.id})">
-        &#9201; ${r.results ? 'Edit Race Results' : 'Log Race Results'}${r.results ? ' <span class="race-checklist-progress">' + (r.results.overall || 'done') + '</span>' : ''}
-      </button>` : ''}
       ${isPast && r.results ? renderRaceResultsSummary(r) : ''}
-      ${isPast ? `<button class="race-checklist-btn" style="border-color:var(--tri-border);color:var(--tri)" onclick="openRaceDebrief(${r.id})">
-        &#127942; Post-Race Debrief
-      </button>` : ''}
+      <button class="race-checklist-btn" style="border-color:var(--tri-border);color:var(--tri);font-weight:700" onclick="openRaceHub(${r.id})">
+        &#128194; Open race &rsaquo;
+      </button>
       <div id="race-weather-${r.id}"></div>
     </div>`;
   }).join('');
@@ -7686,7 +7703,7 @@ function saveRaceResults() {
   race.results = results;
   saveRaces();
   renderRaces();
-  switchTab('races');
+  raceBack();
 }
 
 function clearRaceResults() {
@@ -7696,7 +7713,7 @@ function clearRaceResults() {
   delete race.results;
   saveRaces();
   renderRaces();
-  switchTab('races');
+  raceBack();
 }
 
 function renderRaceResultsSummary(race) {
@@ -8177,6 +8194,87 @@ function renderPastFitChecks() {
       + '<div style="font-size:12px;color:var(--muted);line-height:1.6">' + (prior[0].recommendations||[]).map(r => '• ' + r.change).join('<br>') + '</div>'
       + '</div>';
   }
+}
+
+
+// ── RACE HUB (tabbed container for a single race's tools) ─────────────────
+let currentHubRaceId = null;
+let currentHubTab = null;
+
+let hubReturn = false;
+
+// Return from a race sub-page: to the hub if we entered via it, else to the races list.
+function raceBack() {
+  if (hubReturn && currentHubRaceId != null) {
+    hubReturn = false;
+    openRaceHub(currentHubRaceId);
+  } else {
+    switchTab('races');
+  }
+}
+
+
+function openRaceHub(raceId) {
+  currentHubRaceId = raceId;
+  const race = races.find(r => r.id === raceId);
+  if (!race) return;
+
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-racehub').classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
+  currentTab = 'racehub';
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isPast = race.date < todayStr || (Math.ceil((new Date(race.date) - new Date())/86400000) < 0);
+
+  document.getElementById('racehub-name').textContent = (race.type === 'triathlon' ? '🏊🚴🏃 ' : '🏃 ') + race.name;
+  const dayTxt = isPast ? 'Completed ' + new Date(race.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : daysUntil(new Date(race.date)) + ' days away';
+  document.getElementById('racehub-sub').textContent = race.subtype + ' ' + (race.type === 'triathlon' ? 'Triathlon' : 'Run') + ' · ' + dayTxt + (race.goal ? ' · Goal ' + race.goal : '');
+
+  document.getElementById('racehub-tabs').innerHTML = '';
+
+  // Tools as a clean menu, ordered by relevance to race timing
+  const tools = isPast
+    ? [
+        ['results','⏱','Race Results', race.results ? 'Logged: ' + race.results.overall : 'Log your splits'],
+        ['debrief','🏆','Post-Race Debrief', raceDebriefs[race.id] ? 'View analysis' : 'Compare vs prediction'],
+        ['simulator','🏁','Pre-Race Prediction', 'What the model forecast'],
+        ['intel','🔍','Race Intel', 'Course & conditions'],
+        ['checklist','📋','Race Checklist', checklistProgressText(race.id) || 'Prep list']
+      ]
+    : [
+        ['simulator','🏁','AI Race Simulator', 'Predict your splits'],
+        ['intel','🔍','Race Intel', 'Course, weather, logistics'],
+        ['checklist','📋','Race Morning Checklist', checklistProgressText(race.id) || 'Build your prep list']
+      ];
+
+  document.getElementById('racehub-body').innerHTML = tools.map(([id,icon,title,sub]) => `
+    <div class="wk-card" style="cursor:pointer;display:flex;align-items:center;gap:14px" onclick="switchHubTab('${id}')">
+      <div style="font-size:24px;flex-shrink:0">${icon}</div>
+      <div style="flex:1">
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--text)">${title}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">${sub}</div>
+      </div>
+      <div style="color:var(--tri);font-size:18px">&rsaquo;</div>
+    </div>`).join('') +
+    (isPast && race.results ? '<div style="margin-top:4px">' + renderRaceResultsSummary(race) + '</div>' : '');
+}
+
+function switchHubTab(tab) {
+  currentHubTab = tab;
+  const id = currentHubRaceId;
+  // Navigate directly to the real, fully-working feature page for this race.
+  // Set a return flag so that page's back button comes back to the hub.
+  hubReturn = true;
+  const openers = {
+    simulator: () => openRaceSimulator(id),
+    intel:     () => openRaceIntel(id),
+    checklist: () => openRaceChecklist(id),
+    results:   () => openRaceResults(id),
+    debrief:   () => openRaceDebrief(id)
+  };
+  if (openers[tab]) openers[tab]();
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
