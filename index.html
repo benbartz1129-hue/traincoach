@@ -5579,7 +5579,22 @@ function calcInjuryRisk() {
 
   const thisWeekTLS = weekTotals(0);
   const lastWeekTLS = weekTotals(1);
-  const jumpPct = lastWeekTLS > 0 ? ((thisWeekTLS - lastWeekTLS) / lastWeekTLS) * 100 : 0;
+
+  // Guards against false positives:
+  // - Current week is partial early on, so a raw jump vs a full prior week is misleading.
+  // - After a taper/race, the prior week is low, making any normal week look like a huge spike.
+  const now2 = new Date();
+  const dayIdx = (now2.getDay() + 6) % 7;        // 0 = Mon … 6 = Sun
+  const weekFrac = (dayIdx + 1) / 7;
+  // Project this week to a full-week equivalent so mid-week comparisons are fair.
+  // But only project once enough of the week has elapsed (from ~Thursday) — projecting
+  // Monday's single session across a whole week wildly overshoots.
+  const projThisWeek = (weekFrac >= 0.5 && weekFrac < 0.85) ? thisWeekTLS / weekFrac : thisWeekTLS;
+
+  // Only compute a jump when BOTH weeks have a meaningful base. A jump off a near-zero
+  // recovery week is a mathematical artifact, not an injury signal.
+  const bothWeeksSubstantial = lastWeekTLS >= 10 && thisWeekTLS >= 5;
+  const jumpPct = bothWeeksSubstantial ? ((projThisWeek - lastWeekTLS) / lastWeekTLS) * 100 : 0;
 
   // Consecutive days trained without a rest day (looking back from today)
   let consecutiveDays = 0;
@@ -5591,17 +5606,17 @@ function calcInjuryRisk() {
     else break;
   }
 
-  // Determine risk level
+  // Determine risk level — only from genuinely meaningful signals
   const flags = [];
-  if (jumpPct > 30 && lastWeekTLS > 5) {
-    flags.push({ level: 'high', text: `Weekly load jumped ${Math.round(jumpPct)}% vs last week — that's a significant spike.` });
-  } else if (jumpPct > 15 && lastWeekTLS > 5) {
-    flags.push({ level: 'moderate', text: `Weekly load is up ${Math.round(jumpPct)}% vs last week.` });
+  if (bothWeeksSubstantial && jumpPct > 30) {
+    flags.push({ level: 'high', text: `Weekly load is climbing fast (~${Math.round(jumpPct)}% vs last week). Ease the ramp.` });
+  } else if (bothWeeksSubstantial && jumpPct > 15) {
+    flags.push({ level: 'moderate', text: `Weekly load is up ~${Math.round(jumpPct)}% vs last week.` });
   }
   if (consecutiveDays >= 8) {
-    flags.push({ level: 'high', text: `${consecutiveDays} days in a row without rest.` });
+    flags.push({ level: 'high', text: `${consecutiveDays} days in a row without a rest day.` });
   } else if (consecutiveDays >= 6) {
-    flags.push({ level: 'moderate', text: `${consecutiveDays} days in a row without rest.` });
+    flags.push({ level: 'moderate', text: `${consecutiveDays} days in a row without a rest day.` });
   }
 
   if (!flags.length) return { level: 'ok', jumpPct, consecutiveDays, thisWeekTLS, lastWeekTLS };
