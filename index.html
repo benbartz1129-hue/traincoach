@@ -5591,10 +5591,14 @@ function calcInjuryRisk() {
   // Monday's single session across a whole week wildly overshoots.
   const projThisWeek = (weekFrac >= 0.5 && weekFrac < 0.85) ? thisWeekTLS / weekFrac : thisWeekTLS;
 
-  // Only compute a jump when BOTH weeks have a meaningful base. A jump off a near-zero
-  // recovery week is a mathematical artifact, not an injury signal.
-  const bothWeeksSubstantial = lastWeekTLS >= 10 && thisWeekTLS >= 5;
+  // A load spike is only an injury concern when this week is climbing to a genuinely
+  // HIGH absolute load. Jumping from a light/recovery week up to a moderate week is
+  // normal training resuming — a big percentage, but not a risk. So we require both a
+  // real jump AND this week's projected load to actually be high before flagging.
+  const bothWeeksSubstantial = lastWeekTLS >= 12 && thisWeekTLS >= 8;
   const jumpPct = bothWeeksSubstantial ? ((projThisWeek - lastWeekTLS) / lastWeekTLS) * 100 : 0;
+  // "High absolute load" ~ the same threshold the TLS badge calls high (>22)
+  const projectedIsHigh = projThisWeek > 22;
 
   // Consecutive days trained without a rest day (looking back from today)
   let consecutiveDays = 0;
@@ -5606,12 +5610,13 @@ function calcInjuryRisk() {
     else break;
   }
 
-  // Determine risk level — only from genuinely meaningful signals
+  // Determine risk level — only from genuinely meaningful signals.
+  // A jump only counts as risk if load is also climbing INTO a high absolute range.
   const flags = [];
-  if (bothWeeksSubstantial && jumpPct > 30) {
-    flags.push({ level: 'high', text: `Weekly load is climbing fast (~${Math.round(jumpPct)}% vs last week). Ease the ramp.` });
-  } else if (bothWeeksSubstantial && jumpPct > 15) {
-    flags.push({ level: 'moderate', text: `Weekly load is up ~${Math.round(jumpPct)}% vs last week.` });
+  if (bothWeeksSubstantial && jumpPct > 40 && projectedIsHigh) {
+    flags.push({ level: 'high', text: `Load is ramping hard into a high range (~${Math.round(jumpPct)}% up, week at ${Math.round(projThisWeek)} TLS). Ease off.` });
+  } else if (bothWeeksSubstantial && jumpPct > 25 && projectedIsHigh) {
+    flags.push({ level: 'moderate', text: `Load is up ~${Math.round(jumpPct)}% and reaching a high range. Watch the ramp.` });
   }
   if (consecutiveDays >= 8) {
     flags.push({ level: 'high', text: `${consecutiveDays} days in a row without a rest day.` });
