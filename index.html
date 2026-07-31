@@ -5580,25 +5580,13 @@ function calcInjuryRisk() {
   const thisWeekTLS = weekTotals(0);
   const lastWeekTLS = weekTotals(1);
 
-  // Guards against false positives:
-  // - Current week is partial early on, so a raw jump vs a full prior week is misleading.
-  // - After a taper/race, the prior week is low, making any normal week look like a huge spike.
-  const now2 = new Date();
-  const dayIdx = (now2.getDay() + 6) % 7;        // 0 = Mon … 6 = Sun
-  const weekFrac = (dayIdx + 1) / 7;
-  // Project this week to a full-week equivalent so mid-week comparisons are fair.
-  // But only project once enough of the week has elapsed (from ~Thursday) — projecting
-  // Monday's single session across a whole week wildly overshoots.
-  const projThisWeek = (weekFrac >= 0.5 && weekFrac < 0.85) ? thisWeekTLS / weekFrac : thisWeekTLS;
-
-  // A load spike is only an injury concern when this week is climbing to a genuinely
-  // HIGH absolute load. Jumping from a light/recovery week up to a moderate week is
-  // normal training resuming — a big percentage, but not a risk. So we require both a
-  // real jump AND this week's projected load to actually be high before flagging.
-  const bothWeeksSubstantial = lastWeekTLS >= 12 && thisWeekTLS >= 8;
-  const jumpPct = bothWeeksSubstantial ? ((projThisWeek - lastWeekTLS) / lastWeekTLS) * 100 : 0;
-  // "High absolute load" ~ the same threshold the TLS badge calls high (>22)
-  const projectedIsHigh = projThisWeek > 22;
+  // Both windows are already full rolling 7-day periods, so NO projection is needed
+  // (projecting an already-complete week is what caused the inflated "57 TLS" reading).
+  // A load spike only matters when climbing into a genuinely high absolute load — jumping
+  // from a light/recovery week up to a moderate one is normal training, not injury risk.
+  const bothWeeksSubstantial = lastWeekTLS >= 12 && thisWeekTLS >= 12;
+  const jumpPct = bothWeeksSubstantial ? ((thisWeekTLS - lastWeekTLS) / lastWeekTLS) * 100 : 0;
+  const loadIsHigh = thisWeekTLS > 25; // must actually be in a high-load range to be a concern
 
   // Consecutive days trained without a rest day (looking back from today)
   let consecutiveDays = 0;
@@ -5610,13 +5598,12 @@ function calcInjuryRisk() {
     else break;
   }
 
-  // Determine risk level — only from genuinely meaningful signals.
-  // A jump only counts as risk if load is also climbing INTO a high absolute range.
+  // Determine risk level — a jump only counts when load is ALSO genuinely high.
   const flags = [];
-  if (bothWeeksSubstantial && jumpPct > 40 && projectedIsHigh) {
-    flags.push({ level: 'high', text: `Load is ramping hard into a high range (~${Math.round(jumpPct)}% up, week at ${Math.round(projThisWeek)} TLS). Ease off.` });
-  } else if (bothWeeksSubstantial && jumpPct > 25 && projectedIsHigh) {
-    flags.push({ level: 'moderate', text: `Load is up ~${Math.round(jumpPct)}% and reaching a high range. Watch the ramp.` });
+  if (bothWeeksSubstantial && jumpPct > 40 && loadIsHigh) {
+    flags.push({ level: 'high', text: `Load ramped hard this week (~${Math.round(jumpPct)}% up to ${Math.round(thisWeekTLS)} TLS). Ease off to stay ahead of overuse.` });
+  } else if (bothWeeksSubstantial && jumpPct > 25 && loadIsHigh) {
+    flags.push({ level: 'moderate', text: `Load is up ~${Math.round(jumpPct)}% this week and reaching a high range. Watch the ramp.` });
   }
   if (consecutiveDays >= 8) {
     flags.push({ level: 'high', text: `${consecutiveDays} days in a row without a rest day.` });
