@@ -3820,8 +3820,43 @@ function initLoadPage() {
   const chronicLoad = pastWeeks.length
     ? pastWeeks.reduce((s,w) => s + w.tls, 0) / pastWeeks.length
     : currentWeek.tls;
-  const acwr = chronicLoad > 0 ? currentWeek.tls / chronicLoad : 1.0;
-  const zone = getACWRZone(acwr);
+
+  // ── ACWR reliability guards ──────────────────────────────────────────────
+  // ACWR is only meaningful when (a) the current week is essentially complete, and
+  // (b) there's a stable chronic baseline. A partial week or a post-taper/post-race
+  // low baseline produces false "danger" spikes. Detect and present honestly.
+  const now = new Date();
+  const dayOfWeek = (now.getDay() + 6) % 7; // 0 = Monday … 6 = Sunday
+  const weekFractionElapsed = (dayOfWeek + 1) / 7;
+  const partialWeek = weekFractionElapsed < 0.85; // before ~Sunday, week is incomplete
+
+  // Project the current week to a full-week equivalent for a fairer comparison mid-week
+  const projectedTls = partialWeek && weekFractionElapsed > 0.15
+    ? currentWeek.tls / weekFractionElapsed
+    : currentWeek.tls;
+
+  const rawAcwr = chronicLoad > 0 ? currentWeek.tls / chronicLoad : 0;
+  const projectedAcwr = chronicLoad > 0 ? projectedTls / chronicLoad : 0;
+
+  // A chronic baseline that's very low (e.g. after a taper or a training gap) makes ACWR
+  // mathematically explode on any normal week. Require a meaningful baseline to trust it.
+  const baselineTooLow = chronicLoad < 8; // TLS below ~8 avg means little recent training to compare against
+
+  let acwr, zone, unreliableNote = '';
+  if (baselineTooLow) {
+    // Don't cry wolf — show the ratio but frame it as low-confidence, never "danger"
+    acwr = rawAcwr;
+    zone = { label: 'Rebuilding base', color: 'var(--info)',
+      advice: 'Your recent training baseline is low (post-race or a lighter stretch), so the acute:chronic ratio is not reliable right now. Focus on rebuilding consistent volume — the risk reading will become meaningful again after a couple of steady weeks.' };
+  } else if (partialWeek) {
+    // Use projected value for the label so a half-logged week does not read as a spike
+    acwr = projectedAcwr;
+    zone = getACWRZone(projectedAcwr);
+    unreliableNote = ' (projected from ' + Math.round(weekFractionElapsed*100) + '% of week elapsed)';
+  } else {
+    acwr = rawAcwr;
+    zone = getACWRZone(rawAcwr);
+  }
 
   // Update ACWR card
   document.getElementById('acwr-value').textContent = acwr.toFixed(2);
@@ -3829,8 +3864,8 @@ function initLoadPage() {
   document.getElementById('acwr-label').textContent = zone.label;
   document.getElementById('acwr-label').style.color = zone.color;
   document.getElementById('tls-this-week').textContent = currentWeek.tls.toFixed(1);
-  document.getElementById('tls-4wk-avg').textContent = '4wk avg: ' + chronicLoad.toFixed(1);
   document.getElementById('acwr-advice').textContent = zone.advice;
+  document.getElementById('tls-4wk-avg').textContent = '4wk avg: ' + chronicLoad.toFixed(1) + unreliableNote;
 
   // Needle position
   const needlePct = ratioToBarPct(acwr);
