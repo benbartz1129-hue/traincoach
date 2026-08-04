@@ -2558,7 +2558,7 @@ function calcTriReadiness() {
   const triRace = races.find(r => r.type === 'triathlon' && daysUntil(new Date(r.date)) >= 0);
   const targets = triRace ? getTriDistanceTargets(triRace.subtype) : { swimMi: 0.93, bikeMi: 24.8, runMi: 6.2 };
   // Weekly volume targets
-  const weeklyTargets = { swim: 1.2, bike: 25, run: 15 };
+  const weeklyTargets = getWeeklyTargetsFromPlan();
 
   const now = new Date();
 
@@ -2616,6 +2616,9 @@ function getTriDistanceTargets(subtype) {
 // ── DASHBOARD RENDER ──────────────────────────────────────────────────────
 function renderDashboard(d) {
   const loadColors = { low:'var(--ok)', moderate:'var(--mar)', high:'var(--warn)', 'very high':'var(--warn)' };
+  // Always compute this week's targets fresh from the calendar plan (so they update
+  // as the plan changes, rather than being baked into cached analysis).
+  d.weeklyTargets = getWeeklyTargetsFromPlan();
   const todayLabel = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date().getDay()];
   const insightIcon = t => ({warning:'⚠',success:'✓',info:'i'})[t]||'i';
 
@@ -2651,9 +2654,9 @@ function renderDashboard(d) {
     <div class="section">
       <div class="section-label">This week</div>
       <div class="metrics-grid">
-        <div class="metric-card swim" onclick="openSportDetail('Swim')" style="cursor:pointer"><div class="metric-label">Swim <span style="font-size:9px;color:var(--tri)">↗</span></div><div class="metric-value">${(d.weekSwimMi||0).toFixed(1)}<span>mi</span></div><div class="metric-sub">target 1.2 mi/wk</div></div>
-        <div class="metric-card bike" onclick="openSportDetail('Ride')" style="cursor:pointer"><div class="metric-label">Bike <span style="font-size:9px;color:var(--tri)">↗</span></div><div class="metric-value">${(d.weekBikeMi||0).toFixed(1)}<span>mi</span></div><div class="metric-sub">target 25 mi/wk</div></div>
-        <div class="metric-card run" onclick="openSportDetail('Run')" style="cursor:pointer"><div class="metric-label">Run <span style="font-size:9px;color:var(--tri)">↗</span></div><div class="metric-value">${(d.weekRunMi||0).toFixed(1)}<span>mi</span></div><div class="metric-sub">target 15 mi/wk</div></div>
+        <div class="metric-card swim" onclick="openSportDetail('Swim')" style="cursor:pointer"><div class="metric-label">Swim <span style="font-size:9px;color:var(--tri)">↗</span></div><div class="metric-value">${(d.weekSwimMi||0).toFixed(1)}<span>mi</span></div><div class="metric-sub">target ${d.weeklyTargets.swim} mi/wk${d.weeklyTargets.fromPlan ? '' : ' •'}</div></div>
+        <div class="metric-card bike" onclick="openSportDetail('Ride')" style="cursor:pointer"><div class="metric-label">Bike <span style="font-size:9px;color:var(--tri)">↗</span></div><div class="metric-value">${(d.weekBikeMi||0).toFixed(1)}<span>mi</span></div><div class="metric-sub">target ${d.weeklyTargets.bike} mi/wk${d.weeklyTargets.fromPlan ? '' : ' •'}</div></div>
+        <div class="metric-card run" onclick="openSportDetail('Run')" style="cursor:pointer"><div class="metric-label">Run <span style="font-size:9px;color:var(--tri)">↗</span></div><div class="metric-value">${(d.weekRunMi||0).toFixed(1)}<span>mi</span></div><div class="metric-sub">target ${d.weeklyTargets.run} mi/wk${d.weeklyTargets.fromPlan ? '' : ' •'}</div></div>
         <div class="metric-card load" onclick="switchTab('load')" style="cursor:pointer">
           <div class="metric-label">TLS Score <span style="font-size:9px;color:var(--tri)">↗ details</span></div>
           ${(() => {
@@ -8536,6 +8539,63 @@ function loadFromCache() {
   updateRefreshBanner(cache.timestamp);
   if (currentTab === 'activities') renderActivities(allActivities);
   return true;
+}
+
+
+// Compute this week's per-sport distance targets from the calendar plan.
+// Plan sessions store distance as free text (e.g. "Long Run 12mi", "Zone 2 ~15mi"),
+// so we sum the mileage found in each session's title+detail, grouped by sport.
+// Falls back to sensible defaults when no plan exists for the week.
+function getWeeklyTargetsFromPlan() {
+  const fallback = { swim: 1.2, bike: 25, run: 15, fromPlan: false };
+  if (typeof trainingPlan === 'undefined' || !trainingPlan.length) return fallback;
+
+  // Current Monday-based week window
+  const now = new Date();
+  const dow = (now.getDay() + 6) % 7; // 0 = Mon
+  const monday = new Date(now); monday.setDate(now.getDate() - dow); monday.setHours(0,0,0,0);
+  const nextMonday = new Date(monday); nextMonday.setDate(monday.getDate() + 7);
+  const mondayStr = monday.toISOString().split('T')[0];
+  const nextMondayStr = nextMonday.toISOString().split('T')[0];
+
+  const weekSessions = trainingPlan.filter(p => p.date >= mondayStr && p.date < nextMondayStr);
+  if (!weekSessions.length) return fallback;
+
+  const sportKey = { run: 'run', ride: 'bike', bike: 'bike', swim: 'swim' };
+  const totals = { swim: 0, bike: 0, run: 0 };
+  let foundAny = false;
+
+  weekSessions.forEach(s => {
+    const key = sportKey[(s.sport||'').toLowerCase()];
+    if (!key) return; // skip rest/strength
+    const text = ((s.title||'') + ' ' + (s.detail||''));
+    // Find the largest mileage-looking number (handles "4x1.5mi" by taking the session total when present)
+    // Prefer an explicit total like "Total 12mi" or "12mi" over interval fragments.
+    let miles = 0;
+    // Ignore "week total" style mentions — those are weekly sums, not this session distance
+    const cleanText = text.replace(/week\s*\d*\s*total[^.]*/gi, '').replace(/total\s*for\s*(the\s*)?week[^.]*/gi, '');
+    const totalMatch = cleanText.match(/(?:session\s*)?total\s*~?(\d+(?:\.\d+)?)\s*mi/i);
+    if (totalMatch) {
+      miles = parseFloat(totalMatch[1]);
+    } else {
+      const matches = [...cleanText.matchAll(/(\d+(?:\.\d+)?)\s*mi\b/gi)].map(m => parseFloat(m[1]));
+      if (matches.length) miles = Math.max(...matches);
+    }
+    if (!miles && key === 'swim') {
+      const yd = cleanText.match(/(\d{3,4})\s*(?:yd|yard|m)\b/i);
+      if (yd) miles = parseFloat(yd[1]) / 1760;
+    }
+    if (miles > 0) { totals[key] += miles; foundAny = true; }
+  });
+
+  if (!foundAny) return fallback;
+  // Keep any sport with no planned distance at its fallback so the card is not misleadingly 0
+  return {
+    swim: totals.swim > 0 ? Math.round(totals.swim * 10) / 10 : fallback.swim,
+    bike: totals.bike > 0 ? Math.round(totals.bike) : fallback.bike,
+    run:  totals.run  > 0 ? Math.round(totals.run)  : fallback.run,
+    fromPlan: true
+  };
 }
 
 function calcLiveWeekTotals() {
