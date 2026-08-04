@@ -2081,6 +2081,7 @@ body {
           <button class="suggestion-btn" onclick="sendSuggestion(this)">Chicago marathon strategy</button>
           <button class="suggestion-btn" onclick="sendSuggestion(this)">Recovery advice</button>
           <button class="suggestion-btn" onclick="switchTab('workouts')">⏱ Build me a workout</button>
+          <button class="suggestion-btn" onclick="sendSuggestion(this)">Which shoes for my next run?</button>
           <button class="suggestion-btn" onclick="sendSuggestion(this)">Generate my training calendar to race day</button>
           <button class="suggestion-btn" onclick="sendSuggestion(this)">Update my plan for next 2 weeks</button>
         </div>
@@ -2344,6 +2345,39 @@ function renderBrickActivities() {
 }
 
 // ── AI ANALYSIS ───────────────────────────────────────────────────────────
+
+
+// Build a gear-context string for the Coach: current shoe rotation (Strava mileage)
+// plus garage bikes with their fit notes, so it can answer rotation & fitment questions.
+function buildGearContext() {
+  const parts = [];
+
+  // Shoes from Strava gear (active only), highest mileage first
+  const shoes = (stravaGear||[]).filter(g => g.type === 'shoe' && !g.retired).sort((a,b) => b.miles - a.miles);
+  if (shoes.length) {
+    parts.push('SHOE ROTATION (from Strava, approx lifetime miles): ' + shoes.map(s =>
+      s.name + ' — ' + Math.round(s.miles) + 'mi' + (s.primary ? ' (primary)' : '') + (s.miles > 300 ? ' [approaching typical 300-500mi replacement window]' : '')
+    ).join('; ') + '.');
+  } else {
+    parts.push('No active shoes found in Strava gear (rider may need to reconnect Strava with profile permission, or log gear on activities).');
+  }
+
+  // Bikes from the garage, with fit notes and mileage
+  if (garage && garage.length) {
+    parts.push('BIKES IN GARAGE: ' + garage.map(b => {
+      const m = (typeof resolveBikeMileage === 'function') ? resolveBikeMileage(b) : { miles: b.mileage||0 };
+      let s = b.name + ' (' + (b.type||'bike') + (b.year ? ', ' + b.year : '') + ', ~' + Math.round(m.miles) + 'mi)';
+      if (b.fitNotes && b.fitNotes.length) {
+        s += ' — fit notes: ' + b.fitNotes.slice(-4).map(n => n.date + ': ' + n.text).join(' | ');
+      }
+      return s;
+    }).join('; ') + '.');
+  } else {
+    parts.push('No bikes in the garage yet.');
+  }
+
+  return parts.join('\n');
+}
 
 // Deeper training analytics for the Coach — pace/effort distribution, per-sport trends,
 // and the polarized-training check (how much easy vs hard the athlete is actually doing).
@@ -2750,7 +2784,7 @@ async function sendChat() {
 Athlete profile: father of 2 young kids, full-time job, early morning training only (~5-6am).
 Goals / upcoming races: ${upcomingRaceContext()}
 Boston Marathon April 2026: 3:38:18. Strong run base. Swim volume critically low. Needs brick sessions.
-Recent activity data: ${activitySummary || 'Not yet loaded.'}\nDEEPER ANALYSIS (6-week): ${buildCoachAnalytics()}
+Recent activity data: ${activitySummary || 'Not yet loaded.'}\nDEEPER ANALYSIS (6-week): ${buildCoachAnalytics()}\nGEAR: ${buildGearContext()}
 Upcoming races: ${races.length ? races.map(r => r.name + ' (' + r.subtype + ' ' + r.type + ', ' + r.date + ', goal: ' + (r.goal||'none') + ')').join('; ') : 'none added'}
 Current calendar plan (upcoming): ${planSummary}
 ${(() => {
@@ -2775,6 +2809,7 @@ COACHING METHODOLOGY — ground every recommendation in established, well-resear
 Apply these to THIS athlete's real numbers — a masters-age working parent with limited early-morning hours, a strong run base, a critical swim gap, and two races on different timelines. Balance ambition with injury prevention: chase the goal times, but never at the cost of arriving injured or overtrained. When their data contradicts a textbook plan (missed sessions, fatigue, life), adapt realistically rather than prescribing an idealized week they cannot hit. If you are uncertain or the data is thin, say so rather than inventing specifics.
 
 Be concise, specific, and actionable. Reference their actual data when relevant. Use miles not km.
+When asked about shoes or rotation, use the GEAR data: match shoe type to workout (daily trainers for easy volume, tempo/plated shoes for quality days, rotate to spread load and extend lifespan), and flag shoes nearing the 300-500mi replacement window. When asked about bike fitment, draw on the garage fit notes and general fit principles, but recommend the in-app Bike Fit Check or a professional fitter for anything involving pain or precise adjustments.
 Saved swim drills: ${swimDrills.length ? swimDrills.map(d => d.name + ' — ' + d.description).join('; ') : 'none saved yet'}
 
 CALENDAR UPDATES: If the user asks you to generate, update, or modify their training plan or calendar, you MUST include a plan block. First give a short 2-3 sentence conversational response, then ALWAYS end with this exact format — the <<<PLAN>>> and <<<END>>> markers are required:
