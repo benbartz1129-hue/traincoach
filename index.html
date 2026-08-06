@@ -2368,7 +2368,13 @@ function buildGearContext() {
       const m = (typeof resolveBikeMileage === 'function') ? resolveBikeMileage(b) : { miles: b.mileage||0 };
       let s = b.name + ' (' + (b.type||'bike') + (b.year ? ', ' + b.year : '') + ', ~' + Math.round(m.miles) + 'mi)';
       if (b.fitNotes && b.fitNotes.length) {
-        s += ' — fit notes: ' + b.fitNotes.slice(-4).map(n => n.date + ': ' + n.text).join(' | ');
+        // Full fit history in chronological order so the Coach can track what has been tried
+        s += ' — FIT HISTORY (oldest to newest): ' + b.fitNotes.slice(-10).map(n => n.date + ': ' + n.text).join(' | ');
+      } else {
+        s += ' — no fit notes recorded yet';
+      }
+      if (b.buildLog && b.buildLog.length) {
+        s += '. Build/parts: ' + b.buildLog.slice(-4).map(n => n.text).join(', ');
       }
       return s;
     }).join('; ') + '.');
@@ -2825,7 +2831,13 @@ SWIM DRILLS: If the user explicitly asks you to remember, save, or log a swim dr
 <<<DRILL>>>
 [{"name":"Catch-up drill","description":"One arm extended forward at all times while the other completes a full stroke cycle. 4x25m, focus on long reach."}]
 <<<END>>>
-Rules: name is a short drill title. description includes what it is, how to do it, and any distance/rep guidance the user gave. Only create a drill block when the user explicitly asks you to remember/save/log a drill — never do this automatically just because swimming or drills are mentioned in conversation. You can reference saved drills naturally in any future conversation when relevant.`;
+Rules: name is a short drill title. description includes what it is, how to do it, and any distance/rep guidance the user gave. Only create a drill block when the user explicitly asks you to remember/save/log a drill — never do this automatically just because swimming or drills are mentioned in conversation. You can reference saved drills naturally in any future conversation when relevant.
+
+BIKE FIT NOTES: You can see each bike's FIT HISTORY in the GEAR section above — use it to answer fitment questions with continuity (e.g. reference that they raised the saddle 5mm last month). When you make a specific fit adjustment recommendation AND the user agrees to try it, or the user tells you about a change they made or a fit issue they are feeling, log it so the history stays current. First respond conversationally, then end with this exact format — the <<<FITNOTE>>> and <<<END>>> markers are required:
+<<<FITNOTE>>>
+{"bike":"exact bike name as shown in GEAR","note":"terse dated-style entry e.g. Lowered saddle 5mm to reduce hip rock"}
+<<<END>>>
+Rules: bike must match a garage bike name exactly. note is under 90 characters, factual, describes the adjustment or issue. Only log when there is a concrete change or issue worth remembering — not for general fit chat. You may reference logged fit notes in any future conversation.`;
 
     const rawReply = await callClaude({
       model: 'claude-sonnet-4-6', max_tokens: 8000,
@@ -2912,6 +2924,34 @@ Rules: name is a short drill title. description includes what it is, how to do i
         }
       } catch(e) {
         console.warn('Drill parse error:', e.message, '\nJSON preview:', drillMatch[1].slice(0,300));
+      }
+    }
+
+    // Check if reply contains a bike fit note to log (JSON wrapped in <<<FITNOTE>>>...<<<END>>>)
+    const fitMatch = reply.match(/<<<FITNOTE>>>([\s\S]*?)<<<END>>>/);
+    if (fitMatch) {
+      try {
+        const fitJsonStr = fitMatch[1].trim()
+          .replace(/[‘’ʼ]/g, '')
+          .replace(/[“”]/g, '"')
+          .replace(/[–—]/g, '-')
+          .replace(/\n/g, ' ');
+        const fitObj = JSON.parse(fitJsonStr);
+        const bike = garage.find(b => b.name.toLowerCase() === (fitObj.bike||'').toLowerCase())
+                  || garage.find(b => b.name.toLowerCase().includes((fitObj.bike||'').toLowerCase()) || (fitObj.bike||'').toLowerCase().includes(b.name.toLowerCase()));
+        reply = reply.replace(/<<<FITNOTE>>>[\s\S]*?<<<END>>>/, '').trim();
+        if (bike && fitObj.note) {
+          if (!bike.fitNotes) bike.fitNotes = [];
+          const today = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+          bike.fitNotes.push({ id: Date.now() + Math.random(), date: today, text: fitObj.note });
+          saveGarage();
+          reply += '\n\n📐 Logged to ' + bike.name + ' fit notes — I\'ll remember it.';
+        } else if (!bike) {
+          reply += '\n\n⚠ I couldn\'t match that to a bike in your Garage, so I didn\'t save the note.';
+        }
+      } catch(e) {
+        console.warn('Fit note parse error:', e.message);
+        reply = reply.replace(/<<<FITNOTE>>>[\s\S]*?<<<END>>>/, '').trim();
       }
     }
 
