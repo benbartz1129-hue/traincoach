@@ -2153,6 +2153,14 @@ const STRAVA_CLIENT_ID = '256087';
 const REDIRECT_URI     = 'https://brbtraining.pages.dev/';
 // ─────────────────────────────────────────────────────────────────────────
 
+// Strava logs indoor trainer rides as 'VirtualRide' (and e-bikes, virtual runs separately).
+// Normalize so every downstream filter that looks for 'Ride' / 'Run' includes them.
+function normalizeActivityType(t) {
+  if (t === 'VirtualRide' || t === 'EBikeRide' || t === 'Velomobile') return 'Ride';
+  if (t === 'VirtualRun') return 'Run';
+  return t;
+}
+
 const TRI_DATE = new Date('2026-07-26');
 
 // ════════════════════════════════════════════════════════════════════════
@@ -4817,7 +4825,7 @@ async function importFullHistory() {
       });
       const archiveData = await archiveResp.json();
       if (archiveData.activities) {
-        allActivities = archiveData.activities.sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+        allActivities = archiveData.activities.map(a => ({ ...a, type: normalizeActivityType(a.type) })).sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
         activitySummary = buildSummary(allActivities);
         renderActivities(allActivities);
       }
@@ -8583,13 +8591,15 @@ const CACHE_KEY_SUMMARY   = 'brb_last_summary';
 const CACHE_KEY_TIMESTAMP = 'brb_last_updated';
 
 // Keep only the fields the app actually uses — full Strava objects are 10x bigger
+// Strava logs indoor trainer rides as 'VirtualRide'. Normalize handled at top of file.
 function slimForCache(a) {
   return {
-    id: a.id, name: a.name, type: a.type, distance: a.distance,
+    id: a.id, name: a.name, type: normalizeActivityType(a.type), distance: a.distance,
     moving_time: a.moving_time, total_elevation_gain: a.total_elevation_gain,
     start_date_local: a.start_date_local, calories: a.calories || null,
     kudos_count: a.kudos_count || 0, average_speed: a.average_speed || null,
-    gear_id: a.gear_id || null
+    gear_id: a.gear_id || null,
+    trainer: a.trainer || (a.type === 'VirtualRide') || false
   };
 }
 
@@ -8696,7 +8706,7 @@ async function refreshData() {
       }
     } catch(e) { console.warn('Archive merge failed, using latest 100 only:', e); }
 
-    allActivities = merged.sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+    allActivities = merged.map(a => ({ ...a, type: normalizeActivityType(a.type) })).sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
     activitySummary = buildSummary(allActivities);
 
     // CRITICAL: persist training data IMMEDIATELY — before the AI call.
@@ -8749,7 +8759,7 @@ async function refreshData() {
 function loadFromCache() {
   const cache = loadCache();
   if (!cache) return false;
-  allActivities  = cache.acts;
+  allActivities  = (cache.acts || []).map(a => ({ ...a, type: normalizeActivityType(a.type) }));
   activitySummary = cache.summary;
   // Always recalculate This Week totals live from current activities
   // so they're never stale even when loading from cache
