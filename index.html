@@ -1232,13 +1232,27 @@ body {
           </div>
           <div id="plan-compliance-card"></div>
           <div id="adapt-plan-result"></div>
-          <button class="add-race-btn" style="margin-bottom:10px" id="adapt-plan-btn" onclick="adaptPlan()">
+          <button class="add-race-btn" style="margin-bottom:10px" onclick="switchTab('planbuilder')">
+            &#128197; Build season plan to race day
+          </button>
+          <button class="add-race-btn" style="margin-bottom:10px;background:var(--surface2);color:var(--text)" id="adapt-plan-btn" onclick="adaptPlan()">
             &#128260; Adapt plan to my actual training
           </button>
-          <button class="add-race-btn" style="margin-bottom:20px;background:var(--surface2);color:var(--muted)" onclick="switchTab('coach');setTimeout(()=>{ document.getElementById('chat-input').value='Generate a full training plan on the calendar leading up to my next race based on my Strava data'; document.getElementById('chat-input').focus(); },200)">
-            &#128197; Generate new plan in Coach
-          </button>
         </div>
+      </div>
+    </div>
+
+    <!-- PLAN BUILDER -->
+    <div class="page" id="page-planbuilder">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:16px">
+          <div>
+            <div class="date-greeting" style="font-size:16px">📅 Season Plan</div>
+            <div class="date-sub" id="planbuilder-sub">Your arc to race day</div>
+          </div>
+          <button class="refresh-btn" onclick="switchTab('calendar')" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Calendar</button>
+        </div>
+        <div id="planbuilder-content"></div>
       </div>
     </div>
 
@@ -2278,6 +2292,7 @@ function switchTab(tab) {
   if (tab === 'fitcheck') initFitCheck();
   if (tab === 'usage') renderUsagePage();
   if (tab === 'debug') renderDebugPage();
+  if (tab === 'planbuilder') initPlanBuilder();
   if (tab === 'workouts') initWorkoutsPage();
 }
 
@@ -8602,8 +8617,240 @@ function renderDebugPage() {
   el.innerHTML =
     section('📦 Data', dataRows) +
     section('📅 This week (computed)', weekRows) +
+    section('🚨 Injury risk internals', injuryRows) +
     section('🏁 Races', raceRows) +
     section('💾 Storage', cacheRows);
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// RULES-BASED PLAN SKELETON — generates a periodized week-by-week arc to race
+// day instantly (no AI, no truncation). The AI then fills daily detail per week.
+// ══════════════════════════════════════════════════════════════════════════
+
+// Build the high-level weekly structure from now to the target race.
+// Returns [{ weekStart, weekNum, weeksToRace, phase, targetMi, longRunMi, focus, isCutback, isTaper }]
+function buildPlanSkeleton(race, opts) {
+  opts = opts || {};
+  const now = new Date(); now.setHours(0,0,0,0);
+  const dow = (now.getDay() + 6) % 7;
+  const firstMonday = new Date(now); firstMonday.setDate(now.getDate() - dow); // this week's Monday
+  const raceDate = new Date(race.date + 'T12:00:00');
+
+  // Number of full weeks until race
+  const msWeek = 7 * 86400000;
+  const totalWeeks = Math.max(1, Math.ceil((raceDate - firstMonday) / msWeek));
+  if (totalWeeks > 30) return null; // too far out to skeleton meaningfully
+
+  // Starting weekly volume: infer from recent 3-week average run mileage, floored sensibly
+  const cutoff = new Date(now); cutoff.setDate(now.getDate() - 21);
+  const recentRun = allActivities.filter(a => a.type === 'Run' && new Date(a.start_date_local) >= cutoff && a.distance > 0);
+  const recentWeeklyMi = recentRun.reduce((s,a) => s + mToMi(a.distance), 0) / 3;
+  const isMarathon = (race.subtype||'').toLowerCase().includes('marathon') || (race.type === 'run');
+  const raceGoalMi = isMarathon ? (race.subtype||'').toLowerCase().includes('half') ? 13.1 : 26.2 : 6.2;
+
+  // Peak weekly volume target — scale from current fitness, capped reasonably
+  const startMi = Math.max(15, Math.round(recentWeeklyMi || 20));
+  const peakMi = opts.peakMi || Math.min(55, Math.max(startMi + 12, Math.round(startMi * 1.6)));
+
+  // Taper length by race distance
+  const taperWeeks = isMarathon && raceGoalMi >= 26 ? 3 : isMarathon ? 2 : 1;
+
+  const weeks = [];
+  for (let i = 0; i < totalWeeks; i++) {
+    const weekStart = new Date(firstMonday); weekStart.setDate(firstMonday.getDate() + i*7);
+    const weeksToRace = totalWeeks - i;
+    const isTaper = weeksToRace <= taperWeeks;
+    // Cutback every 4th week (but never during taper, and not the very first week)
+    const isCutback = !isTaper && i > 0 && (i % 4 === 3);
+
+    // Phase
+    let phase;
+    const buildFraction = i / Math.max(1, totalWeeks - taperWeeks);
+    if (isTaper) phase = 'Taper';
+    else if (buildFraction < 0.35) phase = 'Base';
+    else if (buildFraction < 0.75) phase = 'Build';
+    else phase = 'Peak';
+
+    // Progressive volume: ramp from start to peak across the build, then taper down
+    let targetMi;
+    if (isTaper) {
+      // Ease down: e.g. 3 taper weeks -> ~75%, 55%, 40% of peak
+      const taperIdx = taperWeeks - weeksToRace; // 0-based within taper
+      const taperPct = [0.75, 0.55, 0.40][Math.min(taperIdx, 2)] || 0.4;
+      targetMi = Math.round(peakMi * taperPct);
+    } else {
+      const rampWeeks = totalWeeks - taperWeeks;
+      const progress = rampWeeks > 1 ? i / (rampWeeks - 1) : 1;
+      targetMi = Math.round(startMi + (peakMi - startMi) * Math.min(1, progress));
+      if (isCutback) targetMi = Math.round(targetMi * 0.75); // recovery week
+    }
+
+    // Long run: ~30-40% of weekly volume, building toward ~20-22mi for a marathon
+    let longRunMi;
+    if (isMarathon && raceGoalMi >= 26) {
+      const peakLong = 20;
+      const longProgress = Math.min(1, (i) / Math.max(1, totalWeeks - taperWeeks - 1));
+      longRunMi = isTaper ? Math.max(8, Math.round(peakLong * 0.5)) : Math.min(peakLong, Math.round(10 + (peakLong - 10) * longProgress));
+      if (isCutback) longRunMi = Math.round(longRunMi * 0.7);
+    } else {
+      longRunMi = Math.round(targetMi * 0.35);
+    }
+
+    const focusByPhase = {
+      Base: 'Aerobic base, easy volume, strides',
+      Build: 'Add tempo + threshold work, longer long runs',
+      Peak: 'Race-pace specificity, peak long runs',
+      Taper: 'Reduce volume, keep intensity sharp, arrive fresh'
+    };
+
+    weeks.push({
+      weekStart: weekStart.toISOString().split('T')[0],
+      weekNum: i + 1,
+      weeksToRace,
+      phase,
+      targetMi,
+      longRunMi,
+      focus: focusByPhase[phase],
+      isCutback,
+      isTaper
+    });
+  }
+  return { weeks, race, totalWeeks, startMi, peakMi, taperWeeks };
+}
+
+
+// ── PLAN BUILDER UI — shows the skeleton arc, fills detail per week via AI ────
+let currentSkeleton = null;
+
+function initPlanBuilder() {
+  const el = document.getElementById('planbuilder-content');
+  const subEl = document.getElementById('planbuilder-sub');
+  if (!el) return;
+
+  // Next upcoming race is the plan target
+  const todayStr = new Date().toISOString().split('T')[0];
+  const race = races.filter(r => r.date >= todayStr).sort((a,b) => new Date(a.date) - new Date(b.date))[0];
+  if (!race) {
+    el.innerHTML = '<div class="card" style="padding:2rem;text-align:center;color:var(--muted);font-size:13px">Add an upcoming race first — the season plan builds backward from your race date.<br><br><button class="add-race-btn" style="margin-top:12px" onclick="switchTab(\'races\')">Add a race</button></div>';
+    if (subEl) subEl.textContent = 'No upcoming race';
+    return;
+  }
+
+  currentSkeleton = buildPlanSkeleton(race);
+  if (!currentSkeleton) {
+    el.innerHTML = '<div class="card" style="padding:2rem;text-align:center;color:var(--muted);font-size:13px">Your race is more than 30 weeks out — check back closer to build a focused plan.</div>';
+    return;
+  }
+
+  if (subEl) subEl.textContent = currentSkeleton.totalWeeks + ' weeks to ' + race.name;
+  renderPlanBuilder();
+}
+
+function renderPlanBuilder() {
+  const el = document.getElementById('planbuilder-content');
+  if (!el || !currentSkeleton) return;
+  const { weeks, race, startMi, peakMi } = currentSkeleton;
+
+  const phaseColors = { Base:'var(--tri)', Build:'var(--mar)', Peak:'var(--warn)', Taper:'#8b94ff' };
+
+  // Which weeks already have detailed sessions in the plan?
+  function weekHasDetail(weekStart) {
+    const ws = weekStart, we = new Date(new Date(weekStart+'T12:00:00').getTime() + 7*86400000).toISOString().split('T')[0];
+    return trainingPlan.some(p => p.date >= ws && p.date < we);
+  }
+
+  const header = `
+    <div class="card" style="padding:14px 16px;margin-bottom:14px">
+      <div style="font-size:12px;color:var(--muted);line-height:1.7">
+        <strong style="color:var(--text)">${race.name}</strong> · ${new Date(race.date+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}${race.goal ? ' · goal ' + race.goal : ''}<br>
+        Volume ramps ${startMi}→${peakMi} mi/wk with cutback weeks every 4th, then taper. Tap any week to fill in daily workouts.
+      </div>
+    </div>`;
+
+  const weekCards = weeks.map(w => {
+    const hasDetail = weekHasDetail(w.weekStart);
+    const isThisWeek = (() => {
+      const now = new Date(); const dow = (now.getDay()+6)%7;
+      const mon = new Date(now); mon.setDate(now.getDate()-dow);
+      return mon.toISOString().split('T')[0] === w.weekStart;
+    })();
+    const dateLabel = new Date(w.weekStart+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'});
+
+    return `<div class="wk-card" style="${isThisWeek ? 'border-left:3px solid var(--tri);' : ''}padding:14px 16px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px">
+        <div>
+          <div style="font-family:var(--font-display);font-size:14px;font-weight:700">
+            Week ${w.weekNum} <span style="font-size:11px;color:var(--muted);font-weight:400">· ${dateLabel}</span>
+            ${isThisWeek ? '<span style="font-size:9px;color:var(--tri);border:1px solid var(--tri-border);border-radius:5px;padding:1px 5px;margin-left:4px">THIS WEEK</span>' : ''}
+          </div>
+          <div style="font-size:11px;margin-top:3px">
+            <span style="color:${phaseColors[w.phase]};font-weight:600">${w.phase}</span>
+            <span style="color:var(--muted)"> · ${w.focus}</span>
+          </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-family:var(--font-mono);font-size:15px;font-weight:700;color:var(--text)">${w.targetMi}<span style="font-size:10px;color:var(--muted)">mi</span></div>
+          <div style="font-size:9px;color:var(--dim)">long ${w.longRunMi}mi${w.isCutback ? ' · cutback' : ''}</div>
+        </div>
+      </div>
+      ${hasDetail
+        ? `<div style="display:flex;gap:8px;align-items:center;font-size:11px;color:var(--ok)">✓ Detailed <button class="garage-add-btn" style="margin-left:auto;padding:6px 10px;font-size:11px" onclick="fillPlanWeek('${w.weekStart}', true)">↻ Regenerate</button></div>`
+        : `<button class="garage-add-btn" style="width:100%;padding:9px;font-size:12px" onclick="fillPlanWeek('${w.weekStart}', false)">✨ Fill in this week's workouts</button>`
+      }
+    </div>`;
+  }).join('');
+
+  el.innerHTML = header + weekCards;
+}
+
+async function fillPlanWeek(weekStart, isRegen) {
+  const week = currentSkeleton.weeks.find(w => w.weekStart === weekStart);
+  if (!week) return;
+  const race = currentSkeleton.race;
+
+  // Find the card's button to show loading
+  const btns = [...document.querySelectorAll('#planbuilder-content button')];
+  const btn = btns.find(b => (b.getAttribute('onclick')||'').includes(weekStart));
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Building week…'; }
+
+  try {
+    const paces = (typeof deriveTrainingPaces === 'function') ? deriveTrainingPaces() : null;
+    const paceCtx = paces ? 'Derived paces: easy ' + fmtPaceSec(paces.easy) + '/mi, marathon ' + fmtPaceSec(paces.marathon) + '/mi, threshold ' + fmtPaceSec(paces.threshold) + '/mi, interval ' + fmtPaceSec(paces.interval) + '/mi.' : 'No pace data.';
+    const weekEndDate = new Date(new Date(weekStart+'T12:00:00').getTime() + 6*86400000).toISOString().split('T')[0];
+
+    const reply = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 2000,
+      system: `You are a running coach filling in ONE week of a periodized marathon plan. You are given the week's structure (phase, target mileage, long run) from a validated skeleton — honor those targets. Distribute sessions across 7 days for an early-morning-only athlete (father, works full-time). Include easy runs, one quality session appropriate to the phase (tempo/threshold in Build, race-pace in Peak, strides in Base), the long run on Saturday or Sunday, and rest/recovery days. Use the athlete's real paces.
+Return ONLY valid JSON — an array of 5-7 session objects, plain ASCII, no apostrophes, no markdown:
+[{"date":"YYYY-MM-DD","sport":"run|rest|strength","title":"short e.g. Easy 6mi","detail":"terse: pace/effort + purpose, under 90 chars"}]
+Every date must fall between ${weekStart} and ${weekEndDate}. Keep total run mileage close to ${week.targetMi}mi with the long run around ${week.longRunMi}mi.`,
+      messages: [{ role:'user', content: `Fill week ${week.weekNum} (${week.phase} phase, ${week.focus}). Target ${week.targetMi}mi, long run ${week.longRunMi}mi. Dates ${weekStart} to ${weekEndDate}. ${paceCtx} Race: ${race.name} in ${week.weeksToRace} weeks, goal ${race.goal||'none'}.` }]
+    }, 'Plan week fill');
+
+    let cleaned = reply.replace(/\u0060\u0060\u0060json|\u0060\u0060\u0060/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
+    const fb = cleaned.indexOf('['), lb = cleaned.lastIndexOf(']');
+    if (fb > -1 && lb > fb) cleaned = cleaned.slice(fb, lb + 1);
+    const sessions = JSON.parse(cleaned);
+
+    // Remove any existing plan entries in this week (for regen), then add new
+    const ws = weekStart, we = new Date(new Date(weekStart+'T12:00:00').getTime() + 7*86400000).toISOString().split('T')[0];
+    trainingPlan = trainingPlan.filter(p => !(p.date >= ws && p.date < we));
+    sessions.forEach(s => {
+      if (s.date >= ws && s.date < we) {
+        trainingPlan.push({ id: Date.now() + Math.random(), date: s.date, sport: (s.sport||'run').toLowerCase(), title: s.title||'', detail: s.detail||'' });
+      }
+    });
+    trainingPlan.sort((a,b) => a.date.localeCompare(b.date));
+    savePlan();
+    renderPlanBuilder();
+    if (typeof renderCalendar === 'function') renderCalendar();
+    if (typeof renderSevenDayStrip === 'function') renderSevenDayStrip();
+  } catch(e) {
+    console.error('Week fill error:', e);
+    if (btn) { btn.disabled = false; btn.textContent = '✨ Retry'; }
+    alert('Could not build that week: ' + (e.message||'unknown').slice(0,100));
+  }
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
