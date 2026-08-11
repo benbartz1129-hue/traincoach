@@ -5787,13 +5787,18 @@ function calcInjuryRisk() {
   const now = new Date();
   const today = new Date(now); today.setHours(0,0,0,0);
 
-  // This week (Mon-based) and last week totals — all sports combined, TLS-weighted
+  // Monday-based calendar weeks — MUST match the dashboard TLS and Load page so the
+  // injury card never disagrees with the TLS Score shown right above it.
+  // weeksAgo=0 is the current Mon–Sun week (partial), 1 is last full week, etc.
+  const dow = (now.getDay() + 6) % 7; // 0 = Monday
+  const thisMonday = new Date(today); thisMonday.setDate(today.getDate() - dow);
+
   function weekTotals(weeksAgo) {
-    const weekEnd = new Date(today); weekEnd.setDate(today.getDate() - (weeksAgo * 7));
-    const weekStart = new Date(weekEnd); weekStart.setDate(weekEnd.getDate() - 7);
+    const weekStart = new Date(thisMonday); weekStart.setDate(thisMonday.getDate() - (weeksAgo * 7));
+    const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 7);
     const acts = allActivities.filter(a => {
       const d = new Date(a.start_date_local);
-      return d > weekStart && d <= weekEnd && a.distance > 0;
+      return d >= weekStart && d < weekEnd && a.distance > 0;
     });
     const swimMi = acts.filter(a=>a.type==='Swim').reduce((s,a)=>s+mToMi(a.distance),0);
     const runMi  = acts.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
@@ -5804,10 +5809,10 @@ function calcInjuryRisk() {
   const thisWeekTLS = weekTotals(0);
   const lastWeekTLS = weekTotals(1);
 
-  // Both windows are already full rolling 7-day periods, so NO projection is needed
-  // (projecting an already-complete week is what caused the inflated "57 TLS" reading).
-  // A load spike only matters when climbing into a genuinely high absolute load — jumping
-  // from a light/recovery week up to a moderate one is normal training, not injury risk.
+  // This week is PARTIAL (Mon–today), last week is COMPLETE. Comparing a partial week
+  // against a full one understates the ratio early in the week and overstates it never —
+  // but to flag a spike we compare like-for-like: use last week (complete) as the base and
+  // only flag when this week's ALREADY-LOGGED load has both jumped AND reached a high range.
   const bothWeeksSubstantial = lastWeekTLS >= 12 && thisWeekTLS >= 12;
   const jumpPct = bothWeeksSubstantial ? ((thisWeekTLS - lastWeekTLS) / lastWeekTLS) * 100 : 0;
   const loadIsHigh = thisWeekTLS > 25; // must actually be in a high-load range to be a concern
@@ -8558,9 +8563,26 @@ function renderDebugPage() {
     row('Bike mi (this wk)', (liveWeek.weekBikeMi||0).toFixed(2)),
     row('Run mi (this wk)', (liveWeek.weekRunMi||0).toFixed(2)),
     row('Training hours (this wk)', (liveWeek.weekHours||0).toFixed(2)),
-    row('TLS (computed)', tls != null ? tls.toFixed(1) : 'n/a'),
+    row('TLS (dashboard)', tls != null ? tls.toFixed(1) : 'n/a'),
     row('Targets (swim/bike/run)', targets ? (targets.swim + ' / ' + targets.bike + ' / ' + targets.run + (targets.fromPlan ? ' [plan]' : ' [default]')) : 'n/a')
   ];
+
+  // Injury risk internals — surfaced so its TLS can be cross-checked against the dashboard TLS
+  let injuryRows = [];
+  try {
+    const ir = calcInjuryRisk();
+    if (ir) {
+      injuryRows = [
+        row('Injury level', ir.level || 'none', ir.level === 'high'),
+        row('This week TLS (injury calc)', ir.thisWeekTLS != null ? ir.thisWeekTLS.toFixed(1) : 'n/a', tls != null && ir.thisWeekTLS != null && Math.abs(ir.thisWeekTLS - tls) > 1),
+        row('Last week TLS (injury calc)', ir.lastWeekTLS != null ? ir.lastWeekTLS.toFixed(1) : 'n/a'),
+        row('Jump %', ir.jumpPct != null ? Math.round(ir.jumpPct) + '%' : 'n/a'),
+        row('Consecutive days', ir.consecutiveDays != null ? ir.consecutiveDays : 'n/a')
+      ];
+    } else {
+      injuryRows = [row('Injury risk', 'no data')];
+    }
+  } catch(e) { injuryRows = [row('Injury risk', 'error: ' + e.message)]; }
 
   const raceRows = upcoming.length
     ? upcoming.map(r => row(r.name, r.date + ' · ' + daysUntil(new Date(r.date)) + 'd · goal ' + (r.goal||'none')))
