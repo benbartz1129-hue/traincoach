@@ -1129,6 +1129,7 @@ body {
       <div onclick="switchTab('usage')" style="margin-top:8px;color:var(--muted);cursor:pointer;text-decoration:underline;font-size:11px">📊 AI usage &amp; costs</div>
       <div id="import-history-btn" onclick="importFullHistory()" style="margin-top:6px;color:var(--tri);cursor:pointer;text-decoration:underline;font-size:11px">Import full Strava history</div>
       <div onclick="reconnectStrava()" style="margin-top:6px;color:var(--muted);cursor:pointer;text-decoration:underline;font-size:11px">Reconnect Strava (update permissions)</div>
+      <div onclick="switchTab('debug')" style="margin-top:6px;color:var(--dim);cursor:pointer;text-decoration:underline;font-size:11px">🔧 Debug / health</div>
     </div>
   </div>
 
@@ -1369,6 +1370,20 @@ body {
             <button class="add-race-btn" onclick="addRace()">+ Add Race</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- DEBUG / HEALTH -->
+    <div class="page" id="page-debug">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:16px">
+          <div>
+            <div class="date-greeting" style="font-size:16px">🔧 Debug / Health</div>
+            <div class="date-sub">Raw values for diagnosing issues</div>
+          </div>
+        </div>
+        <div id="debug-content"></div>
+        <button class="add-race-btn" style="margin-top:16px;background:var(--surface2);color:var(--text)" onclick="renderDebugPage()">↻ Refresh values</button>
       </div>
     </div>
 
@@ -2139,6 +2154,58 @@ const REDIRECT_URI     = 'https://brbtraining.pages.dev/';
 // ─────────────────────────────────────────────────────────────────────────
 
 const TRI_DATE = new Date('2026-07-26');
+
+// ════════════════════════════════════════════════════════════════════════
+// CANONICAL TIME PARSING — one source of truth. Do NOT write new parsers.
+//
+// The core ambiguity this module resolves: a two-part time like "2:30" means
+//   • 2 minutes 30 seconds  when it is a SPLIT / RESULT / DURATION
+//   • 2 HOURS 30 minutes    when it is a race GOAL
+// Pick the function that matches the meaning of the value, not its shape.
+// ════════════════════════════════════════════════════════════════════════
+
+// Duration/split/result: "MM:SS" or "H:MM:SS" or bare seconds. Returns seconds or null.
+function timeToSeconds(t) {
+  if (t == null) return null;
+  if (typeof t === 'number') return isFinite(t) ? t : null;
+  if (typeof t !== 'string') return null;
+  const parts = t.trim().split(':').map(Number);
+  if (!parts.length || parts.some(n => isNaN(n))) return null;
+  if (parts.length === 3) return parts[0]*3600 + parts[1]*60 + parts[2];
+  if (parts.length === 2) return parts[0]*60 + parts[1];            // MM:SS
+  return parts[0];                                                   // bare seconds
+}
+
+// Race GOAL: "H:MM" or "H:MM:SS" or bare hours. Returns seconds or null.
+// "2:30" -> 2h30m. Use ONLY for goal times, never for splits.
+function goalToSeconds(t) {
+  if (t == null || typeof t !== 'string') return null;
+  const parts = t.trim().split(':').map(Number);
+  if (!parts.length || parts.some(n => isNaN(n))) return null;
+  if (parts.length === 3) return parts[0]*3600 + parts[1]*60 + parts[2];  // H:MM:SS
+  if (parts.length === 2) return parts[0]*3600 + parts[1]*60;             // H:MM
+  return parts[0] ? parts[0]*3600 : null;                                // bare hours
+}
+
+// Format seconds -> compact "M:SS" or "H:MM:SS" (no leading hour when < 1h).
+function secondsToTime(s) {
+  if (s == null || !isFinite(s)) return '—';
+  const neg = s < 0; s = Math.abs(Math.round(s));
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+  const body = h > 0
+    ? h + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0')
+    : m + ':' + String(sec).padStart(2,'0');
+  return (neg ? '-' : '') + body;
+}
+
+// Always-full "H:MM:SS" (used where hours should always show).
+function secondsToHMS(s) {
+  if (s == null || !isFinite(s)) return '—';
+  const neg = s < 0; s = Math.abs(Math.round(s));
+  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
+  return (neg?'-':'') + h + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+}
+
 const MAR_DATE = new Date('2026-10-11');
 
 // Build an accurate race-context string from the user's actual race list, counting
@@ -2202,6 +2269,7 @@ function switchTab(tab) {
   if (tab === 'shoefinder') initShoeFinder();
   if (tab === 'fitcheck') initFitCheck();
   if (tab === 'usage') renderUsagePage();
+  if (tab === 'debug') renderDebugPage();
   if (tab === 'workouts') initWorkoutsPage();
 }
 
@@ -3703,29 +3771,10 @@ function buildPRs() {
 
 
 // ── TRIATHLON PRs + RACE HISTORY (from logged race results) ──────────────
-function parseResultToSec(t) {
-  if (!t || typeof t !== 'string') return null;
-  const p = t.trim().split(':').map(Number);
-  if (p.some(isNaN)) return null;
-  if (p.length === 3) return p[0]*3600 + p[1]*60 + p[2];
-  if (p.length === 2) return p[0]*60 + p[1];
-  return null;
-}
-
-// Goal times use a different convention: "2:30" means 2 HOURS 30 MIN, not 2min30s.
-function parseGoalTimeToSec(t) {
-  if (!t || typeof t !== 'string') return null;
-  const p = t.trim().split(':').map(Number);
-  if (p.some(isNaN)) return null;
-  if (p.length === 3) return p[0]*3600 + p[1]*60 + p[2];  // H:MM:SS
-  if (p.length === 2) return p[0]*3600 + p[1]*60;          // H:MM
-  return p[0] ? p[0]*3600 : null;                          // bare = hours
-}
-function fmtResultSec(s) {
-  if (s == null) return '—';
-  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
-  return (h>0 ? h+':'+String(m).padStart(2,'0') : m) + ':' + String(sec).padStart(2,'0');
-}
+// These now delegate to the canonical time module (see top of file).
+function parseResultToSec(t) { return timeToSeconds(t); }
+function parseGoalTimeToSec(t) { return goalToSeconds(t); }
+function fmtResultSec(s) { return secondsToTime(s); }
 
 function renderTriPRs() {
   const el = document.getElementById('tri-pr-section');
@@ -6521,19 +6570,9 @@ function renderSimulation(sim) {
   const icons = { 'Swim':'🏊', 'T1':'⚡', 'Bike':'🚴', 'T2':'⚡', 'Run':'🏃' };
 
   // Compute the finish by summing the actual splits — never trust the AI's own total,
-  // which can drift from the parts it generated.
-  function parseTimeToSec(t) {
-    if (!t || typeof t !== 'string') return 0;
-    const parts = t.trim().split(':').map(Number);
-    if (parts.some(isNaN)) return 0;
-    if (parts.length === 3) return parts[0]*3600 + parts[1]*60 + parts[2];
-    if (parts.length === 2) return parts[0]*60 + parts[1];
-    return parts[0] || 0;
-  }
-  function fmtSec(s) {
-    const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
-    return (h > 0 ? h + ':' + String(m).padStart(2,'0') : m) + ':' + String(sec).padStart(2,'0');
-  }
+  // which can drift from the parts it generated. (Delegates to canonical time module.)
+  const parseTimeToSec = t => timeToSeconds(t) || 0;
+  const fmtSec = s => secondsToTime(s);
   const computedSec = sim.splits.reduce((sum, s) => sum + parseTimeToSec(s.time), 0);
   const computedFinish = fmtSec(computedSec);
   // Flag if the AI's stated finish differed meaningfully from the true sum
@@ -6559,16 +6598,8 @@ function renderSimulation(sim) {
       </div>
       ${(() => {
         // Recompute goal delta from the TRUE finish so the verdict can't contradict the number.
-        // Race goals like "2:30" mean 2 HOURS 30 MIN (H:MM), not 2min30s — parse accordingly.
         const race = races.find(r => r.id === currentSimRaceId);
-        function parseGoalToSec(t) {
-          if (!t || typeof t !== 'string') return 0;
-          const parts = t.trim().split(':').map(Number);
-          if (parts.some(isNaN)) return 0;
-          if (parts.length === 3) return parts[0]*3600 + parts[1]*60 + parts[2]; // H:MM:SS
-          if (parts.length === 2) return parts[0]*3600 + parts[1]*60;            // H:MM (goal convention)
-          return (parts[0]||0)*3600;                                            // bare number = hours
-        }
+        const parseGoalToSec = t => goalToSeconds(t) || 0;
         if (race && race.goal) {
           const goalSec = parseGoalToSec(race.goal);
           if (goalSec > 0) {
@@ -6925,10 +6956,7 @@ async function generateDebrief(raceId) {
       return;
     }
 
-    function fmtHMS(sec) {
-      const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = Math.round(sec%60);
-      return (h > 0 ? h + ':' + String(m).padStart(2,'0') : m) + ':' + String(s).padStart(2,'0');
-    }
+    const fmtHMS = sec => secondsToTime(sec);
 
     const actualCtx = raceDayActs.map(a =>
       a.type + ': ' + mToMi(a.distance).toFixed(2) + 'mi in ' + fmtHMS(a.moving_time) + ' (' + a.name + ')'
@@ -6945,12 +6973,8 @@ async function generateDebrief(raceId) {
     // Pre-race simulation if one exists
     const sim = raceSimulations[raceId];
     const simCtx = sim
-      ? 'PRE-RACE SIMULATION PREDICTED:\n' + sim.splits.map(s => s.segment + ': ' + s.time + ' (' + s.detail + ')').join('\n') + '\nPredicted finish: ' + (() => {
-          const toSec = t => { const p = (t||'').split(':').map(Number); if (p.some(isNaN)) return 0; return p.length===3 ? p[0]*3600+p[1]*60+p[2] : p.length===2 ? p[0]*60+p[1] : p[0]||0; };
-          const tot = sim.splits.reduce((s,x) => s + toSec(x.time), 0);
-          const h = Math.floor(tot/3600), m = Math.floor((tot%3600)/60), sec = tot%60;
-          return (h>0 ? h+':'+String(m).padStart(2,'0') : m) + ':' + String(sec).padStart(2,'0');
-        })()
+      ? 'PRE-RACE SIMULATION PREDICTED:\n' + sim.splits.map(s => s.segment + ': ' + s.time + ' (' + s.detail + ')').join('\n') + '\nPredicted finish: ' +
+          secondsToTime(sim.splits.reduce((s,x) => s + (timeToSeconds(x.time)||0), 0))
       : 'No pre-race simulation was generated.';
 
     // Next upcoming race for forward-looking advice
@@ -6959,20 +6983,9 @@ async function generateDebrief(raceId) {
     const nextCtx = nextRace ? 'Next race: ' + nextRace.name + ' (' + nextRace.subtype + ' ' + nextRace.type + ') in ' + daysUntil(new Date(nextRace.date)) + ' days, goal ' + (nextRace.goal || 'none') + '.' : 'No next race scheduled.';
 
     // ── Compute goal + simulation comparison IN CODE (never let the AI do this math) ──
-    function toSecFlexible(t, goalStyle) {
-      if (!t || typeof t !== 'string') return null;
-      const p = t.trim().split(':').map(Number);
-      if (p.some(isNaN)) return null;
-      if (p.length === 3) return p[0]*3600 + p[1]*60 + p[2];
-      if (p.length === 2) return goalStyle ? p[0]*3600 + p[1]*60 : p[0]*60 + p[1];
-      return goalStyle ? p[0]*3600 : p[0];
-    }
-    function fmtSecFull(s) {
-      if (s == null) return null;
-      const neg = s < 0; s = Math.abs(s);
-      const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;
-      return (neg?'-':'') + (h>0 ? h+':'+String(m).padStart(2,'0') : m) + ':' + String(sec).padStart(2,'0');
-    }
+    // goalStyle=true -> goal convention (H:MM); false -> split/result convention (MM:SS)
+    const toSecFlexible = (t, goalStyle) => goalStyle ? goalToSeconds(t) : timeToSeconds(t);
+    const fmtSecFull = s => (s == null ? null : secondsToTime(s));
     // Actual finish: prefer logged overall, else sum of logged tri splits, else Strava
     const actualFinishSec = race.results && race.results.overall ? toSecFlexible(race.results.overall, false) : null;
     const goalSec = race.goal ? toSecFlexible(race.goal, true) : null;
@@ -8484,6 +8497,83 @@ function switchHubTab(tab) {
     debrief:   () => openRaceDebrief(id)
   };
   if (openers[tab]) openers[tab]();
+}
+
+
+// ── DEBUG / HEALTH VIEW — raw values for fast diagnosis ───────────────────
+function renderDebugPage() {
+  const el = document.getElementById('debug-content');
+  if (!el) return;
+
+  const now = new Date();
+  const dow = (now.getDay() + 6) % 7;
+  const monday = new Date(now); monday.setDate(now.getDate() - dow); monday.setHours(0,0,0,0);
+  const mondayStr = monday.toISOString().split('T')[0];
+
+  function row(label, value, warn) {
+    const color = warn ? 'var(--warn)' : 'var(--text)';
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--border)">'
+      + '<span style="font-size:11px;color:var(--muted)">' + label + '</span>'
+      + '<span style="font-size:11px;font-family:var(--font-mono);color:' + color + ';text-align:right;word-break:break-word;max-width:60%">' + value + '</span></div>';
+  }
+  function section(title, rows) {
+    return '<div class="card" style="padding:14px 16px;margin-bottom:14px"><div class="section-label" style="margin-bottom:8px">' + title + '</div>' + rows.join('') + '</div>';
+  }
+
+  // Data freshness
+  let lastSync = '—';
+  try { const c = JSON.parse(localStorage.getItem('brb_last_activities')||'null'); if (c && c.cachedAt) lastSync = new Date(c.cachedAt).toLocaleString(); } catch(e) {}
+
+  // This week's computed values (the ones that have disagreed before)
+  let liveWeek = {};
+  try { liveWeek = calcLiveWeekTotals(); } catch(e) { liveWeek = { error: e.message }; }
+  const tls = (typeof calcTLS === 'function') ? calcTLS(liveWeek.weekSwimMi||0, liveWeek.weekRunMi||0, liveWeek.weekBikeMi||0) : null;
+  const targets = (typeof getWeeklyTargetsFromPlan === 'function') ? getWeeklyTargetsFromPlan() : null;
+
+  // Races
+  const todayStr = now.toISOString().split('T')[0];
+  const upcoming = races.filter(r => r.date >= todayStr);
+  const past = races.filter(r => r.date < todayStr);
+
+  const dataRows = [
+    row('Today', todayStr),
+    row('Week starts (Mon)', mondayStr),
+    row('Last Strava sync', lastSync),
+    row('Total activities cached', allActivities.length, allActivities.length === 0),
+    row('Races (upcoming / past)', upcoming.length + ' / ' + past.length),
+    row('Garage bikes', (garage||[]).length),
+    row('Strava gear items', (stravaGear||[]).length, (stravaGear||[]).length === 0)
+  ];
+
+  const weekRows = [
+    row('Swim mi (this wk)', (liveWeek.weekSwimMi||0).toFixed(2)),
+    row('Bike mi (this wk)', (liveWeek.weekBikeMi||0).toFixed(2)),
+    row('Run mi (this wk)', (liveWeek.weekRunMi||0).toFixed(2)),
+    row('Training hours (this wk)', (liveWeek.weekHours||0).toFixed(2)),
+    row('TLS (computed)', tls != null ? tls.toFixed(1) : 'n/a'),
+    row('Targets (swim/bike/run)', targets ? (targets.swim + ' / ' + targets.bike + ' / ' + targets.run + (targets.fromPlan ? ' [plan]' : ' [default]')) : 'n/a')
+  ];
+
+  const raceRows = upcoming.length
+    ? upcoming.map(r => row(r.name, r.date + ' · ' + daysUntil(new Date(r.date)) + 'd · goal ' + (r.goal||'none')))
+    : [row('Upcoming races', 'none')];
+  raceRows.push(row('Races fingerprint', (typeof racesFingerprint === 'function') ? (racesFingerprint()||'(empty)') : 'n/a'));
+
+  // Cache sizes
+  let cacheRows = [];
+  try {
+    let totalBytes = 0;
+    const keys = Object.keys(localStorage).filter(k => k.startsWith('brb_'));
+    keys.forEach(k => { totalBytes += (localStorage.getItem(k)||'').length; });
+    cacheRows.push(row('localStorage keys', keys.length));
+    cacheRows.push(row('Approx cache size', (totalBytes/1024).toFixed(1) + ' KB', totalBytes > 4000000));
+  } catch(e) { cacheRows.push(row('Cache', 'error reading')); }
+
+  el.innerHTML =
+    section('📦 Data', dataRows) +
+    section('📅 This week (computed)', weekRows) +
+    section('🏁 Races', raceRows) +
+    section('💾 Storage', cacheRows);
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
