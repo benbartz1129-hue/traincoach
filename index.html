@@ -2769,13 +2769,42 @@ function renderDashboard(d) {
         <div class="metric-card load" onclick="switchTab('load')" style="cursor:pointer">
           <div class="metric-label">TLS Score <span style="font-size:9px;color:var(--tri)">↗ details</span></div>
           ${(() => {
-            // Derive the label and color from the ACTUAL computed TLS — never from the
-            // cached AI analysis, which goes stale and can show "high" on a 0.0 week.
+            // Derive from the ACTUAL computed TLS — never from cached AI analysis.
             const tls = calcTLS(d.weekSwimMi||0, d.weekRunMi||0, d.weekBikeMi||0);
-            const label = tls > 35 ? 'very high' : tls > 22 ? 'high' : tls > 10 ? 'moderate' : 'low';
-            const color = loadColors[label];
+            // The thresholds (>35/>22/>10) describe a COMPLETE week. Mid-week, labeling a
+            // partial total "high" is misleading, so we judge PACE: compare accumulated load
+            // against how far through the week we are, and pro-rate the thresholds.
+            const now = new Date();
+            const dow = (now.getDay() + 6) % 7;            // 0 = Monday
+            const frac = (dow + 1) / 7;                     // fraction of week elapsed
+            const complete = frac >= 0.85;                  // ~Sunday onward = treat as full week
+            let label, color, sub;
+            if (complete) {
+              label = tls > 35 ? 'very high' : tls > 22 ? 'high' : tls > 10 ? 'moderate' : 'low';
+              color = loadColors[label];
+              sub = label;
+            } else {
+              // Judge pace against the athlete's OWN recent average week (chronic load),
+              // so this agrees with the Load page ACWR instead of a fixed baseline.
+              // Fall back to a moderate 22 if we can't compute a personal average.
+              let chronic = 22;
+              try {
+                const ft = (typeof buildFitnessTrend === 'function') ? buildFitnessTrend() : null;
+                if (ft && ft.weeks && ft.weeks.length) {
+                  const todayStr = now.toISOString().split('T')[0];
+                  const past = ft.weeks.filter(w => w.weekStart < todayStr).slice(-4);
+                  if (past.length) chronic = past.reduce((s,w) => s + w.tls, 0) / past.length;
+                }
+              } catch(e) {}
+              const expectedByNow = chronic * frac;
+              const paceRatio = expectedByNow > 0 ? tls / expectedByNow : 0;
+              if (paceRatio > 1.5)      { label = 'ahead of pace'; color = 'var(--warn)'; }
+              else if (paceRatio > 0.6) { label = 'on pace';       color = 'var(--ok)'; }
+              else                      { label = 'building';      color = 'var(--muted)'; }
+              sub = label + ' · ' + Math.round(frac*100) + '% of wk';
+            }
             return `<div class="load-badge" style="color:${color};font-size:18px;font-weight:500" id="tls-score-badge">${tls.toFixed(1)}</div>
-          <div class="metric-sub" style="color:${color}">${label}</div>`;
+          <div class="metric-sub" style="color:${color};font-size:10px">${sub}</div>`;
           })()}
         </div>
       </div>
