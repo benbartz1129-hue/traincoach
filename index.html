@@ -3963,10 +3963,21 @@ function buildWeeklyTLS() {
     else if (a.type === 'Ride') weekMap[wk].bike += mi;
   });
 
-  // Sort weeks
-  return Object.values(weekMap)
-    .map(w => ({ ...w, tls: calcTLS(w.swim, w.run, w.bike) }))
-    .sort((a,b) => a.weekStart.localeCompare(b.weekStart));
+  // Continuous timeline: include weeks with zero training so they correctly count
+  // toward chronic-load averages (a rest week SHOULD lower the average, not vanish).
+  // Span from the earliest activity week through this week.
+  const allKeys = Object.keys(weekMap);
+  if (!allKeys.length) return [];
+  const thisWeekStart = getWeekStart(new Date());
+  const earliest = new Date(allKeys.sort()[0] + 'T12:00:00');
+  const earliestMon = getWeekStart(earliest);
+  const out = [];
+  for (let d = new Date(earliestMon); d <= thisWeekStart; d.setDate(d.getDate() + 7)) {
+    const key = d.toISOString().split('T')[0];
+    const w = weekMap[key] || { swim: 0, run: 0, bike: 0, weekStart: key };
+    out.push({ ...w, tls: calcTLS(w.swim, w.run, w.bike) });
+  }
+  return out;
 }
 
 function getACWRZone(ratio) {
@@ -5178,9 +5189,19 @@ function renderSportWeeklyChart() {
     const vol = isSwim ? (a.distance * 1.09361) : mToMi(a.distance); // meters->yards or ->miles
     weekMap[wk] = (weekMap[wk] || 0) + vol;
   });
-  const weeks = Object.keys(weekMap).sort().slice(-12);
 
-  if (weeks.length < 2) {
+  // Build a CONTINUOUS run of the last 12 week-start keys so weeks with no activity
+  // show as 0 rather than being skipped (which would compress the timeline).
+  const thisWeekStart = getWeekStart(new Date());
+  const weeks = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(thisWeekStart); d.setDate(thisWeekStart.getDate() - i*7);
+    weeks.push(d.toISOString().split('T')[0]);
+  }
+
+  // Need at least some activity in the window to bother showing the chart
+  const anyData = weeks.some(w => (weekMap[w] || 0) > 0);
+  if (!anyData) {
     canvas.style.display = 'none';
     if (emptyEl) emptyEl.style.display = 'block';
     if (captionEl) captionEl.style.display = 'none';
@@ -5194,7 +5215,7 @@ function renderSportWeeklyChart() {
     const d = new Date(w + 'T12:00:00');
     return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
   });
-  const values = weeks.map(w => Math.round(weekMap[w] * 10) / 10);
+  const values = weeks.map(w => Math.round((weekMap[w] || 0) * 10) / 10);
 
   const sportColor = { Run: '109,186,109', Ride: '240,160,80', Swim: '79,196,168' }[sportType] || '79,196,168';
 
@@ -7580,7 +7601,15 @@ function buildWeeklyHours() {
     if (!weekMap[wk]) weekMap[wk] = { weekStart: wk, hours: 0 };
     weekMap[wk].hours += a.moving_time / 3600;
   });
-  return Object.values(weekMap).sort((a,b) => a.weekStart.localeCompare(b.weekStart)).slice(-12);
+  // Continuous last-12-weeks timeline so weeks with no training show as 0, not skipped.
+  const thisWeekStart = getWeekStart(new Date());
+  const out = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(thisWeekStart); d.setDate(thisWeekStart.getDate() - i*7);
+    const key = d.toISOString().split('T')[0];
+    out.push(weekMap[key] || { weekStart: key, hours: 0 });
+  }
+  return out;
 }
 
 function renderWeeklyHours() {
