@@ -9290,7 +9290,13 @@ async function init() {
     // thing that hits Strava/AI, so opens are instant and cost nothing.
     const loaded = loadFromCache();
     if (!loaded) {
-      await refreshData(); // first run only — nothing cached yet
+      // Fresh browser / new device: no local cache yet. Before asking for a Strava
+      // sync, try to pull the activity archive straight from KV (server-side, shared
+      // across devices) so history shows immediately without re-authing here.
+      const archiveLoaded = await loadArchiveFromKV();
+      if (!archiveLoaded) {
+        await refreshData(); // truly first run — nothing anywhere yet
+      }
     }
     // Sync races, plan, weight and activity archive from KV in background
     kvSyncAll().then(() => {
@@ -9299,6 +9305,36 @@ async function init() {
       updateRefreshBanner(localStorage.getItem(CACHE_KEY_TIMESTAMP));
     });
     // (Archive now loads from localStorage cache — KV archive is only pulled during manual Sync)
+  }
+}
+
+// Pull the full activity archive from KV and render — used to populate a fresh
+// browser/device instantly, without requiring a Strava re-auth on that device.
+async function loadArchiveFromKV() {
+  try {
+    const resp = await fetch('/kv', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'getActivities' })
+    });
+    const data = await resp.json();
+    if (!data || !data.activities || !data.activities.length) return false;
+
+    allActivities = data.activities
+      .map(a => ({ ...a, type: normalizeActivityType(a.type) }))
+      .sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+
+    // Build a fresh analysis object and cache it locally so subsequent opens are instant
+    const analysis = { ...calcLiveWeekTotals() };
+    try { activitySummary = buildSummary(allActivities); } catch(e) { activitySummary = ''; }
+    renderDashboard(analysis);
+    // Persist to local cache so we don't re-fetch the archive every open on this device
+    try { saveCache(analysis, allActivities, activitySummary); } catch(e) { console.warn('cache after KV load failed', e); }
+    if (currentTab === 'activities') renderActivities(allActivities);
+    console.log('Loaded ' + allActivities.length + ' activities from KV archive (fresh device)');
+    return true;
+  } catch(e) {
+    console.warn('KV archive auto-load failed:', e);
+    return false;
   }
 }
 
