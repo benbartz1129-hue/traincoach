@@ -121,6 +121,9 @@ body {
 .drawer-section-label:first-child { padding-top: 8px; margin-top: 0; }
 
 #app-screen { display: none; flex-direction: column; height: 100vh; overflow: hidden; position: relative; }
+/* On mobile, the main column is a transparent pass-through (flex column filling height).
+   The desktop media query re-purposes it as the content area beside the sidebar. */
+.app-main-col { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .app-header {
   position: sticky; top: 0; z-index: 100;
   background: rgba(10,10,15,0.9);
@@ -147,8 +150,87 @@ body {
 .refresh-btn.spinning { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   DESKTOP / WIDE-SCREEN ADAPTATION
+   Only activates at >=768px. Mobile layout below this width is fully unchanged.
+   Phone-first: this block purely enhances the experience on laptops/desktops.
+   ══════════════════════════════════════════════════════════════════════════ */
+@media (min-width: 768px) {
+  /* Turn the vertical phone stack into a sidebar + content layout */
+  #app-screen {
+    flex-direction: row;
+    max-width: 1200px;
+    margin: 0 auto;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+
+  /* Bottom nav becomes a fixed left sidebar */
+  .bottom-nav {
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    width: 200px;
+    flex-shrink: 0;
+    border-top: none;
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    gap: 4px;
+    order: -1; /* place it before the content column */
+  }
+  .bottom-nav-item {
+    flex: 0 0 auto;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 14px;
+    padding: 12px 22px;
+    border-radius: 0;
+  }
+  .bottom-nav-item.active {
+    background: var(--tri-dim);
+    border-right: 2px solid var(--tri);
+  }
+  .bottom-nav-icon { font-size: 18px; }
+  .bottom-nav-label { font-size: 12px; text-transform: none; letter-spacing: 0; }
+
+  /* Right-hand content column becomes the scroll container */
+  .app-main-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* Pages no longer need bottom padding for a bottom bar */
+  .page { padding-bottom: 40px; }
+
+  /* Wider, more comfortable content column on desktop */
+  .page-inner { max-width: 680px; padding: 28px 32px 0; }
+
+  /* The header spans just the content column, not the sidebar */
+  .app-header { padding-left: 32px; padding-right: 32px; }
+
+  /* Two-across where it reads well: metric cards get a touch more breathing room */
+  .metric-value { font-size: 34px; }
+
+  /* Hover affordances only make sense with a mouse */
+  .metric-card:hover, .wk-card:hover, .card[onclick]:hover { border-color: var(--border2); }
+  .bottom-nav-item:hover { color: var(--text); }
+
+  /* Drawer: on desktop the hamburger drawer still works, but widen it slightly */
+  .drawer { max-width: 340px; }
+}
+
+/* Very wide screens: cap content so lines don't get uncomfortably long */
+@media (min-width: 1100px) {
+  .page-inner { max-width: 760px; }
+}
+
 /* ── PAGES ── */
 .pages { flex: 1; overflow: hidden; position: relative; }
+
 .page {
   position: absolute; inset: 0;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
@@ -1073,7 +1155,7 @@ body {
   <div class="login-grid"></div>
   <div class="login-logo">BRB Training</div>
   <h1 class="login-headline">Track.<br><span>Train.</span><br>Triumph.</h1>
-  <p class="login-sub">Daily AI coaching toward your Olympic Tri on July 26 and Chicago Marathon on October 11.</p>
+  <p class="login-sub">Your AI triathlon &amp; marathon coach — daily guidance, smart training load, and race-day plans built from your Strava data.</p>
   <button class="strava-btn" onclick="connectStrava()">
     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169"/></svg>
     Connect with Strava
@@ -1133,6 +1215,7 @@ body {
     </div>
   </div>
 
+  <div class="app-main-col">
   <div class="app-header">
     <div style="display:flex;align-items:center;gap:12px">
       <button class="hamburger-btn" onclick="openDrawer()" aria-label="Menu">
@@ -2132,6 +2215,7 @@ body {
         </div>
       </div>
     </div>
+  </div>
   </div>
 
   <!-- BOTTOM NAV -->
