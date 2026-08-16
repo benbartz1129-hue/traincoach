@@ -6075,12 +6075,6 @@ function renderWeeklySummaryCard() {
           </div>
           <button onclick="generateWeeklySummary(true)" style="background:none;border:none;color:var(--tri);font-size:11px;font-family:var(--font-display);font-weight:600;cursor:pointer;padding:0">↻ Refresh</button>
         </div>
-        <div class="metrics-grid" style="margin-bottom:12px">
-          <div class="metric-card swim"><div class="metric-label">Swim</div><div class="metric-value" style="font-size:16px">${wk.swimMi.toFixed(1)}<span>mi</span></div></div>
-          <div class="metric-card bike"><div class="metric-label">Bike</div><div class="metric-value" style="font-size:16px">${wk.bikeMi.toFixed(1)}<span>mi</span></div></div>
-          <div class="metric-card run"><div class="metric-label">Run</div><div class="metric-value" style="font-size:16px">${wk.runMi.toFixed(1)}<span>mi</span></div></div>
-          <div class="metric-card load"><div class="metric-label">TLS</div><div class="metric-value" style="font-size:16px">${wk.tls.toFixed(1)}</div></div>
-        </div>
         <div style="font-size:11px;color:var(--muted);margin-bottom:10px">${wk.count} activities across ${wk.activeDays} active days this week</div>
         <div id="weekly-summary-ai-content">
           ${alreadyGenerated
