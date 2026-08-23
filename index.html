@@ -22,6 +22,12 @@
   --text: #f0eff8;
   --muted: #7a7990;
   --dim: #5a5972;
+  /* Training heatmap intensity scale (teal ramp) */
+  --hm0: #1a1a24;
+  --hm1: #1e4d43;
+  --hm2: #2a7d6a;
+  --hm3: #3aab8f;
+  --hm4: #4fc4a8;
   --tri: #4fc4a8;
   --tri-dim: rgba(79,196,168,0.15);
   --tri-border: rgba(79,196,168,0.3);
@@ -149,6 +155,8 @@ body {
 .refresh-btn:active { background: var(--surface2); color: var(--text); }
 .refresh-btn.spinning { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes prFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes prPop { 0% { transform: scale(0.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 
 /* ══════════════════════════════════════════════════════════════════════════
    DESKTOP / WIDE-SCREEN ADAPTATION
@@ -218,6 +226,8 @@ body {
   /* Hover affordances only make sense with a mouse */
   .metric-card:hover, .wk-card:hover, .card[onclick]:hover { border-color: var(--border2); }
   .bottom-nav-item:hover { color: var(--text); }
+  /* Desktop: no swipe, so reveal the delete zone on hover of an activity row */
+  .act-swipe-wrap:hover .act-swipe-slider { transform: translateX(-88px); }
 
   /* Drawer: on desktop the hamburger drawer still works, but widen it slightly */
   .drawer { max-width: 340px; }
@@ -1070,6 +1080,14 @@ body {
 .filter-btn { font-size: 11px; font-family: var(--font-display); font-weight: 600; letter-spacing: 0.05em; padding: 6px 14px; border-radius: 99px; border: 1px solid var(--border2); background: none; color: var(--muted); cursor: pointer; white-space: nowrap; transition: all 0.15s; flex-shrink: 0; }
 .filter-btn.active { background: var(--tri-dim); color: var(--tri); border-color: var(--tri-border); }
 .act-list { display: flex; flex-direction: column; gap: 10px; }
+/* ── TRAINING HEATMAP ── */
+.hm-cell { width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0; }
+.hm-grid { display: flex; gap: 3px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; scrollbar-width: none; }
+.hm-grid::-webkit-scrollbar { display: none; }
+.hm-col { display: flex; flex-direction: column; gap: 3px; }
+.hm-month-row { display: flex; gap: 3px; margin-bottom: 4px; font-size: 9px; color: var(--dim); }
+.hm-cell-day { width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0; cursor: pointer; transition: transform 0.1s; }
+.hm-cell-day:active { transform: scale(1.3); }
 /* Swipe-to-delete: wrap holds a red delete zone behind the sliding card */
 .act-swipe-wrap { position: relative; overflow: hidden; border-radius: 14px; }
 .act-swipe-delete {
@@ -2032,6 +2050,24 @@ body {
               <button class="add-race-btn" style="font-size:12px;padding:9px 16px" onclick="generateDailyInsight(false)">✨ Generate daily insight</button>
             </div>
           </div>
+        </div>
+
+        <!-- TRAINING HEATMAP -->
+        <div class="section-label">Training consistency</div>
+        <div class="card" style="padding:16px;margin-bottom:20px">
+          <div id="heatmap-container"></div>
+          <div id="heatmap-legend" style="display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-top:10px;font-size:10px;color:var(--muted)">
+            <span>Less</span>
+            <div style="display:flex;gap:3px">
+              <div class="hm-cell" style="background:var(--hm0)"></div>
+              <div class="hm-cell" style="background:var(--hm1)"></div>
+              <div class="hm-cell" style="background:var(--hm2)"></div>
+              <div class="hm-cell" style="background:var(--hm3)"></div>
+              <div class="hm-cell" style="background:var(--hm4)"></div>
+            </div>
+            <span>More</span>
+          </div>
+          <div id="heatmap-stats" style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.6"></div>
         </div>
 
         <!-- WEIGHT CHART -->
@@ -4534,6 +4570,7 @@ function renderStatsChart() {
 }
 
 function renderStatsPage() {
+  try { renderTrainingHeatmap(); } catch(e) { console.warn('heatmap error', e); }
   const today = new Date().toISOString().split('T')[0];
 
   // Pre-fill morning log inputs with today's existing values if already logged
@@ -8104,10 +8141,82 @@ function saveRaceResults() {
     results.t2 = get('t2');
     results.run = get('run');
   }
+  // Detect a PR: is this finish faster than every prior logged result of the same
+  // race type + distance (subtype)? Check BEFORE saving so we compare against history.
+  const newSec = (race.type === 'triathlon') ? timeToSeconds(overall) : timeToSeconds(overall);
+  let isPR = false;
+  if (newSec != null) {
+    const priorSame = races.filter(r =>
+      r.id !== race.id && r.results && r.results.overall &&
+      r.type === race.type && r.subtype === race.subtype
+    ).map(r => timeToSeconds(r.results.overall)).filter(s => s != null);
+    // PR if faster than all priors; first-ever result is its own milestone
+    const isFirst = priorSame.length === 0;
+    isPR = isFirst ? true : newSec < Math.min(...priorSame);
+    race._prIsFirst = isFirst; // pass context to the celebration
+  }
+
   race.results = results;
   saveRaces();
   renderRaces();
-  raceBack();
+
+  if (isPR) {
+    celebratePR(race, overall, race._prIsFirst);
+  } else {
+    raceBack();
+  }
+}
+
+// Confetti + badge celebration for a new PR
+function celebratePR(race, timeStr, isFirst) {
+  const label = isFirst ? 'First ' + (race.subtype || '') + ' Result' : 'New Personal Record';
+  const overlay = document.createElement('div');
+  overlay.id = 'pr-celebration';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:3000;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(10,10,15,0.92);backdrop-filter:blur(6px);animation:prFadeIn 0.3s ease';
+  overlay.onclick = () => { overlay.remove(); raceBack(); };
+  overlay.innerHTML =
+    '<canvas id="pr-confetti" style="position:absolute;inset:0;pointer-events:none"></canvas>' +
+    '<div style="position:relative;text-align:center;padding:2rem;animation:prPop 0.5s cubic-bezier(0.2,0.9,0.3,1.3)">' +
+      '<div style="font-size:64px;line-height:1;margin-bottom:12px">🏆</div>' +
+      '<div style="font-family:var(--font-display);font-size:13px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--tri);margin-bottom:6px">' + label + '</div>' +
+      '<div style="font-family:var(--font-display);font-size:40px;font-weight:800;color:var(--text);letter-spacing:-0.02em">' + timeStr + '</div>' +
+      '<div style="font-size:13px;color:var(--muted);margin-top:8px">' + race.name + '</div>' +
+      '<div style="font-size:11px;color:var(--dim);margin-top:20px">tap to continue</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  runConfetti();
+}
+
+function runConfetti() {
+  const canvas = document.getElementById('pr-confetti');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  const colors = ['#4fc4a8','#f0a050','#6dba6d','#8b94ff','#ffffff'];
+  const pieces = [];
+  for (let i = 0; i < 120; i++) {
+    pieces.push({
+      x: Math.random() * canvas.width,
+      y: -20 - Math.random() * canvas.height * 0.5,
+      w: 6 + Math.random() * 6, h: 8 + Math.random() * 8,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      vy: 2 + Math.random() * 4, vx: -1.5 + Math.random() * 3,
+      rot: Math.random() * Math.PI, vr: -0.2 + Math.random() * 0.4
+    });
+  }
+  let frame = 0;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.vy += 0.03;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.fillStyle = p.color; ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+      ctx.restore();
+    });
+    frame++;
+    if (frame < 200 && document.getElementById('pr-confetti')) requestAnimationFrame(draw);
+  }
+  draw();
 }
 
 function clearRaceResults() {
@@ -9068,6 +9177,108 @@ async function confirmDeleteActivity(id, event) {
   } catch(e) {
     console.warn('KV delete failed (removed locally only):', e);
   }
+}
+
+
+// ── TRAINING HEATMAP (GitHub-style consistency grid) ─────────────────────
+function renderTrainingHeatmap() {
+  const container = document.getElementById('heatmap-container');
+  const statsEl = document.getElementById('heatmap-stats');
+  if (!container) return;
+
+  const WEEKS = 26; // ~6 months, fits mobile nicely
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dow = (today.getDay() + 6) % 7; // 0 = Monday
+  // Start on the Monday WEEKS-1 weeks ago
+  const start = new Date(today);
+  start.setDate(today.getDate() - dow - (WEEKS - 1) * 7);
+
+  // Sum daily TLS-weighted load (so a hard day shows darker than an easy one)
+  const dayLoad = {};
+  allActivities.forEach(a => {
+    if (!a.distance) return;
+    const d = a.start_date_local.split('T')[0];
+    const mi = mToMi(a.distance);
+    const w = a.type === 'Swim' ? 4 : a.type === 'Run' ? 1 : a.type === 'Ride' ? 0.25 : 0.5;
+    dayLoad[d] = (dayLoad[d] || 0) + mi * w;
+  });
+
+  // Determine intensity buckets from non-zero days
+  const loads = Object.values(dayLoad).filter(v => v > 0).sort((a,b) => a - b);
+  const q = (p) => loads.length ? loads[Math.floor(loads.length * p)] : 0;
+  const t1 = q(0.25), t2 = q(0.5), t3 = q(0.75);
+  function levelFor(v) {
+    if (!v || v <= 0) return 0;
+    if (v <= t1) return 1;
+    if (v <= t2) return 2;
+    if (v <= t3) return 3;
+    return 4;
+  }
+  const hmColors = ['var(--hm0)','var(--hm1)','var(--hm2)','var(--hm3)','var(--hm4)'];
+
+  // Build columns (weeks) each with 7 day cells (Mon-Sun)
+  let cols = '';
+  let monthLabels = '';
+  let lastMonth = -1;
+  for (let w = 0; w < WEEKS; w++) {
+    let cells = '';
+    const colDate = new Date(start); colDate.setDate(start.getDate() + w * 7);
+    // Month label when a new month starts in this column
+    const m = colDate.getMonth();
+    if (m !== lastMonth) {
+      monthLabels += '<div style="width:11px;flex-shrink:0">' + colDate.toLocaleDateString('en-US',{month:'short'}).slice(0,1) + '</div>';
+      lastMonth = m;
+    } else {
+      monthLabels += '<div style="width:11px;flex-shrink:0"></div>';
+    }
+    for (let d = 0; d < 7; d++) {
+      const cellDate = new Date(start); cellDate.setDate(start.getDate() + w * 7 + d);
+      if (cellDate > today) { cells += '<div class="hm-cell-day" style="background:transparent"></div>'; continue; }
+      const key = cellDate.toISOString().split('T')[0];
+      const lvl = levelFor(dayLoad[key]);
+      const label = cellDate.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + (dayLoad[key] ? ' · trained' : ' · rest');
+      cells += '<div class="hm-cell-day" style="background:' + hmColors[lvl] + '" title="' + label + '" onclick="alert(\'' + label + '\')"></div>';
+    }
+    cols += '<div class="hm-col">' + cells + '</div>';
+  }
+
+  container.innerHTML =
+    '<div class="hm-month-row">' + monthLabels + '</div>' +
+    '<div class="hm-grid">' + cols + '</div>';
+
+  // Consistency stats: current streak, longest streak, active days, total in window
+  const activeDaysInWindow = Object.keys(dayLoad).filter(k => {
+    const d = new Date(k + 'T12:00:00');
+    return d >= start && d <= today && dayLoad[k] > 0;
+  }).length;
+
+  // Current streak (consecutive days back from today with any activity)
+  let curStreak = 0;
+  for (let i = 0; i < 400; i++) {
+    const d = new Date(today); d.setDate(today.getDate() - i);
+    const key = d.toISOString().split('T')[0];
+    if (dayLoad[key] > 0) curStreak++;
+    else if (i === 0) continue; // today not done yet is OK, keep checking yesterday
+    else break;
+  }
+  // Longest streak across all data
+  const allDays = Object.keys(dayLoad).filter(k => dayLoad[k] > 0).sort();
+  let longest = 0, run = 0, prev = null;
+  allDays.forEach(k => {
+    const d = new Date(k + 'T12:00:00');
+    if (prev && (d - prev) === 86400000) run++;
+    else run = 1;
+    if (run > longest) longest = run;
+    prev = d;
+  });
+
+  const totalDays = Math.round((today - start) / 86400000) + 1;
+  const pct = Math.round((activeDaysInWindow / totalDays) * 100);
+
+  statsEl.innerHTML =
+    '🔥 <strong style="color:var(--text)">' + curStreak + '-day</strong> current streak · ' +
+    '🏆 <strong style="color:var(--text)">' + longest + '-day</strong> longest · ' +
+    '<strong style="color:var(--text)">' + activeDaysInWindow + '</strong> active days (' + pct + '%) in 6 months';
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
