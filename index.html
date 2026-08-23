@@ -1070,6 +1070,17 @@ body {
 .filter-btn { font-size: 11px; font-family: var(--font-display); font-weight: 600; letter-spacing: 0.05em; padding: 6px 14px; border-radius: 99px; border: 1px solid var(--border2); background: none; color: var(--muted); cursor: pointer; white-space: nowrap; transition: all 0.15s; flex-shrink: 0; }
 .filter-btn.active { background: var(--tri-dim); color: var(--tri); border-color: var(--tri-border); }
 .act-list { display: flex; flex-direction: column; gap: 10px; }
+/* Swipe-to-delete: wrap holds a red delete zone behind the sliding card */
+.act-swipe-wrap { position: relative; overflow: hidden; border-radius: 14px; }
+.act-swipe-delete {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 88px;
+  background: var(--warn, #e87070); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-weight: 700; font-size: 13px;
+  border: none; cursor: pointer; z-index: 1;
+}
+.act-swipe-slider { position: relative; z-index: 2; transition: transform 0.2s ease; touch-action: pan-y; }
+.act-swipe-slider.swiped { transform: translateX(-88px); }
 .act-item { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; display: flex; align-items: center; gap: 14px; }
 .act-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
 .act-icon.Run    { background: rgba(109,186,109,0.12); }
@@ -2459,6 +2470,10 @@ function renderActivities(acts) {
     const typeClass = ['Run','Swim','Ride','WeightTraining'].includes(a.type) ? a.type : 'other';
     const note = activityNotes[a.id];
     return `<div class="act-item-wrap">
+      <div class="act-swipe-wrap">
+        <button class="act-swipe-delete" onclick="confirmDeleteActivity(${a.id}, event)">Delete</button>
+        <div class="act-swipe-slider" id="swipe-${a.id}"
+             ontouchstart="swipeStart(event, ${a.id})" ontouchmove="swipeMove(event, ${a.id})" ontouchend="swipeEnd(event, ${a.id})">
       <div class="act-item" onclick="toggleActivityNote(${a.id})" style="cursor:pointer">
         <div class="act-icon ${typeClass}">${sportEmoji(a.type)}</div>
         <div class="act-body">
@@ -2474,6 +2489,8 @@ function renderActivities(acts) {
         </div>
         <div class="act-right">
           ${hasDist ? `<div class="act-dist">${mi.toFixed(1)}<span>mi</span></div>` : '<div class="act-dist" style="font-size:13px;color:var(--muted)">—</div>'}
+        </div>
+      </div>
         </div>
       </div>
       <div class="act-note-editor" id="note-editor-${a.id}" style="display:none">
@@ -8987,6 +9004,69 @@ Every date must fall between ${weekStart} and ${weekEndDate}. Keep total run mil
     console.error('Week fill error:', e);
     if (btn) { btn.disabled = false; btn.textContent = '✨ Retry'; }
     alert('Could not build that week: ' + (e.message||'unknown').slice(0,100));
+  }
+}
+
+
+// ── SWIPE-TO-DELETE for activities ───────────────────────────────────────
+let swipeState = {};
+
+function swipeStart(e, id) {
+  swipeState[id] = { startX: e.touches[0].clientX, startY: e.touches[0].clientY, dx: 0, active: false };
+}
+function swipeMove(e, id) {
+  const s = swipeState[id]; if (!s) return;
+  const dx = e.touches[0].clientX - s.startX;
+  const dy = e.touches[0].clientY - s.startY;
+  // Only treat as horizontal swipe if clearly horizontal (don't hijack vertical scroll)
+  if (!s.active && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.5) s.active = true;
+  if (s.active) {
+    e.preventDefault();
+    s.dx = Math.max(-88, Math.min(0, dx)); // clamp: only reveal left, max 88px
+    const el = document.getElementById('swipe-' + id);
+    if (el) el.style.transform = 'translateX(' + s.dx + 'px)';
+  }
+}
+function swipeEnd(e, id) {
+  const s = swipeState[id]; if (!s) return;
+  const el = document.getElementById('swipe-' + id);
+  if (el) {
+    el.style.transition = 'transform 0.2s ease';
+    // Snap open if swiped more than halfway, else closed
+    if (s.dx < -44) { el.classList.add('swiped'); el.style.transform = ''; }
+    else { el.classList.remove('swiped'); el.style.transform = ''; }
+    setTimeout(() => { if (el) el.style.transition = ''; }, 200);
+  }
+  // If it wasn't a real horizontal swipe, let the tap (note toggle) happen naturally
+  swipeState[id] = null;
+}
+
+async function confirmDeleteActivity(id, event) {
+  if (event) event.stopPropagation();
+  const act = allActivities.find(a => String(a.id) === String(id));
+  const name = act ? act.name : 'this activity';
+  if (!confirm('Delete "' + name + '"?\n\nThis removes it from your BRB Training counts and archive. (Delete it in Strava too if you have not already.)')) {
+    // reset the swipe
+    const el = document.getElementById('swipe-' + id);
+    if (el) el.classList.remove('swiped');
+    return;
+  }
+
+  // Remove locally first for instant feedback
+  allActivities = allActivities.filter(a => String(a.id) !== String(id));
+  // Persist to local cache
+  try { saveCache({ ...calcLiveWeekTotals() }, allActivities, activitySummary || ''); } catch(e) {}
+  renderActivities(allActivities);
+  renderDashboard({ ...calcLiveWeekTotals() });
+
+  // Remove from KV archive + blocklist so it won't resync
+  try {
+    await fetch('/kv', {
+      method: 'POST', headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ action: 'deleteActivity', value: id })
+    });
+  } catch(e) {
+    console.warn('KV delete failed (removed locally only):', e);
   }
 }
 
