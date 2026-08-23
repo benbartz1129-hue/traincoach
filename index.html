@@ -1088,6 +1088,11 @@ body {
 .hm-month-row { display: flex; gap: 3px; margin-bottom: 4px; font-size: 9px; color: var(--dim); }
 .hm-cell-day { width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0; cursor: pointer; transition: transform 0.1s; }
 .hm-cell-day:active { transform: scale(1.3); }
+/* Dashboard variant: stretch columns to fill the card width so it doesn't look sparse */
+.hm-grid.hm-fill { justify-content: space-between; gap: 0; }
+.hm-grid.hm-fill .hm-col { flex: 1; gap: 4px; }
+.hm-grid.hm-fill .hm-col + .hm-col { margin-left: 4px; }
+.hm-grid.hm-fill .hm-cell-day { width: 100%; height: auto; aspect-ratio: 1 / 1; }
 /* Swipe-to-delete: wrap holds a red delete zone behind the sliding card */
 .act-swipe-wrap { position: relative; overflow: hidden; border-radius: 14px; }
 .act-swipe-delete {
@@ -9351,7 +9356,7 @@ function renderDashHeatmap() {
     }
     cols += '<div class="hm-col">' + cells + '</div>';
   }
-  container.innerHTML = '<div class="hm-grid">' + cols + '</div>';
+  container.innerHTML = '<div class="hm-grid hm-fill">' + cols + '</div>';
 
   // Current streak
   let curStreak = 0;
@@ -9730,4 +9735,3 @@ init();
 </script>
 </body>
 </html>
-
