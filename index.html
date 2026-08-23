@@ -2982,6 +2982,7 @@ function renderDashboard(d) {
   updateRaceCountdowns();
   // Load race-day weather into the taper card (async, non-blocking)
   if (taperRace) loadWeatherInto('taper-weather-slot', taperRace, true);
+  setTimeout(() => { try { renderDashHeatmap(); } catch(e) { console.warn('dash heatmap', e); } }, 0);
 }
 
 function toggleAIInsights() {
@@ -5030,7 +5031,7 @@ async function importFullHistory() {
       });
       const archiveData = await archiveResp.json();
       if (archiveData.activities) {
-        allActivities = archiveData.activities.map(a => ({ ...a, type: normalizeActivityType(a.type) })).sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+        allActivities = applyDeletedBlocklist(archiveData.activities.map(a => ({ ...a, type: normalizeActivityType(a.type) }))).sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
         activitySummary = buildSummary(allActivities);
         renderActivities(allActivities);
       }
@@ -9172,6 +9173,14 @@ async function confirmDeleteActivity(id, event) {
     return;
   }
 
+  // Record the deletion in a LOCAL blocklist too, so it stays deleted on this device
+  // even if the KV function isn't updated yet or a sync round-trips the ID back.
+  try {
+    const blocked = JSON.parse(localStorage.getItem('brb_deleted_ids') || '[]');
+    if (!blocked.map(String).includes(String(id))) blocked.push(String(id));
+    localStorage.setItem('brb_deleted_ids', JSON.stringify(blocked));
+  } catch(e) {}
+
   // Remove locally first for instant feedback
   allActivities = allActivities.filter(a => String(a.id) !== String(id));
   // Persist to local cache
@@ -9188,6 +9197,17 @@ async function confirmDeleteActivity(id, event) {
   } catch(e) {
     console.warn('KV delete failed (removed locally only):', e);
   }
+}
+
+// Filter out any locally-blocked (deleted) activity IDs. Applied on every load so a
+// deleted activity never reappears, even if it comes back from KV/Strava on a sync.
+function applyDeletedBlocklist(acts) {
+  try {
+    const blocked = JSON.parse(localStorage.getItem('brb_deleted_ids') || '[]').map(String);
+    if (!blocked.length) return acts;
+    const set = {}; blocked.forEach(id => set[id] = true);
+    return acts.filter(a => !set[String(a.id)]);
+  } catch(e) { return acts; }
 }
 
 
@@ -9290,6 +9310,67 @@ function renderTrainingHeatmap() {
     '🔥 <strong style="color:var(--text)">' + curStreak + '-day</strong> current streak · ' +
     '🏆 <strong style="color:var(--text)">' + longest + '-day</strong> longest · ' +
     '<strong style="color:var(--text)">' + activeDaysInWindow + '</strong> active days (' + pct + '%) in 6 months';
+}
+
+
+// Compact 12-week heatmap for the dashboard (reuses the same load logic)
+function renderDashHeatmap() {
+  const container = document.getElementById('dash-heatmap-container');
+  const statsEl = document.getElementById('dash-heatmap-stats');
+  if (!container) return;
+
+  const WEEKS = 12;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dow = (today.getDay() + 6) % 7;
+  const start = new Date(today);
+  start.setDate(today.getDate() - dow - (WEEKS - 1) * 7);
+
+  const dayLoad = {};
+  allActivities.forEach(a => {
+    if (!a.distance) return;
+    const d = a.start_date_local.split('T')[0];
+    const mi = mToMi(a.distance);
+    const w = a.type === 'Swim' ? 4 : a.type === 'Run' ? 1 : a.type === 'Ride' ? 0.25 : 0.5;
+    dayLoad[d] = (dayLoad[d] || 0) + mi * w;
+  });
+
+  const loads = Object.values(dayLoad).filter(v => v > 0).sort((a,b) => a - b);
+  const q = (p) => loads.length ? loads[Math.floor(loads.length * p)] : 0;
+  const t1 = q(0.25), t2 = q(0.5), t3 = q(0.75);
+  const levelFor = v => !v || v <= 0 ? 0 : v <= t1 ? 1 : v <= t2 ? 2 : v <= t3 ? 3 : 4;
+  const hmColors = ['var(--hm0)','var(--hm1)','var(--hm2)','var(--hm3)','var(--hm4)'];
+
+  let cols = '';
+  for (let w = 0; w < WEEKS; w++) {
+    let cells = '';
+    for (let d = 0; d < 7; d++) {
+      const cellDate = new Date(start); cellDate.setDate(start.getDate() + w * 7 + d);
+      if (cellDate > today) { cells += '<div class="hm-cell-day" style="background:transparent"></div>'; continue; }
+      const key = cellDate.toISOString().split('T')[0];
+      cells += '<div class="hm-cell-day" style="background:' + hmColors[levelFor(dayLoad[key])] + '"></div>';
+    }
+    cols += '<div class="hm-col">' + cells + '</div>';
+  }
+  container.innerHTML = '<div class="hm-grid">' + cols + '</div>';
+
+  // Current streak
+  let curStreak = 0;
+  for (let i = 0; i < 400; i++) {
+    const d = new Date(today); d.setDate(today.getDate() - i);
+    const key = d.toISOString().split('T')[0];
+    if (dayLoad[key] > 0) curStreak++;
+    else if (i === 0) continue;
+    else break;
+  }
+  const activeDays = Object.keys(dayLoad).filter(k => {
+    const d = new Date(k + 'T12:00:00');
+    return d >= start && d <= today && dayLoad[k] > 0;
+  }).length;
+  const totalDays = Math.round((today - start) / 86400000) + 1;
+  const pct = Math.round((activeDays / totalDays) * 100);
+
+  statsEl.innerHTML = '🔥 <strong style="color:var(--text)">' + curStreak + '-day streak</strong> · ' +
+    '<strong style="color:var(--text)">' + activeDays + '</strong> active days (' + pct + '%) in 12 weeks';
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
@@ -9414,7 +9495,7 @@ async function refreshData() {
       }
     } catch(e) { console.warn('Archive merge failed, using latest 100 only:', e); }
 
-    allActivities = merged.map(a => ({ ...a, type: normalizeActivityType(a.type) })).sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+    allActivities = applyDeletedBlocklist(merged.map(a => ({ ...a, type: normalizeActivityType(a.type) }))).sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
     activitySummary = buildSummary(allActivities);
 
     // CRITICAL: persist training data IMMEDIATELY — before the AI call.
@@ -9467,7 +9548,7 @@ async function refreshData() {
 function loadFromCache() {
   const cache = loadCache();
   if (!cache) return false;
-  allActivities  = (cache.acts || []).map(a => ({ ...a, type: normalizeActivityType(a.type) }));
+  allActivities  = applyDeletedBlocklist((cache.acts || []).map(a => ({ ...a, type: normalizeActivityType(a.type) })));
   activitySummary = cache.summary;
   // Always recalculate This Week totals live from current activities
   // so they're never stale even when loading from cache
@@ -9615,8 +9696,8 @@ async function loadArchiveFromKV() {
     const data = await resp.json();
     if (!data || !data.activities || !data.activities.length) return false;
 
-    allActivities = data.activities
-      .map(a => ({ ...a, type: normalizeActivityType(a.type) }))
+    allActivities = applyDeletedBlocklist(data.activities
+      .map(a => ({ ...a, type: normalizeActivityType(a.type) })))
       .sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
 
     // Build a fresh analysis object and cache it locally so subsequent opens are instant
