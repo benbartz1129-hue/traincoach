@@ -63,10 +63,14 @@ export async function onRequestPost(context) {
     if (action === 'mergeActivities') {
       const newActs = (value || []).map(slimActivity);
       const stored = (await kvGet('brb_activity_archive', CF_API_TOKEN)) || [];
+      // Respect the deleted blocklist so removed activities never come back on sync
+      const deleted = (await kvGet('brb_deleted_activities', CF_API_TOKEN)) || [];
+      const deletedSet = {};
+      deleted.forEach(id => { deletedSet[String(id)] = true; });
 
       const map = {};
-      stored.forEach(a => { map[a.id] = a; });
-      newActs.forEach(a => { map[a.id] = a; });
+      stored.forEach(a => { if (!deletedSet[String(a.id)]) map[a.id] = a; });
+      newActs.forEach(a => { if (!deletedSet[String(a.id)]) map[a.id] = a; });
 
       const merged = Object.values(map)
         .sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
@@ -81,6 +85,18 @@ export async function onRequestPost(context) {
         putStatus: putResult.status,
         putDetail: putResult.result
       }), { headers });
+    }
+
+    if (action === 'deleteActivity') {
+      const delId = String(value);
+      const stored = (await kvGet('brb_activity_archive', CF_API_TOKEN)) || [];
+      const filtered = stored.filter(a => String(a.id) !== delId);
+      await kvPut('brb_activity_archive', filtered, CF_API_TOKEN);
+      // Remember the deletion so a future sync won't re-add it
+      const deleted = (await kvGet('brb_deleted_activities', CF_API_TOKEN)) || [];
+      if (!deleted.map(String).includes(delId)) deleted.push(delId);
+      await kvPut('brb_deleted_activities', deleted, CF_API_TOKEN);
+      return new Response(JSON.stringify({ ok: true, total: filtered.length, deletedId: delId }), { headers });
     }
 
     if (action === 'getActivities') {
