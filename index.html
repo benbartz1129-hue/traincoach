@@ -2952,6 +2952,17 @@ function renderDashboard(d) {
     </div>
 
     <div class="section">
+      <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Consistency</span>
+        <span onclick="switchTab('stats')" style="font-size:10px;color:var(--tri);cursor:pointer;text-transform:none;letter-spacing:0">full view ↗</span>
+      </div>
+      <div class="card" style="padding:14px 16px" onclick="switchTab('stats')">
+        <div id="dash-heatmap-container"></div>
+        <div id="dash-heatmap-stats" style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5"></div>
+      </div>
+    </div>
+
+    <div class="section">
       <div class="section-label">Tri readiness</div>
       <div class="readiness-card">
         <div class="readiness-row"><span class="readiness-sport">Swim</span><div class="readiness-bar-bg"><div class="readiness-bar-fill" style="width:${d.swimReadiness}%;background:var(--swim)"></div></div><span class="readiness-pct">${d.swimReadiness}%</span></div>
