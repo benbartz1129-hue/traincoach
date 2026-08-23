@@ -1093,6 +1093,14 @@ body {
 .hm-grid.hm-fill .hm-col { flex: 1 1 0; gap: 4px; min-width: 0; }
 .hm-grid.hm-fill .hm-col + .hm-col { margin-left: 4px; }
 .hm-grid.hm-fill .hm-cell-day { width: 100% !important; height: auto; aspect-ratio: 1 / 1; flex-shrink: 1; }
+/* Labels for the dashboard heatmap */
+.hm-layout { display: flex; align-items: stretch; }
+.hm-daycol { display: flex; flex-direction: column; gap: 4px; width: 30px; flex-shrink: 0; margin-right: 6px; }
+.hm-daycol-spacer { width: 30px; flex-shrink: 0; margin-right: 6px; }
+.hm-day-label { flex: 1 1 0; display: flex; align-items: center; font-size: 9px; color: var(--dim); line-height: 1; }
+.hm-month-row.hm-fill { display: flex; justify-content: space-between; gap: 0; width: 100%; margin-bottom: 5px; }
+.hm-month-cell { flex: 1 1 0; min-width: 0; font-size: 9px; color: var(--dim); text-align: left; }
+.hm-month-cell + .hm-month-cell { margin-left: 4px; }
 /* Swipe-to-delete: wrap holds a red delete zone behind the sliding card */
 .act-swipe-wrap { position: relative; overflow: hidden; border-radius: 14px; }
 .act-swipe-delete {
@@ -9368,19 +9376,11 @@ function renderDashHeatmap() {
     cols += '<div class="hm-col">' + cells + '</div>';
   }
 
-  // Day-of-week labels down the left (only M/W/F to avoid clutter)
-  const dayLabels = ['Mon','','Wed','','Fri','',''];
-  const dayCol = '<div class="hm-daycol">' + dayLabels.map(l => '<div class="hm-day-label">' + l + '</div>').join('') + '</div>';
-
+  // Day-of-week hint (compact, avoids fragile per-row alignment)
   container.innerHTML =
-    '<div class="hm-layout">' +
-      '<div class="hm-daycol-spacer"></div>' +
-      '<div class="hm-month-row hm-fill">' + monthRow + '</div>' +
-    '</div>' +
-    '<div class="hm-layout">' +
-      dayCol +
-      '<div class="hm-grid hm-fill">' + cols + '</div>' +
-    '</div>';
+    '<div class="hm-month-row hm-fill">' + monthRow + '</div>' +
+    '<div class="hm-grid hm-fill">' + cols + '</div>' +
+    '<div style="font-size:9px;color:var(--dim);margin-top:6px">Each column = 1 week · top row Mon → bottom row Sun</div>';
 
   // Current streak
   let curStreak = 0;
