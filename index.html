@@ -1089,10 +1089,10 @@ body {
 .hm-cell-day { width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0; cursor: pointer; transition: transform 0.1s; }
 .hm-cell-day:active { transform: scale(1.3); }
 /* Dashboard variant: stretch columns to fill the card width so it doesn't look sparse */
-.hm-grid.hm-fill { justify-content: space-between; gap: 0; }
-.hm-grid.hm-fill .hm-col { flex: 1; gap: 4px; }
+.hm-grid.hm-fill { justify-content: space-between; gap: 0; width: 100%; }
+.hm-grid.hm-fill .hm-col { flex: 1 1 0; gap: 4px; min-width: 0; }
 .hm-grid.hm-fill .hm-col + .hm-col { margin-left: 4px; }
-.hm-grid.hm-fill .hm-cell-day { width: 100%; height: auto; aspect-ratio: 1 / 1; }
+.hm-grid.hm-fill .hm-cell-day { width: 100% !important; height: auto; aspect-ratio: 1 / 1; flex-shrink: 1; }
 /* Swipe-to-delete: wrap holds a red delete zone behind the sliding card */
 .act-swipe-wrap { position: relative; overflow: hidden; border-radius: 14px; }
 .act-swipe-delete {
@@ -9346,17 +9346,41 @@ function renderDashHeatmap() {
   const hmColors = ['var(--hm0)','var(--hm1)','var(--hm2)','var(--hm3)','var(--hm4)'];
 
   let cols = '';
+  let monthRow = '';
+  let lastMonth = -1;
   for (let w = 0; w < WEEKS; w++) {
     let cells = '';
+    const colDate = new Date(start); colDate.setDate(start.getDate() + w * 7);
+    // Month label appears once, in the column where a new month begins
+    const m = colDate.getMonth();
+    if (m !== lastMonth) {
+      monthRow += '<div class="hm-month-cell">' + colDate.toLocaleDateString('en-US',{month:'short'}) + '</div>';
+      lastMonth = m;
+    } else {
+      monthRow += '<div class="hm-month-cell"></div>';
+    }
     for (let d = 0; d < 7; d++) {
       const cellDate = new Date(start); cellDate.setDate(start.getDate() + w * 7 + d);
       if (cellDate > today) { cells += '<div class="hm-cell-day" style="background:transparent"></div>'; continue; }
       const key = cellDate.toISOString().split('T')[0];
-      cells += '<div class="hm-cell-day" style="background:' + hmColors[levelFor(dayLoad[key])] + '"></div>';
+      cells += '<div class="hm-cell-day" style="background:' + hmColors[levelFor(dayLoad[key])] + '" title="' + cellDate.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) + '"></div>';
     }
     cols += '<div class="hm-col">' + cells + '</div>';
   }
-  container.innerHTML = '<div class="hm-grid hm-fill">' + cols + '</div>';
+
+  // Day-of-week labels down the left (only M/W/F to avoid clutter)
+  const dayLabels = ['Mon','','Wed','','Fri','',''];
+  const dayCol = '<div class="hm-daycol">' + dayLabels.map(l => '<div class="hm-day-label">' + l + '</div>').join('') + '</div>';
+
+  container.innerHTML =
+    '<div class="hm-layout">' +
+      '<div class="hm-daycol-spacer"></div>' +
+      '<div class="hm-month-row hm-fill">' + monthRow + '</div>' +
+    '</div>' +
+    '<div class="hm-layout">' +
+      dayCol +
+      '<div class="hm-grid hm-fill">' + cols + '</div>' +
+    '</div>';
 
   // Current streak
   let curStreak = 0;
