@@ -7641,10 +7641,15 @@ async function searchShoeDeals() {
 
   try {
     const reply = await callClaude({
-      model: 'claude-haiku-4-5-20251001', max_tokens: 900,
-      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }],
-      system: `You are a running shoe deal hunter. Do at most 2 web searches, then answer from what you find. Prioritize legitimate retailers (Running Warehouse, Zappos, REI, brand outlets, Holabird, Fleet Feet), prev-generation models at steep discounts, and verifiable sale prices. For each deal give: model, price (and original if discounted), retailer, and direct URL on one line. List 4-5 deals best-first. Match models to any shoe type mentioned. Plain text, plain ASCII, no markdown.`,
-      messages: [{ role: 'user', content: 'Find me deals: ' + query }]
+      model: 'claude-sonnet-4-6', max_tokens: 1600,
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
+      system: `You are a running shoe deal hunter. Run up to 5 web searches to find CURRENT deals, then answer from what you find. Search strategy: try specific model + "sale" or "clearance", try prev-generation models (which are the best real deals — e.g. last year's Vaporfly when the new one launches), and try retailer clearance pages (Running Warehouse clearance, Zappos, REI Outlet, Holabird, Fleet Feet, brand outlets).
+
+For each deal you find with a real price, give ONE line: Model — $price (was $original if on sale) — Retailer — URL.
+List the best 4-6 deals, cheapest/biggest-discount first.
+
+If you genuinely cannot find specific live prices, do NOT pad with generic 'go visit this site' advice. Instead, briefly name the 2-3 specific models that best match the request and the exact retailer pages most likely to have them on sale right now, with direct URLs to those category/clearance pages. Be concrete and useful either way. Plain text, plain ASCII, no markdown.`,
+      messages: [{ role: 'user', content: 'Find me current deals on: ' + query + '. Prioritize real sale prices and prev-generation models at a discount.' }]
     }, 'Deal search');
 
     resultEl.innerHTML = `
