@@ -2222,10 +2222,14 @@ body {
           <span>Where are you sore or tight?</span>
           <span id="bodymap-clear" onclick="clearSoreAreas()" style="font-size:10px;color:var(--tri);cursor:pointer;display:none">Clear</span>
         </div>
-        <div class="card" style="padding:16px;margin-bottom:20px">
+        <div class="card" style="padding:16px;margin-bottom:14px">
           <div id="bodymap-container"></div>
           <div id="bodymap-selected" style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center;min-height:16px"></div>
         </div>
+
+        <button class="add-race-btn" id="recovery-generate-btn" style="margin-bottom:20px;padding:14px;font-size:14px" onclick="generateRecovery()">
+          ✨ Generate stretch routine
+        </button>
 
         <!-- Stretch routine -->
         <!-- Stretch Timer -->
@@ -9419,24 +9423,30 @@ let soreAreas = JSON.parse(localStorage.getItem('brb_sore_areas') || '[]');
 // Major selectable regions (front + back). Simple rounded shapes over a body outline.
 const BODY_REGIONS = {
   front: [
-    { id: 'neck',        label: 'Neck',          x: 88, y: 40, w: 24, h: 16 },
-    { id: 'shoulders',   label: 'Shoulders',     x: 62, y: 58, w: 76, h: 18 },
-    { id: 'chest',       label: 'Chest',         x: 74, y: 78, w: 52, h: 24 },
-    { id: 'core',        label: 'Core / Abs',    x: 78, y: 104, w: 44, h: 30 },
-    { id: 'hips',        label: 'Hip flexors',   x: 74, y: 136, w: 52, h: 20 },
-    { id: 'quads_l',     label: 'Quads',         x: 78, y: 160, w: 20, h: 50, group: 'quads' },
-    { id: 'quads_r',     label: 'Quads',         x: 102, y: 160, w: 20, h: 50, group: 'quads' },
-    { id: 'shins_l',     label: 'Shins',         x: 80, y: 214, w: 16, h: 44, group: 'shins' },
-    { id: 'shins_r',     label: 'Shins',         x: 104, y: 214, w: 16, h: 44, group: 'shins' }
+    { id: 'neck',        label: 'Neck',          x: 90, y: 40, w: 20, h: 14 },
+    { id: 'shoulders',   label: 'Shoulders',     x: 66, y: 58, w: 68, h: 16 },
+    { id: 'chest',       label: 'Chest',         x: 76, y: 76, w: 48, h: 22 },
+    { id: 'core',        label: 'Core / Abs',    x: 80, y: 100, w: 40, h: 32 },
+    { id: 'hips',        label: 'Hip flexors',   x: 76, y: 136, w: 48, h: 18 },
+    { id: 'quads_l',     label: 'Quads',         x: 79, y: 158, w: 19, h: 52, group: 'quads' },
+    { id: 'quads_r',     label: 'Quads',         x: 102, y: 158, w: 19, h: 52, group: 'quads' },
+    { id: 'shins_l',     label: 'Shins',         x: 81, y: 216, w: 15, h: 46, group: 'shins' },
+    { id: 'shins_r',     label: 'Shins',         x: 104, y: 216, w: 15, h: 46, group: 'shins' },
+    { id: 'ankles_l',    label: 'Ankles / feet', x: 80, y: 266, w: 16, h: 12, group: 'ankles' },
+    { id: 'ankles_r',    label: 'Ankles / feet', x: 104, y: 266, w: 16, h: 12, group: 'ankles' }
   ],
   back: [
-    { id: 'upper_back',  label: 'Upper back',    x: 74, y: 62, w: 52, h: 30 },
-    { id: 'lower_back',  label: 'Lower back',    x: 78, y: 96, w: 44, h: 26 },
-    { id: 'glutes',      label: 'Glutes',        x: 74, y: 126, w: 52, h: 26 },
-    { id: 'hamstrings_l',label: 'Hamstrings',    x: 78, y: 156, w: 20, h: 48, group: 'hamstrings' },
-    { id: 'hamstrings_r',label: 'Hamstrings',    x: 102, y: 156, w: 20, h: 48, group: 'hamstrings' },
-    { id: 'calves_l',    label: 'Calves',        x: 80, y: 208, w: 16, h: 46, group: 'calves' },
-    { id: 'calves_r',    label: 'Calves',        x: 104, y: 208, w: 16, h: 46, group: 'calves' }
+    { id: 'upper_back',  label: 'Upper back',    x: 76, y: 60, w: 48, h: 28 },
+    { id: 'lower_back',  label: 'Lower back',    x: 80, y: 92, w: 40, h: 26 },
+    { id: 'glutes',      label: 'Glutes',        x: 76, y: 122, w: 48, h: 28 },
+    { id: 'itband_l',    label: 'IT band',       x: 76, y: 154, w: 8, h: 52, group: 'itband' },
+    { id: 'itband_r',    label: 'IT band',       x: 116, y: 154, w: 8, h: 52, group: 'itband' },
+    { id: 'hamstrings_l',label: 'Hamstrings',    x: 85, y: 154, w: 15, h: 50, group: 'hamstrings' },
+    { id: 'hamstrings_r',label: 'Hamstrings',    x: 100, y: 154, w: 15, h: 50, group: 'hamstrings' },
+    { id: 'calves_l',    label: 'Calves',        x: 82, y: 210, w: 15, h: 48, group: 'calves' },
+    { id: 'calves_r',    label: 'Calves',        x: 103, y: 210, w: 15, h: 48, group: 'calves' },
+    { id: 'achilles_l',  label: 'Achilles',      x: 82, y: 262, w: 14, h: 12, group: 'achilles' },
+    { id: 'achilles_r',  label: 'Achilles',      x: 104, y: 262, w: 14, h: 12, group: 'achilles' }
   ]
 };
 
@@ -9467,17 +9477,25 @@ function renderBodyMap() {
     const shapes = regions.map(r => {
       const active = bodyRegionActive(r);
       const key = r.group || r.id;
-      return '<rect x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '" rx="7" ' +
-        'fill="' + (active ? 'var(--tri)' : 'rgba(255,255,255,0.06)') + '" ' +
-        'stroke="' + (active ? 'var(--tri)' : 'rgba(255,255,255,0.15)') + '" stroke-width="1" ' +
-        'style="cursor:pointer;transition:fill 0.15s" ' +
+      const fill = active ? 'var(--tri)' : 'rgba(255,255,255,0.08)';
+      const stroke = active ? 'var(--tri)' : 'rgba(255,255,255,0.2)';
+      const sw = active ? '1.5' : '1';
+      return '<rect x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '" rx="6" ' +
+        'fill="' + fill + '" stroke="' + stroke + '" stroke-width="' + sw + '" ' +
+        'style="cursor:pointer;transition:fill 0.15s,stroke 0.15s" ' +
         'onclick="toggleSoreArea(\'' + key + '\')"><title>' + r.label + '</title></rect>';
     }).join('');
-    // Simple body silhouette behind the tappable regions
-    const body = '<path d="M100 26 a13 13 0 0 1 13 13 a13 13 0 0 1 -6 11 l14 6 q10 4 10 16 l0 44 q0 6 -4 8 l-2 54 q4 4 3 10 l-4 52 q-1 6 -7 6 q-6 0 -7 -6 l-3 -46 q-3 4 -6 0 l-3 46 q-1 6 -7 6 q-6 0 -7 -6 l-4 -52 q-1 -6 3 -10 l-2 -54 q-4 -2 -4 -8 l0 -44 q0 -12 10 -16 l14 -6 a13 13 0 0 1 -6 -11 a13 13 0 0 1 13 -13 z" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>';
+    // Anatomical silhouette: head, neck, shoulders, torso taper, arms, and split legs
+    const silhouette = title === 'Front'
+      ? 'M100 16 q9 0 9 10 q0 6 -3 9 q5 1 9 3 q4 2 4 7 q7 1 13 5 q7 5 8 15 l3 34 q1 8 -4 10 q-5 2 -7 -6 l-4 -30 l-1 44 q0 10 -3 22 l2 40 q1 10 -2 24 l-5 44 q-1 7 -8 7 q-6 0 -7 -7 l-4 -50 q-1 -8 -3 0 l-4 50 q-1 7 -7 7 q-7 0 -8 -7 l-5 -44 q-3 -14 -2 -24 l2 -40 q-3 -12 -3 -22 l-1 -44 l-4 30 q-2 8 -7 6 q-5 -2 -4 -10 l3 -34 q1 -10 8 -15 q6 -4 13 -5 q0 -5 4 -7 q4 -2 9 -3 q-3 -3 -3 -9 q0 -10 9 -10 z'
+      : 'M100 16 q9 0 9 10 q0 6 -3 9 q5 1 9 3 q4 2 4 7 q7 1 13 5 q7 5 8 15 l3 34 q1 8 -4 10 q-5 2 -7 -6 l-4 -30 l-1 44 q0 10 -3 22 l2 40 q1 10 -2 24 l-5 44 q-1 7 -8 7 q-6 0 -7 -7 l-4 -50 q-1 -8 -3 0 l-4 50 q-1 7 -7 7 q-7 0 -8 -7 l-5 -44 q-3 -14 -2 -24 l2 -40 q-3 -12 -3 -22 l-1 -44 l-4 30 q-2 8 -7 6 q-5 -2 -4 -10 l3 -34 q1 -10 8 -15 q6 -4 13 -5 q0 -5 4 -7 q4 -2 9 -3 q-3 -3 -3 -9 q0 -10 9 -10 z';
+    const spine = title === 'Back'
+      ? '<line x1="100" y1="58" x2="100" y2="128" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="2 3"/>'
+      : '';
+    const body = '<path d="' + silhouette + '" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.13)" stroke-width="1.2"/>' + spine;
     return '<div style="flex:1;text-align:center">' +
       '<div style="font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">' + title + '</div>' +
-      '<svg viewBox="0 0 200 280" style="width:100%;max-width:150px;height:auto">' + body + shapes + '</svg>' +
+      '<svg viewBox="0 0 200 300" style="width:100%;max-width:158px;height:auto">' + body + shapes + '</svg>' +
     '</div>';
   }
 
@@ -9490,6 +9508,7 @@ function renderBodyMap() {
   // Selected summary + clear button visibility
   const sel = document.getElementById('bodymap-selected');
   const clearBtn = document.getElementById('bodymap-clear');
+  const genBtn = document.getElementById('recovery-generate-btn');
   if (soreAreas.length) {
     const labels = soreAreas.map(k => {
       const all = [...BODY_REGIONS.front, ...BODY_REGIONS.back];
@@ -9500,9 +9519,11 @@ function renderBodyMap() {
     const uniq = [...new Set(labels)];
     sel.innerHTML = 'Focusing on: <strong style="color:var(--tri)">' + uniq.join(', ') + '</strong>';
     if (clearBtn) clearBtn.style.display = 'inline';
+    if (genBtn && !genBtn.classList.contains('spinning')) genBtn.innerHTML = '✨ Generate routine for ' + uniq.length + ' area' + (uniq.length > 1 ? 's' : '');
   } else {
     sel.innerHTML = 'Tap any area that feels sore or tight';
     if (clearBtn) clearBtn.style.display = 'none';
+    if (genBtn && !genBtn.classList.contains('spinning')) genBtn.innerHTML = '✨ Generate stretch routine';
   }
 }
 
