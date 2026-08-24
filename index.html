@@ -1093,13 +1093,9 @@ body {
 .hm-grid.hm-fill .hm-col { flex: 1 1 0; gap: 4px; min-width: 0; }
 .hm-grid.hm-fill .hm-col + .hm-col { margin-left: 4px; }
 .hm-grid.hm-fill .hm-cell-day { width: 100% !important; height: auto; aspect-ratio: 1 / 1; flex-shrink: 1; }
-/* Labels for the dashboard heatmap */
-.hm-layout { display: flex; align-items: stretch; }
-.hm-daycol { display: flex; flex-direction: column; gap: 4px; width: 30px; flex-shrink: 0; margin-right: 6px; }
-.hm-daycol-spacer { width: 30px; flex-shrink: 0; margin-right: 6px; }
-.hm-day-label { flex: 1 1 0; display: flex; align-items: center; font-size: 9px; color: var(--dim); line-height: 1; }
+/* Month labels for the dashboard heatmap — aligned to the grid columns */
 .hm-month-row.hm-fill { display: flex; justify-content: space-between; gap: 0; width: 100%; margin-bottom: 5px; }
-.hm-month-cell { flex: 1 1 0; min-width: 0; font-size: 9px; color: var(--dim); text-align: left; }
+.hm-month-cell { flex: 1 1 0; min-width: 0; font-size: 9px; color: var(--dim); text-align: left; white-space: nowrap; }
 .hm-month-cell + .hm-month-cell { margin-left: 4px; }
 /* Swipe-to-delete: wrap holds a red delete zone behind the sliding card */
 .act-swipe-wrap { position: relative; overflow: hidden; border-radius: 14px; }
@@ -2221,6 +2217,16 @@ body {
           </div>
         </div>
 
+        <!-- Body map: tap sore/tight areas -->
+        <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Where are you sore or tight?</span>
+          <span id="bodymap-clear" onclick="clearSoreAreas()" style="font-size:10px;color:var(--tri);cursor:pointer;display:none">Clear</span>
+        </div>
+        <div class="card" style="padding:16px;margin-bottom:20px">
+          <div id="bodymap-container"></div>
+          <div id="bodymap-selected" style="font-size:11px;color:var(--muted);margin-top:10px;text-align:center;min-height:16px"></div>
+        </div>
+
         <!-- Stretch routine -->
         <!-- Stretch Timer -->
         <div class="stretch-timer-wrap" id="stretch-timer-wrap">
@@ -2425,7 +2431,7 @@ function switchTab(tab) {
   }
   if (tab === 'activities' && allActivities.length > 0) renderActivities(allActivities);
   if (tab === 'calendar') { renderCalendar(); renderPlanCompliance(); }
-  if (tab === 'recovery') { updateRecoveryMetrics(); }
+  if (tab === 'recovery') { updateRecoveryMetrics(); try { renderBodyMap(); } catch(e) { console.warn('bodymap', e); } }
   if (tab !== 'recovery') { initTimer(); }
   if (tab === 'prs') initPRWall();
   if (tab === 'load') { initLoadPage(); renderFitnessTrend(); renderWeeklyHours(); renderFitnessBars(); }
@@ -3797,13 +3803,17 @@ async function generateRecovery() {
       if (parts.length) wellnessContext = 'Latest wellness (' + latestW.date + '): ' + parts.join(', ') + '.';
     }
 
+    // Sore/tight areas the athlete tapped on the body map — prioritize these
+    const soreSummary = soreAreasSummary();
+    const soreContext = soreSummary ? 'Athlete reports these areas feel sore or tight RIGHT NOW: ' + soreSummary + '. Prioritize stretches that directly target these areas.' : '';
+
     const text = await callClaude({
       model: 'claude-sonnet-4-6', max_tokens: 2500,
       system: `You are a triathlon and running recovery coach. Generate a personalized 5-10 minute stretching routine based on the athlete's FULL recent training context \u2014 not just the last activity. Consider: cumulative fatigue across all recent sessions, which muscle groups are most stressed given the mix of sports, weekly training load, wellness signals like HRV/RHR/sleep if available, and what's coming up next (race proximity, tomorrow's planned session). Keep each field SHORT \u2014 under 20 words per string.
 Return ONLY valid JSON, no markdown, no special characters, no apostrophes in values (use plain text only):
 {"intro":"1 short sentence referencing their specific recent training pattern","totalTime":"8 min","stretches":[{"name":"name","duration":"30 sec","focus":"quads","detail":"Short instruction under 15 words.","why":"Short reason under 12 words."}],"tips":[{"title":"title","detail":"Short tip."},{"title":"title","detail":"Short tip."},{"title":"title","detail":"Short tip."}]}
 Include exactly 6 stretches, prioritized by what this athlete's recent training actually stressed. No curly quotes, no apostrophes, no em-dashes \u2014 plain ASCII only.`,
-      messages: [{ role: 'user', content: `Recent training (most recent 15 activities): ${recentActs}\n\n${weekSummary}\n\n${raceContext} ${tomorrowContext}\n\n${wellnessContext}\n\nGenerate recovery stretches tailored to this full picture, not just the most recent workout.` }]
+      messages: [{ role: 'user', content: `Recent training (most recent 15 activities): ${recentActs}\n\n${weekSummary}\n\n${raceContext} ${tomorrowContext}\n\n${wellnessContext}\n\n${soreContext}\n\nGenerate recovery stretches tailored to this full picture${soreSummary ? ', giving priority to the sore/tight areas the athlete flagged' : ', not just the most recent workout'}.` }]
     }, 'Recovery');
 
     // Clean and parse
@@ -9400,6 +9410,111 @@ function renderDashHeatmap() {
 
   statsEl.innerHTML = '🔥 <strong style="color:var(--text)">' + curStreak + '-day streak</strong> · ' +
     '<strong style="color:var(--text)">' + activeDays + '</strong> active days (' + pct + '%) in 12 weeks';
+}
+
+
+// ── BODY MAP: tap major muscle groups that are sore/tight ────────────────
+let soreAreas = JSON.parse(localStorage.getItem('brb_sore_areas') || '[]');
+
+// Major selectable regions (front + back). Simple rounded shapes over a body outline.
+const BODY_REGIONS = {
+  front: [
+    { id: 'neck',        label: 'Neck',          x: 88, y: 40, w: 24, h: 16 },
+    { id: 'shoulders',   label: 'Shoulders',     x: 62, y: 58, w: 76, h: 18 },
+    { id: 'chest',       label: 'Chest',         x: 74, y: 78, w: 52, h: 24 },
+    { id: 'core',        label: 'Core / Abs',    x: 78, y: 104, w: 44, h: 30 },
+    { id: 'hips',        label: 'Hip flexors',   x: 74, y: 136, w: 52, h: 20 },
+    { id: 'quads_l',     label: 'Quads',         x: 78, y: 160, w: 20, h: 50, group: 'quads' },
+    { id: 'quads_r',     label: 'Quads',         x: 102, y: 160, w: 20, h: 50, group: 'quads' },
+    { id: 'shins_l',     label: 'Shins',         x: 80, y: 214, w: 16, h: 44, group: 'shins' },
+    { id: 'shins_r',     label: 'Shins',         x: 104, y: 214, w: 16, h: 44, group: 'shins' }
+  ],
+  back: [
+    { id: 'upper_back',  label: 'Upper back',    x: 74, y: 62, w: 52, h: 30 },
+    { id: 'lower_back',  label: 'Lower back',    x: 78, y: 96, w: 44, h: 26 },
+    { id: 'glutes',      label: 'Glutes',        x: 74, y: 126, w: 52, h: 26 },
+    { id: 'hamstrings_l',label: 'Hamstrings',    x: 78, y: 156, w: 20, h: 48, group: 'hamstrings' },
+    { id: 'hamstrings_r',label: 'Hamstrings',    x: 102, y: 156, w: 20, h: 48, group: 'hamstrings' },
+    { id: 'calves_l',    label: 'Calves',        x: 80, y: 208, w: 16, h: 46, group: 'calves' },
+    { id: 'calves_r',    label: 'Calves',        x: 104, y: 208, w: 16, h: 46, group: 'calves' }
+  ]
+};
+
+function bodyRegionActive(r) {
+  const key = r.group || r.id;
+  return soreAreas.includes(key);
+}
+
+function toggleSoreArea(regionKey) {
+  const i = soreAreas.indexOf(regionKey);
+  if (i >= 0) soreAreas.splice(i, 1);
+  else soreAreas.push(regionKey);
+  localStorage.setItem('brb_sore_areas', JSON.stringify(soreAreas));
+  renderBodyMap();
+}
+
+function clearSoreAreas() {
+  soreAreas = [];
+  localStorage.setItem('brb_sore_areas', JSON.stringify(soreAreas));
+  renderBodyMap();
+}
+
+function renderBodyMap() {
+  const container = document.getElementById('bodymap-container');
+  if (!container) return;
+
+  function buildView(title, regions) {
+    const shapes = regions.map(r => {
+      const active = bodyRegionActive(r);
+      const key = r.group || r.id;
+      return '<rect x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="' + r.h + '" rx="7" ' +
+        'fill="' + (active ? 'var(--tri)' : 'rgba(255,255,255,0.06)') + '" ' +
+        'stroke="' + (active ? 'var(--tri)' : 'rgba(255,255,255,0.15)') + '" stroke-width="1" ' +
+        'style="cursor:pointer;transition:fill 0.15s" ' +
+        'onclick="toggleSoreArea(\'' + key + '\')"><title>' + r.label + '</title></rect>';
+    }).join('');
+    // Simple body silhouette behind the tappable regions
+    const body = '<path d="M100 26 a13 13 0 0 1 13 13 a13 13 0 0 1 -6 11 l14 6 q10 4 10 16 l0 44 q0 6 -4 8 l-2 54 q4 4 3 10 l-4 52 q-1 6 -7 6 q-6 0 -7 -6 l-3 -46 q-3 4 -6 0 l-3 46 q-1 6 -7 6 q-6 0 -7 -6 l-4 -52 q-1 -6 3 -10 l-2 -54 q-4 -2 -4 -8 l0 -44 q0 -12 10 -16 l14 -6 a13 13 0 0 1 -6 -11 a13 13 0 0 1 13 -13 z" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>';
+    return '<div style="flex:1;text-align:center">' +
+      '<div style="font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em">' + title + '</div>' +
+      '<svg viewBox="0 0 200 280" style="width:100%;max-width:150px;height:auto">' + body + shapes + '</svg>' +
+    '</div>';
+  }
+
+  container.innerHTML =
+    '<div style="display:flex;gap:12px;justify-content:center">' +
+      buildView('Front', BODY_REGIONS.front) +
+      buildView('Back', BODY_REGIONS.back) +
+    '</div>';
+
+  // Selected summary + clear button visibility
+  const sel = document.getElementById('bodymap-selected');
+  const clearBtn = document.getElementById('bodymap-clear');
+  if (soreAreas.length) {
+    const labels = soreAreas.map(k => {
+      const all = [...BODY_REGIONS.front, ...BODY_REGIONS.back];
+      const match = all.find(r => (r.group || r.id) === k);
+      return match ? match.label : k;
+    });
+    // de-dupe labels
+    const uniq = [...new Set(labels)];
+    sel.innerHTML = 'Focusing on: <strong style="color:var(--tri)">' + uniq.join(', ') + '</strong>';
+    if (clearBtn) clearBtn.style.display = 'inline';
+  } else {
+    sel.innerHTML = 'Tap any area that feels sore or tight';
+    if (clearBtn) clearBtn.style.display = 'none';
+  }
+}
+
+// Human-readable list of selected sore areas for the AI prompt
+function soreAreasSummary() {
+  if (!soreAreas.length) return '';
+  const all = [...BODY_REGIONS.front, ...BODY_REGIONS.back];
+  const labels = [...new Set(soreAreas.map(k => {
+    const m = all.find(r => (r.group || r.id) === k);
+    return m ? m.label : k;
+  }))];
+  return labels.join(', ');
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
