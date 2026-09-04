@@ -9726,19 +9726,25 @@ async function loadTodayWeather() {
       method: 'POST', headers: { 'Content-Type':'application/json' },
       body: JSON.stringify({ location: home, date: todayStr })
     });
-    const data = await r.json();
+    let data = null;
+    let rawText = '';
+    try {
+      rawText = await r.text();
+      data = JSON.parse(rawText);
+    } catch(parseErr) {
+      showWeatherProblem(el, home, 'Weather service returned an unexpected response (HTTP ' + r.status + '). The /weather function may not be deployed.');
+      console.warn('weather raw response:', rawText.slice(0, 300));
+      return;
+    }
+
     // The API returns { inRange, forecast: { tempMax, tempMin, feelsMax, precipProb, windMax, sunrise } }
     const f = data && data.forecast;
     if (!f) {
-      // Location didn't geocode or no forecast — tell the user instead of failing silently
-      if (data && data.error) {
-        const errCard = document.createElement('div');
-        errCard.className = 'card';
-        errCard.style.cssText = 'padding:12px 16px;margin-bottom:18px';
-        errCard.innerHTML = '<div style="font-size:11px;color:var(--muted)">Couldn\'t find weather for "' + home + '". ' +
-          '<span style="color:var(--tri);cursor:pointer;text-decoration:underline" onclick="clearHomeLocation()">Change location</span></div>';
-        el.insertBefore(errCard, el.firstChild);
-      }
+      const why = data && data.error
+        ? data.error
+        : 'No forecast returned for "' + home + '". Try a simpler place name like "Chicago".';
+      showWeatherProblem(el, home, why);
+      console.warn('weather response without forecast:', data);
       return;
     }
     const wxCard = document.createElement('div');
@@ -9758,7 +9764,23 @@ async function loadTodayWeather() {
         (sunriseTxt ? '<span style="color:var(--muted)">☀ ' + sunriseTxt + '</span>' : '') +
       '</div>';
     el.insertBefore(wxCard, el.firstChild);
-  } catch(e) { console.warn('today weather', e); }
+  } catch(e) {
+    console.warn('today weather', e);
+    showWeatherProblem(el, home, 'Could not reach the weather service: ' + (e.message || 'network error'));
+  }
+}
+
+// Show a visible, actionable message instead of silently rendering nothing
+function showWeatherProblem(el, home, message) {
+  if (!el) return;
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.cssText = 'padding:12px 16px;margin-bottom:18px;border-left:3px solid var(--mar)';
+  card.innerHTML =
+    '<div style="font-size:11px;color:var(--mar);font-family:var(--font-display);font-weight:700;margin-bottom:4px">🌤 WEATHER UNAVAILABLE</div>' +
+    '<div style="font-size:11px;color:var(--muted);line-height:1.5">' + message + '</div>' +
+    '<div style="margin-top:8px"><span style="font-size:11px;color:var(--tri);cursor:pointer;text-decoration:underline" onclick="clearHomeLocation()">Change location</span></div>';
+  el.insertBefore(card, el.firstChild);
 }
 
 function clearHomeLocation() {
@@ -9768,7 +9790,10 @@ function clearHomeLocation() {
 
 function saveHomeLocation() {
   const input = document.getElementById('home-loc-input');
-  if (!input || !input.value.trim()) return;
+  if (!input || !input.value.trim()) {
+    if (input) { input.style.borderColor = 'var(--warn)'; input.focus(); }
+    return;
+  }
   localStorage.setItem('brb_home_location', input.value.trim());
   renderTodayPage();
 }
