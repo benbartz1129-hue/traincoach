@@ -9727,17 +9727,43 @@ async function loadTodayWeather() {
       body: JSON.stringify({ location: home, date: todayStr })
     });
     const data = await r.json();
-    if (!data || data.error || data.temp == null) return;
+    // The API returns { inRange, forecast: { tempMax, tempMin, feelsMax, precipProb, windMax, sunrise } }
+    const f = data && data.forecast;
+    if (!f) {
+      // Location didn't geocode or no forecast — tell the user instead of failing silently
+      if (data && data.error) {
+        const errCard = document.createElement('div');
+        errCard.className = 'card';
+        errCard.style.cssText = 'padding:12px 16px;margin-bottom:18px';
+        errCard.innerHTML = '<div style="font-size:11px;color:var(--muted)">Couldn\'t find weather for "' + home + '". ' +
+          '<span style="color:var(--tri);cursor:pointer;text-decoration:underline" onclick="clearHomeLocation()">Change location</span></div>';
+        el.insertBefore(errCard, el.firstChild);
+      }
+      return;
+    }
     const wxCard = document.createElement('div');
     wxCard.className = 'card';
     wxCard.style.cssText = 'padding:12px 16px;margin-bottom:18px';
-    wxCard.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center">' +
-      '<div style="font-size:11px;color:var(--muted);font-family:var(--font-display);font-weight:700">🌤 ' + home.toUpperCase() + '</div>' +
-      '<div style="font-size:13px;color:var(--text);font-family:var(--font-mono)">' +
-        Math.round(data.temp) + '°F' + (data.wind != null ? ' · ' + Math.round(data.wind) + 'mph' : '') +
-      '</div></div>';
+    const sunriseTxt = f.sunrise ? new Date(f.sunrise).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : null;
+    wxCard.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+        '<div style="font-size:11px;color:var(--muted);font-family:var(--font-display);font-weight:700">🌤 ' + home.toUpperCase() + '</div>' +
+        '<div style="font-size:9px;color:var(--tri);cursor:pointer" onclick="clearHomeLocation()">change</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;font-family:var(--font-mono);color:var(--text)">' +
+        '<span>' + Math.round(f.tempMin) + '–' + Math.round(f.tempMax) + '°F</span>' +
+        (f.feelsMax != null ? '<span style="color:var(--muted)">feels ' + Math.round(f.feelsMax) + '°</span>' : '') +
+        (f.windMax != null ? '<span style="color:var(--muted)">' + Math.round(f.windMax) + 'mph wind</span>' : '') +
+        (f.precipProb != null ? '<span style="color:' + (f.precipProb > 40 ? 'var(--mar)' : 'var(--muted)') + '">' + f.precipProb + '% rain</span>' : '') +
+        (sunriseTxt ? '<span style="color:var(--muted)">☀ ' + sunriseTxt + '</span>' : '') +
+      '</div>';
     el.insertBefore(wxCard, el.firstChild);
   } catch(e) { console.warn('today weather', e); }
+}
+
+function clearHomeLocation() {
+  localStorage.removeItem('brb_home_location');
+  renderTodayPage();
 }
 
 function saveHomeLocation() {
