@@ -9011,8 +9011,17 @@ function renderDebugPage() {
     '<div id="strava-probe-out" style="margin-top:10px"></div>'
   ];
 
+  const serverBlockRows = [
+    '<div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:10px">' +
+      'The server keeps its own deleted-activity list in KV. An ID here is filtered out of every sync, on every device.' +
+    '</div>',
+    '<button class="garage-add-btn" style="width:100%;font-size:12px;padding:10px" onclick="probeServerBlocklist()">Check server blocklist</button>',
+    '<div id="server-block-out" style="margin-top:10px"></div>'
+  ];
+
   el.innerHTML =
     section('🔬 Strava API probe', probeRows) +
+    section('🗄 Server blocklist (KV)', serverBlockRows) +
     section('🔎 Recent activities in memory', recentRows) +
     section('🚫 Deleted blocklist', blockRows) +
     section('💾 Backup / move domains', migrateRows) +
@@ -9332,6 +9341,44 @@ async function confirmDeleteActivity(id, event) {
 
 // Diagnostic: hit the Strava API directly and report exactly what comes back.
 // Used to settle "did it sync?" questions without guessing.
+
+// Inspect the SERVER-side deleted blocklist (separate from the local one — this
+// lives in KV, persists across devices and domains, and silently filters merges).
+async function probeServerBlocklist() {
+  const out = document.getElementById('server-block-out');
+  if (out) out.innerHTML = '<div style="font-size:11px;color:var(--muted)">Checking…</div>';
+  try {
+    const r = await fetch('/kv', {
+      method: 'POST', headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ action: 'getDeleted' })
+    });
+    const d = await r.json();
+    if (d.error) { out.innerHTML = '<div style="font-size:11px;color:var(--warn)">' + d.error + '</div>'; return; }
+    const list = d.deleted || [];
+    out.innerHTML =
+      '<div style="font-size:11px;color:' + (list.length ? 'var(--warn)' : 'var(--ok)') + ';margin-bottom:6px">' +
+        'Server blocklist: ' + list.length + ' blocked ID' + (list.length === 1 ? '' : 's') + '</div>' +
+      (list.length
+        ? '<div style="font-size:10px;font-family:var(--font-mono);color:var(--muted);word-break:break-all;line-height:1.6">' + list.join(', ') + '</div>' +
+          '<button class="garage-add-btn" style="width:100%;font-size:11px;padding:8px;margin-top:8px" onclick="clearServerBlocklist()">Clear server blocklist</button>'
+        : '');
+  } catch(e) {
+    if (out) out.innerHTML = '<div style="font-size:11px;color:var(--warn)">Failed: ' + (e.message||e) + '</div>';
+  }
+}
+
+async function clearServerBlocklist() {
+  if (!confirm('Clear the server-side deleted list? Previously deleted activities may return on the next sync.')) return;
+  try {
+    await fetch('/kv', {
+      method: 'POST', headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify({ action: 'clearDeleted' })
+    });
+    alert('Server blocklist cleared. Run a Sync now.');
+    probeServerBlocklist();
+  } catch(e) { alert('Failed: ' + (e.message||e)); }
+}
+
 async function probeStrava() {
   const out = document.getElementById('strava-probe-out');
   if (out) out.innerHTML = '<div style="font-size:11px;color:var(--muted)">Querying Strava…</div>';
