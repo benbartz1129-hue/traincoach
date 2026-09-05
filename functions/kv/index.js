@@ -87,6 +87,16 @@ export async function onRequestPost(context) {
       }), { headers });
     }
 
+    if (action === 'getDeleted') {
+      const deleted = (await kvGet('brb_deleted_activities', CF_API_TOKEN)) || [];
+      return new Response(JSON.stringify({ deleted, count: deleted.length }), { headers });
+    }
+
+    if (action === 'clearDeleted') {
+      await kvPut('brb_deleted_activities', [], CF_API_TOKEN);
+      return new Response(JSON.stringify({ ok: true, cleared: true }), { headers });
+    }
+
     if (action === 'deleteActivity') {
       const delId = String(value);
       const stored = (await kvGet('brb_activity_archive', CF_API_TOKEN)) || [];
