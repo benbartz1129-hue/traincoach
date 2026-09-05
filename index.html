@@ -9,6 +9,7 @@
 <meta name="theme-color" content="#0a0a0f">
 <title>BRB Training</title>
 <link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -2729,6 +2730,10 @@ function buildSummary(acts) {
 }
 
 async function callClaude(payload, feature) {
+  // Fail fast and clearly when offline — AI features need a connection.
+  if (!navigator.onLine) {
+    throw new Error("You're offline — AI features need a connection. Your saved data is still available.");
+  }
   const r = await fetch('/claude', {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify(payload)
@@ -2903,6 +2908,12 @@ function getTriDistanceTargets(subtype) {
 // ── DASHBOARD RENDER ──────────────────────────────────────────────────────
 function renderDashboard(d) {
   const loadColors = { low:'var(--ok)', moderate:'var(--mar)', high:'var(--warn)', 'very high':'var(--warn)' };
+  // Defensive: week totals must always come from live activity data. Some callers pass
+  // an AI-analysis object that has no week fields, which previously rendered 0.0 until
+  // the user navigated away and back. Overlay the live numbers here, once, for everyone.
+  if (allActivities && allActivities.length) {
+    try { d = { ...d, ...calcLiveWeekTotals() }; } catch(e) { console.warn('live totals', e); }
+  }
   // Always compute this week's targets fresh from the calendar plan (so they update
   // as the plan changes, rather than being baked into cached analysis).
   d.weeklyTargets = getWeeklyTargetsFromPlan();
@@ -9873,6 +9884,19 @@ function updateRefreshBanner(iso) {
 
 async function refreshData() {
   const btn = document.getElementById('refresh-btn');
+
+  // Offline: don't spin pointlessly or throw a confusing error
+  if (!navigator.onLine) {
+    updateRefreshBanner(localStorage.getItem(CACHE_KEY_TIMESTAMP));
+    const dash = document.getElementById('dashboard-content');
+    if (dash) {
+      const note = document.createElement('div');
+      note.innerHTML = `<div class="card" style="padding:10px 14px;margin-bottom:12px;border-left:3px solid var(--mar);font-size:11px;color:var(--muted);line-height:1.5">📡 You're offline — showing your saved data. Sync again when you have a connection.</div>`;
+      dash.prepend(note.firstChild);
+    }
+    return;
+  }
+
   btn.classList.add('spinning');
   btn.disabled = true;
 
@@ -10153,6 +10177,83 @@ document.addEventListener('visibilitychange', () => {
     renderDashboard(updated);
   }
 });
+
+// ══════════════════════════════════════════════════════════════════════════
+// OFFLINE SUPPORT — service worker registration + connectivity indicator
+// ══════════════════════════════════════════════════════════════════════════
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => {
+        console.log('[sw] registered');
+        // When a new version is installed, let the user refresh into it
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing;
+          if (!nw) return;
+          nw.addEventListener('statechange', () => {
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+              showUpdateBanner(reg);
+            }
+          });
+        });
+      })
+      .catch(err => console.warn('[sw] registration failed', err));
+  });
+}
+
+// Small banner offering to load a newly deployed version
+function showUpdateBanner(reg) {
+  if (document.getElementById('sw-update-banner')) return;
+  const bar = document.createElement('div');
+  bar.id = 'sw-update-banner';
+  bar.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(var(--safe-bottom) + 76px);z-index:2500;' +
+    'background:var(--surface2);border:1px solid var(--tri-border);border-radius:12px;padding:12px 14px;' +
+    'display:flex;align-items:center;gap:12px;box-shadow:0 6px 24px rgba(0,0,0,0.5)';
+  bar.innerHTML =
+    '<div style="flex:1;font-size:12px;color:var(--text)">A new version is ready.</div>' +
+    '<button style="background:var(--tri);color:#0a0a0f;border:none;border-radius:8px;padding:7px 12px;' +
+    'font-family:var(--font-display);font-size:12px;font-weight:700;cursor:pointer" id="sw-update-btn">Update</button>' +
+    '<button style="background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px" ' +
+    'onclick="this.parentElement.remove()">×</button>';
+  document.body.appendChild(bar);
+  const btn = document.getElementById('sw-update-btn');
+  if (btn) btn.onclick = () => {
+    if (reg.waiting) reg.waiting.postMessage('SKIP_WAITING');
+    window.location.reload();
+  };
+}
+
+// ── Connectivity indicator ────────────────────────────────────────────────
+// The app works offline from cached data, but syncing and AI features need a
+// connection. Show an unobtrusive bar so a failed sync is never a mystery.
+function updateOnlineStatus() {
+  const offline = !navigator.onLine;
+  let bar = document.getElementById('offline-bar');
+  if (offline) {
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'offline-bar';
+      bar.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:2600;background:var(--mar);' +
+        'color:#0a0a0f;font-family:var(--font-display);font-size:11px;font-weight:700;text-align:center;' +
+        'padding:calc(var(--safe-top) + 5px) 8px 5px;letter-spacing:0.03em';
+      bar.textContent = 'OFFLINE — showing saved data. Sync when back online.';
+      document.body.appendChild(bar);
+    }
+  } else if (bar) {
+    bar.remove();
+  }
+  // Disable the sync button while offline so it can't fail confusingly
+  const syncBtn = document.getElementById('refresh-btn');
+  if (syncBtn) {
+    syncBtn.disabled = offline;
+    syncBtn.style.opacity = offline ? '0.4' : '';
+  }
+}
+
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
 
 init();
 </script>
