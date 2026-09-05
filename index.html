@@ -9937,6 +9937,9 @@ async function refreshData() {
     let aiFailed = null;
     try {
       analysis = await runAnalysis(activitySummary);
+      // The AI analysis has no week totals — always overlay the live-calculated ones
+      // so Training Hours / mileage are never blank after a sync.
+      analysis = { ...analysis, ...calcTriReadiness(), ...calcLiveWeekTotals() };
       // Re-save with the fresh analysis attached
       saveCache(analysis, allActivities, activitySummary);
     } catch(aiErr) {
