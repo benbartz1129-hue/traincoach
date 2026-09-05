@@ -6103,7 +6103,7 @@ function calcInjuryRisk() {
   for (let i = 0; i < 21; i++) {
     const checkDate = new Date(today); checkDate.setDate(today.getDate() - i);
     const dateStr = checkDate.toISOString().split('T')[0];
-    const hasActivity = allActivities.some(a => a.start_date_local.split('T')[0] === dateStr && a.distance > 0);
+    const hasActivity = allActivities.some(a => a.start_date_local.split('T')[0] === dateStr && (a.distance > 0 || a.moving_time > 0));
     if (hasActivity) consecutiveDays++;
     else break;
   }
@@ -8895,7 +8895,10 @@ function renderDebugPage() {
 
   // Data freshness
   let lastSync = '—';
-  try { const c = JSON.parse(localStorage.getItem('brb_last_activities')||'null'); if (c && c.cachedAt) lastSync = new Date(c.cachedAt).toLocaleString(); } catch(e) {}
+  try {
+    const ts = localStorage.getItem(CACHE_KEY_TIMESTAMP);
+    if (ts) lastSync = new Date(isNaN(ts) ? ts : Number(ts)).toLocaleString();
+  } catch(e) {}
 
   // This week's computed values (the ones that have disagreed before)
   let liveWeek = {};
@@ -8913,6 +8916,7 @@ function renderDebugPage() {
     row('Week starts (Mon)', mondayStr),
     row('Last Strava sync', lastSync),
     row('Total activities cached', allActivities.length, allActivities.length === 0),
+    row('Non-distance (gym/yoga)', allActivities.filter(a => !(a.distance > 0) && a.moving_time > 0).length),
     row('Races (upcoming / past)', upcoming.length + ' / ' + past.length),
     row('Garage bikes', (garage||[]).length),
     row('Strava gear items', (stravaGear||[]).length, (stravaGear||[]).length === 0)
@@ -9308,11 +9312,16 @@ function renderTrainingHeatmap() {
   // Sum daily TLS-weighted load (so a hard day shows darker than an easy one)
   const dayLoad = {};
   allActivities.forEach(a => {
-    if (!a.distance) return;
     const d = a.start_date_local.split('T')[0];
-    const mi = mToMi(a.distance);
-    const w = a.type === 'Swim' ? 4 : a.type === 'Run' ? 1 : a.type === 'Ride' ? 0.25 : 0.5;
-    dayLoad[d] = (dayLoad[d] || 0) + mi * w;
+    if (a.distance > 0) {
+      const mi = mToMi(a.distance);
+      const w = a.type === 'Swim' ? 4 : a.type === 'Run' ? 1 : a.type === 'Ride' ? 0.25 : 0.5;
+      dayLoad[d] = (dayLoad[d] || 0) + mi * w;
+    } else if (a.moving_time > 0) {
+      // Distance-less sessions (weight training, yoga, etc.) still count as training —
+      // score them by duration so they show on the heatmap and keep streaks alive.
+      dayLoad[d] = (dayLoad[d] || 0) + (a.moving_time / 3600) * 4;
+    }
   });
 
   // Determine intensity buckets from non-zero days
@@ -9408,11 +9417,16 @@ function renderDashHeatmap() {
 
   const dayLoad = {};
   allActivities.forEach(a => {
-    if (!a.distance) return;
     const d = a.start_date_local.split('T')[0];
-    const mi = mToMi(a.distance);
-    const w = a.type === 'Swim' ? 4 : a.type === 'Run' ? 1 : a.type === 'Ride' ? 0.25 : 0.5;
-    dayLoad[d] = (dayLoad[d] || 0) + mi * w;
+    if (a.distance > 0) {
+      const mi = mToMi(a.distance);
+      const w = a.type === 'Swim' ? 4 : a.type === 'Run' ? 1 : a.type === 'Ride' ? 0.25 : 0.5;
+      dayLoad[d] = (dayLoad[d] || 0) + mi * w;
+    } else if (a.moving_time > 0) {
+      // Distance-less sessions (weight training, yoga, etc.) still count as training —
+      // score them by duration so they show on the heatmap and keep streaks alive.
+      dayLoad[d] = (dayLoad[d] || 0) + (a.moving_time / 3600) * 4;
+    }
   });
 
   const loads = Object.values(dayLoad).filter(v => v > 0).sort((a,b) => a - b);
@@ -10012,9 +10026,15 @@ async function refreshData() {
         body: JSON.stringify({ action: 'getActivities' })
       });
       const archiveData = await archiveResp.json();
-      if (archiveData.activities && archiveData.activities.length > acts.length) {
-        merged = archiveData.activities;
-        console.log('Using full archive:', merged.length, 'activities');
+      if (archiveData.activities && archiveData.activities.length) {
+        // KV is eventually consistent: the archive we just read back may not yet
+        // include the activities we pushed a moment ago. Merging (rather than
+        // replacing) guarantees today's fresh activities are never dropped.
+        const byId = {};
+        archiveData.activities.forEach(a => { byId[String(a.id)] = a; });
+        acts.forEach(a => { byId[String(a.id)] = a; }); // fresh Strava data wins
+        merged = Object.values(byId);
+        console.log('Merged archive + fresh:', merged.length, 'activities');
       }
     } catch(e) { console.warn('Archive merge failed, using latest 100 only:', e); }
 
