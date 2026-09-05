@@ -8959,7 +8959,18 @@ function renderDebugPage() {
     cacheRows.push(row('Approx cache size', (totalBytes/1024).toFixed(1) + ' KB', totalBytes > 4000000));
   } catch(e) { cacheRows.push(row('Cache', 'error reading')); }
 
+  const migrateRows = [
+    '<div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:10px">' +
+      'Browser storage is per-domain. If you move the app to a new domain, export here on the OLD one, then import on the NEW one.' +
+    '</div>',
+    '<div style="display:flex;gap:8px">' +
+      '<button class="garage-add-btn" style="flex:1;font-size:12px;padding:10px" onclick="exportAllData()">⬇ Export backup</button>' +
+      '<button class="garage-add-btn" style="flex:1;font-size:12px;padding:10px" onclick="importAllData()">⬆ Import backup</button>' +
+    '</div>'
+  ];
+
   el.innerHTML =
+    section('💾 Backup / move domains', migrateRows) +
     section('📦 Data', dataRows) +
     section('📅 This week (computed)', weekRows) +
     section('🚨 Injury risk internals', injuryRows) +
@@ -9807,6 +9818,69 @@ function saveHomeLocation() {
   }
   localStorage.setItem('brb_home_location', input.value.trim());
   renderTodayPage();
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// DATA EXPORT / IMPORT — for moving between origins (e.g. pages.dev -> .com)
+// Browser storage is per-origin, so changing domains starts with empty local
+// data. KV-backed items (races, plan, weight, notes, wellness, drills,
+// checklists, garage) resync automatically; these are the local-only ones.
+// ══════════════════════════════════════════════════════════════════════════
+
+// Everything worth carrying across a domain move.
+const MIGRATE_KEYS = [
+  'brb_races','brb_training_plan','brb_weight_log','brb_activity_notes',
+  'brb_wellness_log','brb_swim_drills','brb_race_checklists','brb_garage',
+  // Local-only (NOT in KV) — these are the ones that would otherwise be lost:
+  'brb_race_simulations','brb_race_debriefs','brb_race_intel','brb_race_weather',
+  'brb_workouts','brb_fit_checks','brb_shoe_finder','brb_strava_gear',
+  'brb_sore_areas','brb_home_location','brb_deleted_ids','brb_api_usage',
+  'brb_recovery','brb_daily_insight','brb_weekly_summary'
+];
+
+function exportAllData() {
+  const payload = { _exported: new Date().toISOString(), _origin: location.origin, data: {} };
+  let count = 0;
+  MIGRATE_KEYS.forEach(k => {
+    const v = localStorage.getItem(k);
+    if (v != null) { payload.data[k] = v; count++; }
+  });
+  const json = JSON.stringify(payload);
+
+  // Offer both a file download and clipboard copy — whichever is easier on device
+  try {
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'brb-training-backup-' + new Date().toISOString().split('T')[0] + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch(e) { console.warn('download failed', e); }
+
+  try { navigator.clipboard.writeText(json); } catch(e) {}
+  alert('Exported ' + count + ' data sets.\n\nSaved as a file and copied to your clipboard. On the new domain, open Debug / health and use Import.');
+}
+
+function importAllData() {
+  const raw = prompt('Paste your exported backup JSON here:');
+  if (!raw || !raw.trim()) return;
+  let payload;
+  try { payload = JSON.parse(raw.trim()); } catch(e) { alert('That did not look like valid backup JSON.'); return; }
+  if (!payload || !payload.data) { alert('Backup file is missing its data section.'); return; }
+
+  const keys = Object.keys(payload.data);
+  if (!confirm('Import ' + keys.length + ' data sets from ' + (payload._origin || 'unknown origin') + '?\n\nThis will overwrite matching data on this device.')) return;
+
+  let restored = 0;
+  keys.forEach(k => {
+    if (MIGRATE_KEYS.includes(k)) {
+      try { localStorage.setItem(k, payload.data[k]); restored++; } catch(e) { console.warn('restore failed for', k, e); }
+    }
+  });
+  alert('Restored ' + restored + ' data sets. The app will now reload.');
+  location.reload();
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
