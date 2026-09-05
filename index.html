@@ -2513,8 +2513,11 @@ async function getValidToken() {
 
 async function fetchActivities(token) {
   // Only fetch latest 100 — older activities are stored in KV
+  // cache:'no-store' guarantees a live response — a cached activity list silently
+  // hides newly logged activities, which is very hard to diagnose.
   const r = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=100&page=1', {
-    headers: { Authorization: 'Bearer ' + token }
+    headers: { Authorization: 'Bearer ' + token },
+    cache: 'no-store'
   });
   const acts = await r.json();
   return Array.isArray(acts) ? acts : [];
@@ -5064,6 +5067,7 @@ async function importFullHistory() {
     while (keepGoing && page <= maxPages) {
       status.textContent = `Fetching page ${page}... (${allFetched.length} activities so far)`;
       const r = await fetch(`https://www.strava.com/api/v3/athlete/activities?per_page=100&page=${page}`, {
+        cache: 'no-store',
         headers: { Authorization: 'Bearer ' + token }
       });
       const batch = await r.json();
