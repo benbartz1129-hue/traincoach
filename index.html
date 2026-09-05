@@ -9003,7 +9003,16 @@ function renderDebugPage() {
     }
   } catch(e) { blockRows = [row('Blocklist', 'error')]; }
 
+  const probeRows = [
+    '<div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:10px">' +
+      'Queries Strava directly and compares against what the app holds. Anything marked MISSING came back from Strava but is not in your app.' +
+    '</div>',
+    '<button class="garage-add-btn" style="width:100%;font-size:12px;padding:10px" onclick="probeStrava()">🔬 Probe Strava API</button>',
+    '<div id="strava-probe-out" style="margin-top:10px"></div>'
+  ];
+
   el.innerHTML =
+    section('🔬 Strava API probe', probeRows) +
     section('🔎 Recent activities in memory', recentRows) +
     section('🚫 Deleted blocklist', blockRows) +
     section('💾 Backup / move domains', migrateRows) +
@@ -9320,6 +9329,52 @@ async function confirmDeleteActivity(id, event) {
 // deleted activity never reappears, even if it comes back from KV/Strava on a sync.
 
 // Clear the local deleted-activity blocklist (un-hides anything wrongly filtered out)
+
+// Diagnostic: hit the Strava API directly and report exactly what comes back.
+// Used to settle "did it sync?" questions without guessing.
+async function probeStrava() {
+  const out = document.getElementById('strava-probe-out');
+  if (out) out.innerHTML = '<div style="font-size:11px;color:var(--muted)">Querying Strava…</div>';
+  try {
+    const token = await getValidToken();
+    if (!token) { out.innerHTML = '<div style="font-size:11px;color:var(--warn)">No valid Strava token — try Reconnect Strava.</div>'; return; }
+
+    const r = await fetch('https://www.strava.com/api/v3/athlete/activities?per_page=30&page=1', {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const status = r.status;
+    const acts = await r.json();
+
+    if (!Array.isArray(acts)) {
+      out.innerHTML = '<div style="font-size:11px;color:var(--warn)">HTTP ' + status + ' — Strava returned: ' +
+        JSON.stringify(acts).slice(0, 300) + '</div>';
+      return;
+    }
+
+    const inApp = {};
+    allActivities.forEach(a => { inApp[String(a.id)] = true; });
+
+    const rows = acts.slice(0, 12).map(a => {
+      const d = (a.start_date_local || '').split('T')[0];
+      const time = (a.start_date_local || '').split('T')[1] || '';
+      const have = inApp[String(a.id)];
+      const dist = a.distance > 0 ? (a.distance/1609.34).toFixed(1) + 'mi' : 'no dist';
+      return '<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:10px">' +
+        '<span style="color:var(--muted)">' + d + ' ' + time.slice(0,5) + ' · ' + a.type + '</span>' +
+        '<span style="font-family:var(--font-mono);color:' + (have ? 'var(--ok)' : 'var(--warn)') + '">' +
+          dist + ' · ' + (have ? 'IN APP' : 'MISSING') + '</span></div>';
+    }).join('');
+
+    const missing = acts.filter(a => !inApp[String(a.id)]).length;
+    out.innerHTML =
+      '<div style="font-size:11px;color:var(--muted);margin-bottom:8px">HTTP ' + status + ' · Strava returned ' + acts.length +
+      ' activities · <strong style="color:' + (missing ? 'var(--warn)' : 'var(--ok)') + '">' + missing + ' missing from app</strong></div>' +
+      rows;
+  } catch(e) {
+    if (out) out.innerHTML = '<div style="font-size:11px;color:var(--warn)">Probe failed: ' + (e.message||e) + '</div>';
+  }
+}
+
 function clearDeletedBlocklist() {
   if (!confirm('Clear the deleted-activity blocklist? Any activity you previously deleted locally will reappear after the next sync.')) return;
   localStorage.removeItem('brb_deleted_ids');
