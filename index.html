@@ -9019,7 +9019,30 @@ function renderDebugPage() {
     '<div id="server-block-out" style="margin-top:10px"></div>'
   ];
 
+  let traceRows = [];
+  try {
+    const t = JSON.parse(localStorage.getItem('brb_sync_trace') || 'null');
+    if (!t) {
+      traceRows = [row('Last sync trace', 'none yet — run a Sync')];
+    } else {
+      traceRows = [
+        row('Traced at', new Date(t.at).toLocaleString()),
+        row('From Strava', t.fromStrava),
+        row('After archive merge', t.afterMerge),
+        row('After normalize', t.afterNormalize),
+        row('After blocklist', t.afterBlocklist, t.afterBlocklist < t.afterMerge),
+        row('After guarantee', t.afterGuarantee),
+        row('Recovered (were dropped)', t.droppedIds.length, t.droppedIds.length > 0)
+      ];
+      if (t.droppedIds.length) {
+        traceRows.push('<div style="font-size:10px;font-family:var(--font-mono);color:var(--warn);margin-top:6px;line-height:1.6">' +
+          t.droppedIds.map(d => d.date.split('T')[0] + ' ' + d.type + ' (' + d.id + ')').join('<br>') + '</div>');
+      }
+    }
+  } catch(e) { traceRows = [row('Sync trace', 'error')]; }
+
   el.innerHTML =
+    section('🧭 Last sync trace', traceRows) +
     section('🔬 Strava API probe', probeRows) +
     section('🗄 Server blocklist (KV)', serverBlockRows) +
     section('🔎 Recent activities in memory', recentRows) +
@@ -10181,7 +10204,37 @@ async function refreshData() {
       }
     } catch(e) { console.warn('Archive merge failed, using latest 100 only:', e); }
 
-    allActivities = applyDeletedBlocklist(merged.map(a => ({ ...a, type: normalizeActivityType(a.type) }))).sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+    // ── Instrumented merge with a self-healing guarantee ──────────────────
+    // Record counts at each stage so a dropped activity can be traced instead of guessed at.
+    const trace = {
+      at: new Date().toISOString(),
+      fromStrava: acts.length,
+      afterMerge: merged.length,
+      stravaIds: acts.length,
+      droppedIds: []
+    };
+
+    let staged = merged.map(a => ({ ...a, type: normalizeActivityType(a.type) }));
+    trace.afterNormalize = staged.length;
+
+    staged = applyDeletedBlocklist(staged);
+    trace.afterBlocklist = staged.length;
+
+    // GUARANTEE: every activity Strava just returned must survive to the final list.
+    // If anything was lost along the way, re-add it and record which ones.
+    const stagedIds = {};
+    staged.forEach(a => { stagedIds[String(a.id)] = true; });
+    acts.forEach(a => {
+      if (!stagedIds[String(a.id)]) {
+        trace.droppedIds.push({ id: String(a.id), type: a.type, date: a.start_date_local });
+        staged.push({ ...a, type: normalizeActivityType(a.type) });
+      }
+    });
+    trace.afterGuarantee = staged.length;
+    try { localStorage.setItem('brb_sync_trace', JSON.stringify(trace)); } catch(e) {}
+    if (trace.droppedIds.length) console.warn('[sync] recovered dropped activities:', trace.droppedIds);
+
+    allActivities = staged.sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
     activitySummary = buildSummary(allActivities);
 
     // CRITICAL: persist training data IMMEDIATELY — before the AI call.
