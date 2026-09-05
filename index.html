@@ -8973,7 +8973,39 @@ function renderDebugPage() {
     '</div>'
   ];
 
+  // Raw view of the most recent activities actually in memory — the definitive
+  // answer to "did it sync?" questions. Shows type/date/distance/time per activity.
+  let recentRows = [];
+  try {
+    const recent = [...allActivities]
+      .sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local))
+      .slice(0, 8);
+    if (!recent.length) {
+      recentRows = [row('Recent activities', 'NONE IN MEMORY', true)];
+    } else {
+      recentRows = recent.map(a => {
+        const d = a.start_date_local.split('T')[0];
+        const dist = a.distance > 0 ? mToMi(a.distance).toFixed(1) + 'mi' : 'no dist';
+        const mins = a.moving_time ? Math.round(a.moving_time/60) + 'min' : 'no time';
+        return row(d + ' · ' + a.type, dist + ' · ' + mins);
+      });
+    }
+  } catch(e) { recentRows = [row('Recent activities', 'error: ' + e.message, true)]; }
+
+  // Blocklist contents — a stray ID here silently hides an activity forever
+  let blockRows = [];
+  try {
+    const blocked = JSON.parse(localStorage.getItem('brb_deleted_ids') || '[]');
+    blockRows.push(row('Blocked activity IDs', blocked.length ? blocked.length + ' blocked' : 'none', blocked.length > 0));
+    if (blocked.length) {
+      blockRows.push(row('IDs', blocked.join(', ')));
+      blockRows.push('<div style="margin-top:8px"><button class="garage-add-btn" style="width:100%;font-size:11px;padding:8px" onclick="clearDeletedBlocklist()">Clear blocklist (un-hide all)</button></div>');
+    }
+  } catch(e) { blockRows = [row('Blocklist', 'error')]; }
+
   el.innerHTML =
+    section('🔎 Recent activities in memory', recentRows) +
+    section('🚫 Deleted blocklist', blockRows) +
     section('💾 Backup / move domains', migrateRows) +
     section('📦 Data', dataRows) +
     section('📅 This week (computed)', weekRows) +
@@ -9286,6 +9318,15 @@ async function confirmDeleteActivity(id, event) {
 
 // Filter out any locally-blocked (deleted) activity IDs. Applied on every load so a
 // deleted activity never reappears, even if it comes back from KV/Strava on a sync.
+
+// Clear the local deleted-activity blocklist (un-hides anything wrongly filtered out)
+function clearDeletedBlocklist() {
+  if (!confirm('Clear the deleted-activity blocklist? Any activity you previously deleted locally will reappear after the next sync.')) return;
+  localStorage.removeItem('brb_deleted_ids');
+  alert('Blocklist cleared. Run a Sync to reload activities.');
+  renderDebugPage();
+}
+
 function applyDeletedBlocklist(acts) {
   try {
     const blocked = JSON.parse(localStorage.getItem('brb_deleted_ids') || '[]').map(String);
