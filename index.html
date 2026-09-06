@@ -1600,45 +1600,31 @@ body {
         <div class="date-banner" style="margin-bottom:20px">
           <div>
             <div class="date-greeting" style="font-size:16px">👟 Shoe Closet</div>
-            <div class="date-sub">Foot analysis, picks &amp; deals</div>
+            <div class="date-sub">Your rotation, wear &amp; cost per mile</div>
           </div>
         </div>
 
-        <div id="shoe-mileage-section"></div>
+        <div id="shoe-rotation-section"></div>
 
+        <!-- Price comparison: link out to a dedicated tracker rather than paying an
+             LLM to guess at live prices (which it does badly and expensively). -->
         <div class="card" style="padding:14px 16px;margin-bottom:16px">
-          <div class="section-label" style="margin-bottom:8px">How it works</div>
-          <div style="font-size:12px;color:var(--muted);line-height:1.7">
-            Upload up to 3 photos and the AI will analyze your feet, match shoes to your training, and search the web for current deals. Best photos to include:
-            <div style="margin-top:8px">
-              <div>1️⃣ Top-down of both feet (standing)</div>
-              <div>2️⃣ Side view showing your arch</div>
-              <div>3️⃣ Sole of your current shoes — wear pattern reveals the most</div>
-            </div>
+          <div class="section-label" style="margin-bottom:8px">Shopping for a new pair?</div>
+          <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:10px">
+            Running Shoe Tracker compares prices across every major retailer and re-prices daily &mdash; far better than anything this app could compute. Opens filtered to your size.
           </div>
-        </div>
-
-        <div class="card" style="padding:14px 16px;margin-bottom:16px">
-          <input type="file" id="shoe-photo-input" accept="image/*" multiple style="display:none" onchange="handleShoePhotos(event)" />
-          <button class="add-race-btn" style="background:var(--surface2);color:var(--text);border:1px dashed var(--border2)" onclick="document.getElementById('shoe-photo-input').click()">
-            📷 Add photos (up to 3)
-          </button>
-          <div id="shoe-photo-thumbs" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"></div>
-          <button class="add-race-btn" id="shoe-analyze-btn" style="margin-top:10px;display:none" onclick="analyzeShoes()">✨ Analyze &amp; Find Shoes</button>
-        </div>
-
-        <!-- Quick deal search -->
-        <div class="card" style="padding:14px 16px;margin-bottom:16px">
-          <div class="section-label" style="margin-bottom:8px">Quick deal search</div>
-          <div style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5">Skip the photos — just describe what you want and the AI will hunt for deals.</div>
-          <div style="display:flex;gap:8px">
-            <input class="form-input" id="deal-search-input" placeholder="e.g. size 10 tempo shoes under $120"
-              onkeydown="if(event.key==='Enter') searchShoeDeals()" style="flex:1" />
-            <button class="garage-add-btn" onclick="searchShoeDeals()" style="padding:0 16px">💰 Find</button>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+            <span style="font-size:11px;color:var(--muted)">My size</span>
+            <input class="form-input" id="shoe-size-input" style="width:70px;font-size:12px;text-align:center" placeholder="10" onchange="saveShoeSize()" />
+            <select class="form-input" id="shoe-width-input" style="flex:1;font-size:12px" onchange="saveShoeSize()">
+              <option value="standard">Standard</option>
+              <option value="wide">Wide</option>
+              <option value="extra-wide">Extra wide</option>
+            </select>
           </div>
+          <button class="add-race-btn" onclick="openShoeTracker()">🔍 Compare prices &amp; deals ↗</button>
         </div>
 
-        <div id="deal-search-result"></div>
         <div id="shoefinder-content"></div>
       </div>
     </div>
@@ -7494,244 +7480,10 @@ function renderFitnessTrend() {
 
 // ── AI SHOE FINDER (vision + web search) ─────────────────────────────────
 const CACHE_KEY_SHOEFINDER = 'brb_shoe_finder';
-let shoePhotos = []; // array of base64 jpeg strings
+// (AI shoe photo analysis and live deal search removed — replaced by the
+// rotation tracker plus a link out to a dedicated price-comparison site.
+// The AI approach was costly and unreliable at returning real current prices.)
 
-function initShoeFinder() {
-  shoePhotos = [];
-  renderShoeThumbs();
-  renderShoeMileage();
-  const cached = JSON.parse(localStorage.getItem(CACHE_KEY_SHOEFINDER) || 'null');
-  const contentEl = document.getElementById('shoefinder-content');
-  if (cached && contentEl) {
-    renderShoeResults(cached);
-  } else if (contentEl) {
-    contentEl.innerHTML = '';
-  }
-}
-
-function compressImage(file, maxDim) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const img = new Image();
-      img.onload = () => {
-        let w = img.width, h = img.height;
-        if (w > maxDim || h > maxDim) {
-          const scale = maxDim / Math.max(w, h);
-          w = Math.round(w * scale); h = Math.round(h * scale);
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
-      };
-      img.onerror = reject;
-      img.src = e.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-async function handleShoePhotos(event) {
-  const files = Array.from(event.target.files).slice(0, 3 - shoePhotos.length);
-  for (const file of files) {
-    try {
-      const b64 = await compressImage(file, 1024);
-      shoePhotos.push(b64);
-    } catch(e) { console.warn('Photo compress failed:', e); }
-  }
-  event.target.value = '';
-  renderShoeThumbs();
-}
-
-function removeShoePhoto(idx) {
-  shoePhotos.splice(idx, 1);
-  renderShoeThumbs();
-}
-
-function renderShoeThumbs() {
-  const thumbs = document.getElementById('shoe-photo-thumbs');
-  const analyzeBtn = document.getElementById('shoe-analyze-btn');
-  if (!thumbs) return;
-  thumbs.innerHTML = shoePhotos.map((b64, i) => `
-    <div style="position:relative">
-      <img src="data:image/jpeg;base64,${b64}" style="width:72px;height:72px;object-fit:cover;border-radius:10px;border:1px solid var(--border2)" />
-      <button onclick="removeShoePhoto(${i})" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:var(--warn);color:#fff;border:none;font-size:11px;cursor:pointer;line-height:1">✕</button>
-    </div>`).join('');
-  if (analyzeBtn) analyzeBtn.style.display = shoePhotos.length ? 'block' : 'none';
-}
-
-async function analyzeShoes() {
-  if (!shoePhotos.length) return;
-  const contentEl = document.getElementById('shoefinder-content');
-  const btn = document.getElementById('shoe-analyze-btn');
-  btn.disabled = true;
-  contentEl.innerHTML = `<div class="loading-state"><div class="loading-dots"><span></span><span></span><span></span></div><div class="loading-text">Analyzing your feet and searching for deals\u2026<br><span style="font-size:10px;color:var(--dim)">This can take 30-45 seconds</span></div></div>`;
-
-  try {
-    // Run training context for shoe matching
-    const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
-    const runs = allActivities.filter(a => a.type === 'Run' && new Date(a.start_date_local) >= cutoff && a.distance > 0 && a.moving_time > 0);
-    const runMi = runs.reduce((s,a) => s + mToMi(a.distance), 0);
-    const avgPace = runs.length ? (runs.reduce((s,a)=>s+a.moving_time,0)/60) / runMi : 0;
-    const longest = runs.length ? Math.max(...runs.map(a => mToMi(a.distance))) : 0;
-    const weeklyMi = (runMi / 8.6).toFixed(1);
-    const runCtx = runs.length
-      ? 'Runner profile: ~' + weeklyMi + ' mi/week, avg pace ' + Math.floor(avgPace) + ':' + String(Math.round((avgPace % 1) * 60)).padStart(2,'0') + '/mi, longest recent run ' + longest.toFixed(1) + 'mi. Upcoming races: ' + upcomingRaceContext() + ' (Boston 2026 PR: 3:38).'
-      : 'Limited recent run data.';
-
-    const imageBlocks = shoePhotos.map(b64 => ({
-      type: 'image',
-      source: { type: 'base64', media_type: 'image/jpeg', data: b64 }
-    }));
-
-    const reply = await callClaude({
-      model: 'claude-sonnet-4-6', max_tokens: 3000,
-      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
-      system: `You are a running shoe fitting expert. Do at most 3 web searches total when hunting for deals. Analyze the foot/shoe photos provided: look for arch height, foot width, toe shape, bunions or pressure points, and if a shoe sole is shown, read the wear pattern for pronation clues. Be honest about confidence — photos are an approximation, not a gait analysis. Then recommend specific current shoe models matched to their feet AND their actual training (provided), organized by training type. Finally, use web search to find current prices and active deals on your top recommended models — search for discounts, previous-generation versions, and sale prices. Format your final answer as plain text (NOT JSON) with these exact section headers on their own lines:
-FOOT ANALYSIS
-(what you observed in the photos, confidence level, pronation assessment if wear pattern visible)
-DAILY TRAINER
-(2 models with one-line why)
-TEMPO AND SPEED
-(2 models)
-LONG RUN AND MARATHON
-(2 models, consider Chicago goal)
-RECOVERY
-(1-2 models)
-DEALS FOUND
-(actual current prices and deals you found via search, with retailer names; note prev-gen bargains. Include the direct URL for each deal on the same line so the athlete can tap through to buy)
-FIT NOTES
-(sizing quirks of recommended models given their foot shape, and a reminder to confirm with an in-store try-on)
-Keep each section tight, 2-4 lines. Plain ASCII only.`,
-      messages: [{
-        role: 'user',
-        content: [
-          ...imageBlocks,
-          { type: 'text', text: 'Analyze my feet and recommend shoes with current deals. ' + runCtx }
-        ]
-      }]
-    }, 'Shoe analysis');
-
-    const result = { text: reply, generatedAt: new Date().toISOString().split('T')[0] };
-    safeSetItem(CACHE_KEY_SHOEFINDER, JSON.stringify(result));
-    renderShoeResults(result);
-  } catch(e) {
-    contentEl.innerHTML = `<div class="card" style="padding:1.5rem;text-align:center">
-      <div style="font-size:13px;color:var(--warn)">Analysis failed: ${(e.message || 'unknown').slice(0,100)}</div>
-      <button class="add-race-btn" style="margin-top:12px" onclick="analyzeShoes()">Retry</button>
-    </div>`;
-    console.error('Shoe finder error:', e);
-  }
-  btn.disabled = false;
-}
-
-function renderShoeResults(result) {
-  const sectionMeta = {
-    'FOOT ANALYSIS': { icon: '🦶', name: 'Foot Analysis' },
-    'DAILY TRAINER': { icon: '👟', name: 'Daily Trainer' },
-    'TEMPO AND SPEED': { icon: '⚡', name: 'Tempo & Speed' },
-    'LONG RUN AND MARATHON': { icon: '🏃', name: 'Long Run & Marathon' },
-    'RECOVERY': { icon: '🧘', name: 'Recovery' },
-    'DEALS FOUND': { icon: '💰', name: 'Deals Found' },
-    'FIT NOTES': { icon: '📏', name: 'Fit Notes' }
-  };
-  const sections = Object.keys(sectionMeta);
-  const parts = {};
-  let current = null;
-  result.text.split('\n').forEach(line => {
-    const t = line.trim();
-    if (sections.includes(t)) { current = t; parts[current] = []; }
-    else if (current && t) parts[current].push(t);
-  });
-
-  const linkify = linkifyUrls;
-
-  let html;
-  if (Object.keys(parts).length) {
-    html = sections.filter(s => parts[s] && parts[s].length).map(s => `
-      <div class="sim-section-card${s === 'DEALS FOUND' ? '" style="border-left:3px solid var(--mar)"' : '"'}>
-        <div class="sim-section-title">${sectionMeta[s].icon} ${sectionMeta[s].name}</div>
-        <div style="font-size:12px;color:var(--text);line-height:1.7">${linkify(parts[s].join('<br>'))}</div>
-      </div>`).join('');
-  } else {
-    html = `<div class="sim-section-card"><div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap">${linkify(result.text)}</div></div>`;
-  }
-
-  document.getElementById('shoefinder-content').innerHTML = html + `
-    <div class="sim-confidence" style="margin-bottom:8px">Photo analysis is approximate — confirm fit in store · Generated ${result.generatedAt || ''}</div>`;
-}
-
-
-// Shared URL linkifier — turns raw URLs into short tappable retailer links
-function linkifyUrls(text) {
-  return text.replace(/(https?:\/\/[^\s<)\]]+)/g, url => {
-    let display = url.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
-    return '<a href="' + url + '" target="_blank" rel="noopener" style="color:var(--tri);text-decoration:underline;word-break:break-all">' + display + ' &#8599;</a>';
-  });
-}
-
-// Quick deal search — free-text shoe deal hunting with web search
-async function searchShoeDeals() {
-  const input = document.getElementById('deal-search-input');
-  const resultEl = document.getElementById('deal-search-result');
-  const query = input.value.trim();
-  if (!query || !resultEl) return;
-
-  resultEl.innerHTML = `<div class="loading-state" style="padding:1.5rem"><div class="loading-dots"><span></span><span></span><span></span></div><div class="loading-text">Hunting for deals\u2026</div></div>`;
-
-  try {
-    const reply = await callClaude({
-      model: 'claude-sonnet-4-6', max_tokens: 1600,
-      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 5 }],
-      system: `You are a running shoe deal hunter. Run up to 5 web searches to find CURRENT deals, then answer from what you find. Search strategy: try specific model + "sale" or "clearance", try prev-generation models (which are the best real deals — e.g. last year's Vaporfly when the new one launches), and try retailer clearance pages (Running Warehouse clearance, Zappos, REI Outlet, Holabird, Fleet Feet, brand outlets).
-
-For each deal you find with a real price, give ONE line: Model — $price (was $original if on sale) — Retailer — URL.
-List the best 4-6 deals, cheapest/biggest-discount first.
-
-If you genuinely cannot find specific live prices, do NOT pad with generic 'go visit this site' advice. Instead, briefly name the 2-3 specific models that best match the request and the exact retailer pages most likely to have them on sale right now, with direct URLs to those category/clearance pages. Be concrete and useful either way. Plain text, plain ASCII, no markdown.`,
-      messages: [{ role: 'user', content: 'Find me current deals on: ' + query + '. Prioritize real sale prices and prev-generation models at a discount.' }]
-    }, 'Deal search');
-
-    resultEl.innerHTML = `
-      <div class="sim-section-card" style="border-left:3px solid var(--mar)">
-        <div class="sim-section-title">💰 Deals: ${query.replace(/</g,'&lt;')}</div>
-        <div style="font-size:12px;color:var(--text);line-height:1.8">${linkifyUrls(reply).replace(/\n/g,'<br>')}</div>
-      </div>`;
-  } catch(e) {
-    resultEl.innerHTML = `<div class="card" style="padding:12px 16px;margin-bottom:16px;font-size:12px;color:var(--warn)">Deal search failed: ${(e.message||'unknown').slice(0,100)}. Tap Find to retry.</div>`;
-    console.error('Deal search error:', e);
-  }
-}
-
-
-// ── STRAVA GEAR MILEAGE (shoes + bikes) ──────────────────────────────────
-const CACHE_KEY_GEAR = 'brb_strava_gear';
-let stravaGear = JSON.parse(localStorage.getItem(CACHE_KEY_GEAR) || '[]');
-// stravaGear = [{ id, name, miles, type:'shoe'|'bike', primary, retired }]
-
-async function fetchStravaGear(token) {
-  try {
-    const r = await fetch('https://www.strava.com/api/v3/athlete', {
-      headers: { Authorization: 'Bearer ' + token }
-    });
-    if (!r.ok) return;
-    const athlete = await r.json();
-    const gear = [];
-    (athlete.shoes || []).forEach(s => gear.push({ id: s.id, name: s.name, miles: mToMi(s.distance || 0), type: 'shoe', primary: !!s.primary, retired: !!s.retired }));
-    (athlete.bikes || []).forEach(b => gear.push({ id: b.id, name: b.name, miles: mToMi(b.distance || 0), type: 'bike', primary: !!b.primary, retired: !!b.retired }));
-    if (gear.length) {
-      stravaGear = gear;
-      localStorage.setItem(CACHE_KEY_GEAR, JSON.stringify(stravaGear));
-      console.log('Strava gear loaded:', gear.length, 'items');
-    } else {
-      console.log('No gear returned from /athlete — may need profile:read_all scope (reconnect Strava)');
-    }
-  } catch(e) { console.warn('Gear fetch failed:', e); }
-}
-
-// Recent miles per gear from activities that carry gear_id (newly synced ones)
 function recentGearMiles(gearId, days) {
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
   return allActivities
@@ -7739,41 +7491,151 @@ function recentGearMiles(gearId, days) {
     .reduce((s,a) => s + mToMi(a.distance), 0);
 }
 
-function renderShoeMileage() {
-  const el = document.getElementById('shoe-mileage-section');
+function renderShoeMileage() { renderShoeRotation(); }
+
+
+function initShoeFinder() {
+  loadShoeSizeInputs();
+  renderShoeRotation();
+}
+
+// ── SHOE ROTATION TRACKER ────────────────────────────────────────────────
+// Uses Strava gear mileage plus the athlete's own activity history — data no
+// price-comparison site has. Shows wear, recent usage, pace profile, and
+// cost per mile once a purchase price is entered.
+
+const SHOE_META_KEY = 'brb_shoe_meta'; // { gearId: { price, purchased, retireAt, role } }
+function loadShoeMeta() { try { return JSON.parse(localStorage.getItem(SHOE_META_KEY) || '{}'); } catch(e) { return {}; } }
+function saveShoeMeta(m) { try { localStorage.setItem(SHOE_META_KEY, JSON.stringify(m)); } catch(e) {} }
+
+function setShoePrice(gearId) {
+  const meta = loadShoeMeta();
+  const cur = meta[gearId] && meta[gearId].price ? meta[gearId].price : '';
+  const v = prompt('What did you pay for these? (dollars, numbers only)', cur);
+  if (v === null) return;
+  const num = parseFloat(String(v).replace(/[^0-9.]/g, ''));
+  meta[gearId] = { ...(meta[gearId] || {}), price: isNaN(num) ? null : num };
+  saveShoeMeta(meta);
+  renderShoeRotation();
+}
+
+function setShoeRetireAt(gearId) {
+  const meta = loadShoeMeta();
+  const cur = (meta[gearId] && meta[gearId].retireAt) || 400;
+  const v = prompt('Retire these at how many miles? (typical 300-500)', cur);
+  if (v === null) return;
+  const num = parseInt(String(v).replace(/[^0-9]/g, ''), 10);
+  meta[gearId] = { ...(meta[gearId] || {}), retireAt: isNaN(num) ? 400 : num };
+  saveShoeMeta(meta);
+  renderShoeRotation();
+}
+
+// Average pace of runs logged in a given shoe — reveals what each pair is used for
+function shoePaceProfile(gearId) {
+  const runs = allActivities.filter(a => a.gear_id === gearId && a.type === 'Run' && a.distance > 0 && a.moving_time > 0);
+  if (!runs.length) return null;
+  const totalMi = runs.reduce((s,a) => s + mToMi(a.distance), 0);
+  const totalSec = runs.reduce((s,a) => s + a.moving_time, 0);
+  const longest = Math.max(...runs.map(a => mToMi(a.distance)));
+  return { avgPace: totalSec / totalMi, runs: runs.length, longest };
+}
+
+function renderShoeRotation() {
+  const el = document.getElementById('shoe-rotation-section');
   if (!el) return;
-  const shoes = stravaGear.filter(g => g.type === 'shoe' && !g.retired).sort((a,b) => b.miles - a.miles);
+
+  const shoes = (stravaGear || []).filter(g => g.type === 'shoe' && !g.retired).sort((a,b) => b.miles - a.miles);
+  const meta = loadShoeMeta();
 
   if (!shoes.length) {
-    el.innerHTML = `<div class="card" style="padding:14px 16px;margin-bottom:16px">
-      <div class="section-label" style="margin-bottom:6px">My shoes (Strava)</div>
-      <div style="font-size:11px;color:var(--muted);line-height:1.6">No shoe data found. If you tag shoes on your Strava runs, reconnect Strava from the login screen to grant gear access — then Sync.</div>
+    el.innerHTML = `<div class="card" style="padding:16px">
+      <div class="section-label" style="margin-bottom:6px">Your rotation</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6">No shoe data found. Tag shoes on your Strava runs, then use <strong>Reconnect Strava</strong> in the menu to grant gear access and Sync.</div>
     </div>`;
     return;
   }
 
-  const REPLACE_AT = 300;
-  el.innerHTML = `<div class="card" style="padding:14px 16px;margin-bottom:16px">
-    <div class="section-label" style="margin-bottom:10px">My shoes (Strava mileage)</div>
-    ${shoes.map(s => {
-      const pct = Math.min(100, (s.miles / REPLACE_AT) * 100);
-      const color = s.miles >= REPLACE_AT ? 'var(--warn)' : s.miles >= REPLACE_AT * 0.8 ? 'var(--mar)' : 'var(--tri)';
-      const recent = recentGearMiles(s.id, 30);
-      return `<div style="margin-bottom:12px">
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
-          <span style="font-size:12px;font-weight:600;color:var(--text)">${s.name}${s.primary ? ' <span style="font-size:9px;color:var(--tri)">★ default</span>' : ''}</span>
-          <span style="font-family:var(--font-mono);font-size:12px;font-weight:700;color:${color}">${Math.round(s.miles)} mi</span>
-        </div>
-        <div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden">
-          <div style="height:100%;width:${pct}%;background:${color};border-radius:3px"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--dim);margin-top:3px">
-          <span>${recent > 0.1 ? recent.toFixed(0) + ' mi last 30d' : ''}</span>
-          <span>${s.miles >= REPLACE_AT ? '⚠ past ' + REPLACE_AT + 'mi — consider replacing' : Math.round(REPLACE_AT - s.miles) + ' mi until ' + REPLACE_AT}</span>
-        </div>
-      </div>`;
-    }).join('')}
-  </div>`;
+  const totalRotationMi = shoes.reduce((s,x) => s + x.miles, 0);
+
+  const cards = shoes.map(s => {
+    const m = meta[s.id] || {};
+    const retireAt = m.retireAt || 400;
+    const pct = Math.min(100, (s.miles / retireAt) * 100);
+    const remaining = Math.max(0, Math.round(retireAt - s.miles));
+    const color = pct >= 100 ? 'var(--warn)' : pct >= 80 ? 'var(--mar)' : 'var(--tri)';
+    const last30 = recentGearMiles(s.id, 30);
+    const prof = shoePaceProfile(s.id);
+    const cpm = m.price && s.miles > 0 ? (m.price / s.miles) : null;
+
+    // Status line
+    let status;
+    if (pct >= 100) status = { text: 'Retire these', color: 'var(--warn)' };
+    else if (pct >= 80) status = { text: 'Start shopping — ' + remaining + 'mi left', color: 'var(--mar)' };
+    else if (last30 < 5) status = { text: 'Barely used lately', color: 'var(--muted)' };
+    else status = { text: remaining + 'mi of life left', color: 'var(--ok)' };
+
+    return `<div class="card" style="padding:14px 16px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:6px">
+        <div style="font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--text)">${s.name}${s.primary ? ' <span style="font-size:9px;color:var(--tri)">★</span>' : ''}</div>
+        <div style="font-family:var(--font-mono);font-size:14px;font-weight:700;color:${color};flex-shrink:0">${Math.round(s.miles)}<span style="font-size:10px;color:var(--muted)">/${retireAt}mi</span></div>
+      </div>
+      <div style="height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-bottom:8px">
+        <div style="height:100%;width:${pct}%;background:${color};border-radius:3px"></div>
+      </div>
+      <div style="font-size:11px;color:${status.color};font-weight:600;margin-bottom:8px">${status.text}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;color:var(--muted);line-height:1.6">
+        <div>Last 30d: <strong style="color:var(--text);font-family:var(--font-mono)">${last30.toFixed(1)}mi</strong></div>
+        <div>Share of rotation: <strong style="color:var(--text);font-family:var(--font-mono)">${totalRotationMi ? Math.round((s.miles/totalRotationMi)*100) : 0}%</strong></div>
+        ${prof ? `<div>Avg pace: <strong style="color:var(--text);font-family:var(--font-mono)">${fmtPaceSec(prof.avgPace)}/mi</strong></div>` : '<div></div>'}
+        ${prof ? `<div>Longest run: <strong style="color:var(--text);font-family:var(--font-mono)">${prof.longest.toFixed(1)}mi</strong></div>` : '<div></div>'}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
+        <button class="garage-add-btn" style="font-size:10px;padding:6px 10px" onclick="setShoePrice('${s.id}')">${m.price ? '$' + m.price : '+ price'}</button>
+        <button class="garage-add-btn" style="font-size:10px;padding:6px 10px" onclick="setShoeRetireAt('${s.id}')">retire at ${retireAt}mi</button>
+        ${cpm != null ? `<span style="font-size:10px;color:var(--tri);font-family:var(--font-mono)">$${cpm.toFixed(2)}/mi</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Rotation health summary
+  const needReplacing = shoes.filter(s => s.miles >= ((meta[s.id]&&meta[s.id].retireAt)||400)).length;
+  const soon = shoes.filter(s => { const r=(meta[s.id]&&meta[s.id].retireAt)||400; return s.miles >= r*0.8 && s.miles < r; }).length;
+  let summary = shoes.length + ' pair' + (shoes.length===1?'':'s') + ' in rotation';
+  if (needReplacing) summary += ' · ' + needReplacing + ' due for replacement';
+  else if (soon) summary += ' · ' + soon + ' nearing end of life';
+
+  el.innerHTML =
+    `<div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
+      <span>Your rotation</span>
+      <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0">${summary}</span>
+    </div>` + cards;
+}
+
+// ── Size preference + link out to the price tracker ──────────────────────
+function saveShoeSize() {
+  const size = (document.getElementById('shoe-size-input') || {}).value;
+  const width = (document.getElementById('shoe-width-input') || {}).value;
+  try { localStorage.setItem('brb_shoe_size', JSON.stringify({ size, width })); } catch(e) {}
+}
+
+function loadShoeSizeInputs() {
+  try {
+    const s = JSON.parse(localStorage.getItem('brb_shoe_size') || 'null');
+    if (!s) return;
+    const si = document.getElementById('shoe-size-input');
+    const wi = document.getElementById('shoe-width-input');
+    if (si && s.size) si.value = s.size;
+    if (wi && s.width) wi.value = s.width;
+  } catch(e) {}
+}
+
+function openShoeTracker() {
+  const size = ((document.getElementById('shoe-size-input') || {}).value || '').trim();
+  const width = ((document.getElementById('shoe-width-input') || {}).value || 'standard');
+  saveShoeSize();
+  let url = 'https://running-shoe-tracker.com/?gender=men';
+  if (size) url += '&sizes_set=1&size=' + encodeURIComponent(size) + '&width=' + encodeURIComponent(width);
+  window.open(url, '_blank', 'noopener');
 }
 
 function renderBikeMileage() {
