@@ -7542,18 +7542,41 @@ function shoePaceProfile(gearId) {
 
 function renderShoeRotation() {
   const el = document.getElementById('shoe-rotation-section');
-  if (!el) return;
+  if (!el) { console.warn('[shoes] container missing'); return; }
 
-  const shoes = (stravaGear || []).filter(g => g.type === 'shoe' && !g.retired).sort((a,b) => b.miles - a.miles);
+  const gear = stravaGear || [];
+  // Be permissive about what counts as a shoe: Strava gear objects vary, and some
+  // entries lack an explicit type. Anything that is clearly a bike is excluded.
+  const shoes = gear
+    .filter(g => {
+      if (g.retired) return false;
+      const t = (g.type || '').toLowerCase();
+      if (t === 'shoe' || t === 'shoes') return true;
+      if (t === 'bike') return false;
+      // No usable type: treat as a shoe only if it isn't in the garage as a bike
+      return !t;
+    })
+    .sort((a,b) => (b.miles || 0) - (a.miles || 0));
   const meta = loadShoeMeta();
 
   if (!shoes.length) {
-    el.innerHTML = `<div class="card" style="padding:16px">
+    // Show what we actually received so this is diagnosable rather than just blank
+    const typeCounts = {};
+    gear.forEach(g => { const t = (g.type || 'no-type'); typeCounts[t] = (typeCounts[t] || 0) + 1; });
+    const summary = Object.keys(typeCounts).length
+      ? Object.entries(typeCounts).map(([k,v]) => k + ': ' + v).join(', ')
+      : 'none';
+    el.innerHTML = `<div class="card" style="padding:16px;margin-bottom:16px">
       <div class="section-label" style="margin-bottom:6px">Your rotation</div>
-      <div style="font-size:11px;color:var(--muted);line-height:1.6">No shoe data found. Tag shoes on your Strava runs, then use <strong>Reconnect Strava</strong> in the menu to grant gear access and Sync.</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6">
+        No shoes found in your Strava gear.<br>
+        <span style="color:var(--dim)">Gear received: ${gear.length} item(s) — ${summary}</span><br><br>
+        Tag shoes on your Strava runs, then use <strong>Reconnect Strava</strong> from the menu to grant gear access, and Sync.
+      </div>
     </div>`;
     return;
   }
+
 
   const totalRotationMi = shoes.reduce((s,x) => s + x.miles, 0);
 
