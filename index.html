@@ -2333,6 +2333,44 @@ function normalizeActivityType(t) {
   return t;
 }
 
+
+// ── STRAVA GEAR (shoes + bikes) ──────────────────────────────────────────
+// Restored: these were removed by mistake when the AI shoe-deal code was deleted.
+const CACHE_KEY_GEAR = 'brb_strava_gear';
+let stravaGear = [];
+try { stravaGear = JSON.parse(localStorage.getItem(CACHE_KEY_GEAR) || '[]'); } catch(e) { stravaGear = []; }
+// stravaGear = [{ id, name, miles, type:'shoe'|'bike', primary, retired }]
+
+// Pull gear from the athlete profile. Requires the profile:read_all scope; if the
+// token lacks it, we simply keep whatever is cached rather than erroring.
+async function fetchStravaGear(token) {
+  try {
+    const r = await fetch('https://www.strava.com/api/v3/athlete', {
+      headers: { Authorization: 'Bearer ' + token },
+      cache: 'no-store'
+    });
+    if (!r.ok) { console.warn('[gear] athlete fetch failed', r.status); return; }
+    const athlete = await r.json();
+    const shoes = (athlete.shoes || []).map(g => ({
+      id: g.id, name: g.name, miles: (g.distance || 0) / 1609.34,
+      type: 'shoe', primary: !!g.primary, retired: !!g.retired
+    }));
+    const bikes = (athlete.bikes || []).map(g => ({
+      id: g.id, name: g.name, miles: (g.distance || 0) / 1609.34,
+      type: 'bike', primary: !!g.primary, retired: !!g.retired
+    }));
+    stravaGear = [...shoes, ...bikes];
+    try { localStorage.setItem(CACHE_KEY_GEAR, JSON.stringify(stravaGear)); } catch(e) {}
+    console.log('[gear] loaded', shoes.length, 'shoes,', bikes.length, 'bikes');
+    // Refresh any view currently showing gear
+    if (typeof renderShoeRotation === 'function' && document.getElementById('shoe-rotation-section')) {
+      try { renderShoeRotation(); } catch(e) {}
+    }
+  } catch(e) {
+    console.warn('[gear] fetch error', e);
+  }
+}
+
 const TRI_DATE = new Date('2026-07-26');
 
 // ════════════════════════════════════════════════════════════════════════
