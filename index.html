@@ -1604,7 +1604,7 @@ body {
           </div>
         </div>
 
-        <div id="shoe-rotation-section"></div>
+        <div id="shoe-rotation-section"><div class="card" style="padding:16px;margin-bottom:16px"><div style="font-size:11px;color:var(--dim)">Loading your rotation…</div></div></div>
 
         <!-- Price comparison: link out to a dedicated tracker rather than paying an
              LLM to guess at live prices (which it does badly and expensively). -->
@@ -2446,7 +2446,7 @@ function switchTab(tab) {
   if (tab === 'stats') renderStatsPage();
   if (tab === 'garage') initGarage();
   if (tab === 'races') { initRacePlanner(); renderRaces(); }
-  if (tab === 'shoefinder') initShoeFinder();
+  if (tab === 'shoefinder') setTimeout(() => { try { initShoeFinder(); } catch(e) { console.error('[shoes] init', e); } }, 0);
   if (tab === 'fitcheck') initFitCheck();
   if (tab === 'usage') renderUsagePage();
   if (tab === 'debug') renderDebugPage();
@@ -7495,8 +7495,18 @@ function renderShoeMileage() { renderShoeRotation(); }
 
 
 function initShoeFinder() {
-  loadShoeSizeInputs();
-  renderShoeRotation();
+  // Each step isolated so one failure can't leave the page blank, and any error
+  // is shown on screen rather than swallowed into the console.
+  try { loadShoeSizeInputs(); } catch(e) { console.warn('[shoes] size inputs', e); }
+  try {
+    renderShoeRotation();
+  } catch(e) {
+    console.error('[shoes] rotation render failed', e);
+    const el = document.getElementById('shoe-rotation-section');
+    if (el) el.innerHTML = '<div class="card" style="padding:16px;margin-bottom:16px;border-left:3px solid var(--warn)">' +
+      '<div style="font-size:11px;color:var(--warn);font-weight:700;margin-bottom:4px">Rotation failed to load</div>' +
+      '<div style="font-size:11px;color:var(--muted);line-height:1.5">' + (e && e.message ? e.message : String(e)) + '</div></div>';
+  }
 }
 
 // ── SHOE ROTATION TRACKER ────────────────────────────────────────────────
