@@ -1395,6 +1395,20 @@ body {
       </div>
     </div>
 
+    <!-- RACE DAY LAB (interactive what-if simulator) -->
+    <div class="page" id="page-racelab">
+      <div class="page-inner">
+        <div class="date-banner" style="margin-bottom:16px">
+          <div>
+            <div class="date-greeting" style="font-size:16px">🎛 Race Day Lab</div>
+            <div class="date-sub" id="racelab-sub">Play with your race strategy</div>
+          </div>
+          <button class="refresh-btn" onclick="switchTab('racehub')" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Back</button>
+        </div>
+        <div id="racelab-content"></div>
+      </div>
+    </div>
+
     <!-- GARAGE -->
     <div class="page" id="page-garage">
       <div class="page-inner">
@@ -2488,6 +2502,7 @@ function switchTab(tab) {
   if (tab === 'fitcheck') initFitCheck();
   if (tab === 'usage') renderUsagePage();
   if (tab === 'debug') renderDebugPage();
+  if (tab === 'racelab') renderRaceLab();
   if (tab === 'today') renderTodayPage();
   if (tab === 'planbuilder') initPlanBuilder();
   if (tab === 'workouts') initWorkoutsPage();
@@ -8777,6 +8792,7 @@ function openRaceHub(raceId) {
       ]
     : [
         ['simulator','🏁','AI Race Simulator', 'Predict your splits'],
+        ['racelab','🎛','Race Day Lab', 'Play with pace, heat and strategy'],
         ['intel','🔍','Race Intel', 'Course, weather, logistics'],
         ['checklist','📋','Race Morning Checklist', checklistProgressText(race.id) || 'Build your prep list']
       ];
@@ -8800,6 +8816,7 @@ function switchHubTab(tab) {
   // Set a return flag so that page's back button comes back to the hub.
   hubReturn = true;
   const openers = {
+    racelab: () => switchTab('racelab'),
     simulator: () => openRaceSimulator(id),
     intel:     () => openRaceIntel(id),
     checklist: () => openRaceChecklist(id),
@@ -9998,6 +10015,191 @@ function importAllData() {
   });
   alert('Restored ' + restored + ' data sets. The app will now reload.');
   location.reload();
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// RACE DAY LAB — interactive "what if" race simulator.
+// Everything computes locally and instantly (no AI, no cost). Drag a slider,
+// watch the projected finish and mile splits update live.
+// ══════════════════════════════════════════════════════════════════════════
+
+let labState = {
+  distance: 26.2,      // miles
+  basePace: null,      // sec/mi at goal effort
+  strategy: 0,         // -1 = negative split, 0 = even, +1 = positive (go out hot)
+  tempF: 55,           // race-day temperature
+  effort: 100,         // % of goal effort (90 = conservative, 110 = aggressive)
+  hills: 0             // net elevation difficulty 0-3
+};
+
+// Heat cost: running slows measurably above ~55F. Roughly 1.5-2% per 10F over
+// 55F for a marathon, less for shorter races. Widely used rule of thumb.
+function heatPenaltyPct(tempF, distanceMi) {
+  if (tempF <= 55) return tempF < 40 ? 0.5 : 0; // very cold costs a little too
+  const over = tempF - 55;
+  const perTenF = distanceMi >= 20 ? 2.0 : distanceMi >= 10 ? 1.4 : 1.0;
+  return (over / 10) * perTenF;
+}
+
+function hillsPenaltyPct(level, distanceMi) {
+  const perLevel = distanceMi >= 20 ? 1.2 : 0.8;
+  return level * perLevel;
+}
+
+// Build mile-by-mile splits for the chosen strategy.
+function buildLabSplits() {
+  const s = labState;
+  if (!s.basePace) return null;
+
+  // Effort scales pace inversely (more effort = faster base pace)
+  let pace = s.basePace * (100 / s.effort);
+  // Environmental penalties
+  pace *= 1 + (heatPenaltyPct(s.tempF, s.distance) / 100);
+  pace *= 1 + (hillsPenaltyPct(s.hills, s.distance) / 100);
+
+  const miles = Math.floor(s.distance);
+  const tail = s.distance - miles;
+  const splits = [];
+
+  // Strategy spread: how much faster/slower the first half runs vs the second.
+  // +1 (positive split) = start fast, fade. -1 (negative) = start easy, finish fast.
+  const spreadPct = 3.0 * s.strategy; // up to 3% swing each way
+
+  for (let i = 0; i < miles; i++) {
+    const progress = miles > 1 ? i / (miles - 1) : 0; // 0 at start, 1 at finish
+    // Linear drift from -spread to +spread across the race
+    const drift = (-spreadPct / 2) + (spreadPct * progress);
+    let milePace = pace * (1 + drift / 100);
+
+    // Late-race fade if the athlete went out hot — the classic marathon blowup.
+    // Positive split strategies pay a compounding penalty after ~70% distance.
+    if (s.strategy > 0 && progress > 0.7) {
+      const fadeZone = (progress - 0.7) / 0.3;
+      milePace *= 1 + (fadeZone * fadeZone * 0.06 * s.strategy);
+    }
+    splits.push({ mile: i + 1, pace: milePace });
+  }
+  if (tail > 0.05) splits.push({ mile: +(miles + tail).toFixed(1), pace: pace, partial: tail });
+
+  const totalSec = splits.reduce((sum, x) => sum + x.pace * (x.partial || 1), 0);
+  return { splits, totalSec, adjustedPace: pace };
+}
+
+function renderRaceLab() {
+  const el = document.getElementById('racelab-content');
+  if (!el) return;
+
+  // Anchor pace from the athlete's real fitness, or their race goal if set
+  const paces = deriveTrainingPaces();
+  const todayStr = new Date().toISOString().split('T')[0];
+  const race = races.filter(r => r.date >= todayStr).sort((a,b) => new Date(a.date) - new Date(b.date))[0];
+
+  if (!labState.basePace) {
+    if (race && race.goal) {
+      const goalSec = goalToSeconds(race.goal);
+      const dist = (race.subtype||'').toLowerCase().includes('half') ? 13.1 :
+                   (race.subtype||'').toLowerCase().includes('marathon') ? 26.2 : 6.2;
+      if (goalSec) { labState.basePace = goalSec / dist; labState.distance = dist; }
+    }
+    if (!labState.basePace && paces) labState.basePace = paces.marathon;
+  }
+
+  if (!labState.basePace) {
+    el.innerHTML = '<div class="card" style="padding:2rem;text-align:center;color:var(--muted);font-size:13px">Not enough run data yet to model a race. Log a few runs and come back.</div>';
+    return;
+  }
+
+  const result = buildLabSplits();
+  const goalSec = race && race.goal ? goalToSeconds(race.goal) : null;
+  const delta = goalSec ? result.totalSec - goalSec : null;
+
+  const strategyLabels = { '-1':'Negative split', '0':'Even pace', '1':'Go out hot' };
+  const stratKey = String(Math.round(labState.strategy));
+  const heatPct = heatPenaltyPct(labState.tempF, labState.distance);
+
+  // Big result card
+  const deltaTxt = delta == null ? '' :
+    (delta <= 0
+      ? '<span style="color:var(--ok)">' + secondsToTime(Math.abs(delta)) + ' under goal</span>'
+      : '<span style="color:var(--warn)">' + secondsToTime(delta) + ' over goal</span>');
+
+  // Split table — show every mile, highlight fastest/slowest
+  const paceVals = result.splits.map(s => s.pace);
+  const fastest = Math.min(...paceVals), slowest = Math.max(...paceVals);
+  let cumulative = 0;
+  const splitRows = result.splits.map(s => {
+    cumulative += s.pace * (s.partial || 1);
+    const isFast = Math.abs(s.pace - fastest) < 0.5;
+    const isSlow = Math.abs(s.pace - slowest) < 0.5;
+    const color = isFast ? 'var(--ok)' : isSlow ? 'var(--mar)' : 'var(--text)';
+    return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:11px;font-family:var(--font-mono)">' +
+      '<span style="color:var(--muted)">Mi ' + s.mile + '</span>' +
+      '<span style="color:' + color + '">' + fmtPaceSec(s.pace) + '/mi</span>' +
+      '<span style="color:var(--dim)">' + secondsToTime(cumulative) + '</span>' +
+    '</div>';
+  }).join('');
+
+  el.innerHTML = `
+    <div class="card" style="padding:18px 16px;margin-bottom:16px;text-align:center;border-left:3px solid var(--tri)">
+      <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-family:var(--font-display);font-weight:600">Projected finish</div>
+      <div style="font-family:var(--font-display);font-size:42px;font-weight:800;color:var(--text);letter-spacing:-0.02em;line-height:1.1;margin:6px 0">${secondsToTime(result.totalSec)}</div>
+      <div style="font-size:12px;color:var(--muted)">${fmtPaceSec(result.adjustedPace)}/mi average${delta != null ? ' · ' + deltaTxt : ''}</div>
+    </div>
+
+    <div class="card" style="padding:16px;margin-bottom:16px">
+      <div class="section-label" style="margin-bottom:14px">Adjust the variables</div>
+
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px">
+          <span style="color:var(--muted)">Strategy</span>
+          <strong style="color:var(--tri)">${strategyLabels[stratKey] || 'Even pace'}</strong>
+        </div>
+        <input type="range" min="-1" max="1" step="1" value="${labState.strategy}"
+          oninput="labState.strategy = parseFloat(this.value); renderRaceLab()" style="width:100%;accent-color:var(--tri)">
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:var(--dim);margin-top:2px">
+          <span>Negative</span><span>Even</span><span>Go out hot</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px">
+          <span style="color:var(--muted)">Temperature</span>
+          <strong style="color:${heatPct > 4 ? 'var(--warn)' : heatPct > 0 ? 'var(--mar)' : 'var(--ok)'}">${labState.tempF}°F${heatPct > 0 ? ' · +' + heatPct.toFixed(1) + '%' : ''}</strong>
+        </div>
+        <input type="range" min="30" max="90" step="5" value="${labState.tempF}"
+          oninput="labState.tempF = parseInt(this.value); renderRaceLab()" style="width:100%;accent-color:var(--tri)">
+      </div>
+
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px">
+          <span style="color:var(--muted)">Effort level</span>
+          <strong style="color:${labState.effort > 103 ? 'var(--warn)' : 'var(--tri)'}">${labState.effort}%${labState.effort > 103 ? ' · risky' : labState.effort < 97 ? ' · conservative' : ''}</strong>
+        </div>
+        <input type="range" min="92" max="108" step="1" value="${labState.effort}"
+          oninput="labState.effort = parseInt(this.value); renderRaceLab()" style="width:100%;accent-color:var(--tri)">
+      </div>
+
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px">
+          <span style="color:var(--muted)">Course profile</span>
+          <strong style="color:var(--tri)">${['Flat','Rolling','Hilly','Very hilly'][labState.hills]}</strong>
+        </div>
+        <input type="range" min="0" max="3" step="1" value="${labState.hills}"
+          oninput="labState.hills = parseInt(this.value); renderRaceLab()" style="width:100%;accent-color:var(--tri)">
+      </div>
+    </div>
+
+    <div class="card" style="padding:14px 16px;margin-bottom:16px">
+      <div class="section-label" style="margin-bottom:8px">Mile splits</div>
+      <div style="max-height:280px;overflow-y:auto">${splitRows}</div>
+    </div>
+
+    <div class="card" style="padding:12px 16px;margin-bottom:20px">
+      <div style="font-size:10px;color:var(--dim);line-height:1.6">
+        Base pace from your recent training${race && race.goal ? ' and your ' + race.goal + ' goal' : ''}. Heat cost rises roughly 2% per 10°F above 55°F for marathon distance. Going out hot adds a compounding late-race fade — the model penalises it after 70% distance, as real races do.
+      </div>
+    </div>`;
 }
 
 // ── MAIN FLOW ─────────────────────────────────────────────────────────────
