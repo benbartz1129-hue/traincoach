@@ -1199,6 +1199,11 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
 .cz-close { width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface);
   color: var(--text); font-size: 18px; cursor: pointer; flex-shrink: 0; }
 .cz-chart { position: relative; height: 48vh; flex-shrink: 0; }
+.cz-ranges { display: flex; gap: 6px; margin-bottom: 10px; flex-shrink: 0; flex-wrap: wrap; }
+.cz-chip { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--muted); font-family: var(--font-display); font-size: 12px; font-weight: 600; cursor: pointer; }
+.cz-chip.active { background: var(--tri-dim); border-color: var(--tri-border); color: var(--tri); }
+.cz-empty { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--muted); }
 .cz-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; flex-shrink: 0; }
 .cz-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
 .cz-stat-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -1214,6 +1219,8 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
   .cz-chart { flex: 1; height: auto; min-height: 0; }
   .cz-stats { margin: 6px 0 0; }
   .cz-stat { padding: 4px 8px; }
+  .cz-ranges { margin-bottom: 4px; }
+  .cz-chip { padding: 4px 10px; font-size: 11px; }
   .cz-table, .cz-hint { display: none; }
 }
 </style>
@@ -2415,6 +2422,21 @@ async function fetchStravaGear(token) {
   } catch(e) {
     console.warn('[gear] fetch error', e);
   }
+}
+
+
+// Weekly chart windows. Charts default to their normal window; the chart-zoom popup
+// temporarily overrides a chart's window (4/12/26/52 weeks, or 0 = all history).
+const zoomWeeks = {};
+function weeksFor(id, def) { return Object.prototype.hasOwnProperty.call(zoomWeeks, id) ? zoomWeeks[id] : def; }
+// Number of weeks to draw; 0 ("All") expands back to the earliest week with data.
+function zoomWeekCount(id, def, weekMap, thisWeekStart) {
+  let n = weeksFor(id, def);
+  if (n === 0) {
+    const keys = Object.keys(weekMap).sort();
+    n = keys.length ? Math.round((thisWeekStart - new Date(keys[0] + 'T00:00:00')) / (7 * 86400000)) + 1 : def;
+  }
+  return Math.max(1, n);
 }
 
 const TRI_DATE = new Date('2026-07-26');
@@ -4390,7 +4412,7 @@ function initLoadPage() {
     </div>`;
 
   // Last 12 weeks for chart
-  const last12 = weeks.slice(-12);
+  const last12 = weeks.slice(-weeksFor('tls-chart', 12));
   const avgLine = last12.map((_, i) => {
     const window = last12.slice(Math.max(0, i-3), i+1);
     return window.reduce((s,w) => s+w.tls, 0) / window.length;
@@ -5484,7 +5506,8 @@ function renderSportWeeklyChart() {
   // show as 0 rather than being skipped (which would compress the timeline).
   const thisWeekStart = getWeekStart(new Date());
   const weeks = [];
-  for (let i = 11; i >= 0; i--) {
+  const nWeeks = zoomWeekCount('sport-weekly-chart', 12, weekMap, thisWeekStart);
+  for (let i = nWeeks - 1; i >= 0; i--) {
     const d = new Date(thisWeekStart); d.setDate(thisWeekStart.getDate() - i*7);
     weeks.push(d.toISOString().split('T')[0]);
   }
@@ -7452,12 +7475,12 @@ function renderDebrief(d) {
 // ── FITNESS TREND SCORE (pure math, no AI) ───────────────────────────────
 let fitnessChartInstance = null;
 
-function buildFitnessTrend() {
+function buildFitnessTrend(limitWeeks = 26) {
   const weeks = buildWeeklyTLS();
   if (weeks.length < 4) return null;
 
   // Limit to last 26 weeks (6 months)
-  const recent = weeks.slice(-26);
+  const recent = limitWeeks ? weeks.slice(-limitWeeks) : weeks;
 
   // Fitness = 4-week rolling average of TLS (CTL-style chronic load)
   const fitness = recent.map((w, i) => {
@@ -7493,7 +7516,7 @@ function buildFitnessTrend() {
 }
 
 function renderFitnessTrend() {
-  const data = buildFitnessTrend();
+  const data = buildFitnessTrend(weeksFor('fitness-chart', 26));
   const scoreEl = document.getElementById('fitness-score');
   const deltaEl = document.getElementById('fitness-delta');
   const labelEl = document.getElementById('fitness-trend-label');
@@ -7802,7 +7825,8 @@ function buildWeeklyHours() {
   // Continuous last-12-weeks timeline so weeks with no training show as 0, not skipped.
   const thisWeekStart = getWeekStart(new Date());
   const out = [];
-  for (let i = 11; i >= 0; i--) {
+  const nWeeks = zoomWeekCount('hours-chart', 12, weekMap, thisWeekStart);
+  for (let i = nWeeks - 1; i >= 0; i--) {
     const d = new Date(thisWeekStart); d.setDate(thisWeekStart.getDate() - i*7);
     const key = d.toISOString().split('T')[0];
     out.push(weekMap[key] || { weekStart: key, hours: 0 });
@@ -7860,11 +7884,12 @@ let fitnessBarsInstance = null;
 function renderFitnessBars() {
   const canvas = document.getElementById('fitness-bars-chart');
   if (!canvas) return;
-  const data = buildFitnessTrend();
+  const nFB = weeksFor('fitness-bars-chart', 12);
+  const data = buildFitnessTrend(nFB === 0 ? 0 : Math.max(26, nFB));
   if (!data) return;
 
-  const weeks = data.weeks.slice(-12);
-  const fitness = data.fitness.slice(-12);
+  const weeks = data.weeks.slice(-nFB);
+  const fitness = data.fitness.slice(-nFB);
   const labels = weeks.map(w => {
     const d = new Date(w.weekStart + 'T12:00:00');
     return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
@@ -10744,9 +10769,89 @@ function fmtZoomNum(v) {
   return (Math.round(v * 10) / 10).toLocaleString();
 }
 
+// Charts whose time window the popup can change. Each entry reads/writes the chart's
+// own range setting and re-runs its own render function, so the popup reuses the
+// exact same math (trend lines, averages, highlighting) over a different span.
+const ZOOM_WEEK_CHIPS = [['1M', 4], ['3M', 12], ['6M', 26], ['1Y', 52], ['All', 0]];
+const ZOOM_DAY_CHIPS  = [['30d', 30], ['90d', 90], ['6M', 180], ['1Y', 365], ['All', 0]];
+function zoomWeekReg(id, def, render) {
+  return { chips: ZOOM_WEEK_CHIPS, get: () => weeksFor(id, def),
+           set: v => { if (v === def) delete zoomWeeks[id]; else zoomWeeks[id] = v; }, render };
+}
+const ZOOM_RANGES = {
+  'tls-chart':          zoomWeekReg('tls-chart', 12, () => initLoadPage()),
+  'sport-weekly-chart': zoomWeekReg('sport-weekly-chart', 12, () => renderSportWeeklyChart()),
+  'hours-chart':        zoomWeekReg('hours-chart', 12, () => renderWeeklyHours()),
+  'fitness-chart':      zoomWeekReg('fitness-chart', 26, () => renderFitnessTrend()),
+  'fitness-bars-chart': zoomWeekReg('fitness-bars-chart', 12, () => renderFitnessBars()),
+  'weight-chart':       { chips: ZOOM_DAY_CHIPS, get: () => statsRange,           set: v => { statsRange = v; },           render: () => renderStatsChart() },
+  'pace-chart':         { chips: ZOOM_DAY_CHIPS, get: () => paceRangeDays,        set: v => { paceRangeDays = v; },        render: () => renderPaceChart() },
+  'sport-detail-chart': { chips: ZOOM_DAY_CHIPS, get: () => sportDetailRangeDays, set: v => { sportDetailRangeDays = v; }, render: () => renderSportDetailChart() },
+  'hrv-chart':          { chips: ZOOM_DAY_CHIPS, get: () => hrvRangeDays,         set: v => { hrvRangeDays = v; },         render: () => renderHrvChart() },
+  'rhr-chart':          { chips: ZOOM_DAY_CHIPS, get: () => rhrRangeDays,         set: v => { rhrRangeDays = v; },         render: () => renderRhrChart() }
+};
+let zoomState = null; // { canvas, reg, range }
+
 function openChartZoom(src) {
   closeChartZoom();
   const canvas = src.canvas;
+  const reg = ZOOM_RANGES[canvas.id] || null;
+  zoomState = { canvas, reg, range: reg ? reg.get() : null };
+
+  const wrap = document.createElement('div');
+  wrap.id = 'chart-zoom';
+  wrap.innerHTML =
+    '<div class="cz-head"><div class="cz-title">' + chartTitleFor(canvas) + '</div>' +
+      '<button class="cz-close" onclick="closeChartZoom()" aria-label="Close">✕</button></div>' +
+    (reg ? '<div class="cz-ranges" id="cz-ranges"></div>' : '') +
+    '<div class="cz-chart" id="cz-chart"></div>' +
+    '<div class="cz-stats" id="cz-stats"></div>' +
+    '<div class="cz-table" id="cz-table"></div>' +
+    '<div class="cz-hint">Rotate your phone for a wider view</div>';
+  document.body.appendChild(wrap);
+  renderZoomChips();
+  renderZoomFromChart(src);
+}
+
+function renderZoomChips() {
+  const el = document.getElementById('cz-ranges');
+  if (!el || !zoomState || !zoomState.reg) return;
+  el.innerHTML = zoomState.reg.chips.map(([label, val]) =>
+    '<button class="cz-chip' + (val === zoomState.range ? ' active' : '') + '" onclick="zoomSetRange(' + val + ')">' + label + '</button>'
+  ).join('');
+}
+
+// Re-run the source chart's own render with the chosen window, copy the result
+// into the popup, then put the source chart back exactly as it was.
+function zoomSetRange(val) {
+  if (!zoomState || !zoomState.reg) return;
+  const { canvas, reg } = zoomState;
+  const original = reg.get();
+  let fresh = null, empty = false;
+  try {
+    reg.set(val);
+    reg.render();
+    empty = canvas.style.display === 'none';   // charts hide their canvas when a range has no data
+    fresh = empty ? null : Chart.getChart(canvas);
+    if (fresh) renderZoomFromChart(fresh);      // clones immediately, before the restore below
+  } catch (e) { console.warn('[zoom] range render failed', e); }
+  finally {
+    reg.set(original);
+    try { reg.render(); } catch (e) {}
+  }
+  zoomState.range = val;
+  renderZoomChips();
+  if (!fresh) showZoomEmpty();
+}
+
+function showZoomEmpty() {
+  if (zoomChartInstance) { try { zoomChartInstance.destroy(); } catch (e) {} zoomChartInstance = null; }
+  const ch = document.getElementById('cz-chart'); if (ch) ch.innerHTML = '<div class="cz-empty">No data in this range</div>';
+  const st = document.getElementById('cz-stats'); if (st) st.innerHTML = '';
+  const tb = document.getElementById('cz-table'); if (tb) tb.innerHTML = '';
+}
+
+function renderZoomFromChart(src) {
   const cfg = src.config;
   const data = cloneChartCfg(cfg.data);
   const options = cloneChartCfg(cfg.options || {});
@@ -10771,11 +10876,17 @@ function openChartZoom(src) {
       s.ticks.autoSkip = true;
     });
   }
+  // Long ranges: hide per-point dots so the line stays readable
+  if (labels.length > 60) datasets.forEach(ds => { if ((ds.type || cfg.type) === 'line') ds.pointRadius = 0; });
 
-  // Summary stats per dataset (first dataset drives the headline tiles)
+  // Summary stats (first dataset drives the headline tiles)
   const valuesOf = ds => (ds.data || []).map(d => typeof d === 'number' ? d : (d && typeof d.y === 'number' ? d.y : null));
   const main = datasets[0] ? valuesOf(datasets[0]) : [];
-  const nums = main.filter(v => v != null && isFinite(v));
+  // Weekly charts end with the current, unfinished week. Keep it out of the
+  // High/Low/Average and the % change, or a Tuesday reads as a "low week".
+  const weekly = !!(zoomState && zoomState.reg && zoomState.reg.chips === ZOOM_WEEK_CHIPS);
+  const completeUpTo = weekly && main.length > 1 ? main.length - 1 : main.length;
+  const nums = main.slice(0, completeUpTo).filter(v => v != null && isFinite(v));
   let statsHtml = '';
   if (nums.length) {
     const latestIdx = main.map((v,i) => v != null ? i : -1).filter(i => i >= 0).pop();
@@ -10784,13 +10895,15 @@ function openChartZoom(src) {
     const prevVal = prevVals.length ? prevVals[prevVals.length - 1] : null;
     const max = Math.max(...nums), min = Math.min(...nums);
     const avg = nums.reduce((s,v) => s + v, 0) / nums.length;
-    const change = prevVal ? ((latest - prevVal) / Math.abs(prevVal)) * 100 : null;
+    const inProgress = weekly && latestIdx === main.length - 1;
+    const change = !inProgress && prevVal ? ((latest - prevVal) / Math.abs(prevVal)) * 100 : null;
     const tile = (label, val, sub) => '<div class="cz-stat"><div class="cz-stat-label">' + label + '</div>' +
       '<div class="cz-stat-val">' + val + '</div>' + (sub ? '<div class="cz-stat-sub">' + sub + '</div>' : '') + '</div>';
     statsHtml =
-      tile('Latest', fmtZoomNum(latest),
+      tile(inProgress ? 'This week' : 'Latest', fmtZoomNum(latest),
+        inProgress ? 'in progress' :
         change != null && isFinite(change) ? (change >= 0 ? '▲ ' : '▼ ') + Math.abs(Math.round(change)) + '% vs prior' : (labels[latestIdx] || '')) +
-      tile('Average', fmtZoomNum(avg), nums.length + ' pts') +
+      tile('Average', fmtZoomNum(avg), nums.length + (weekly ? ' full wks' : ' pts')) +
       tile('High', fmtZoomNum(max), labels[main.indexOf(max)] || '') +
       tile('Low', fmtZoomNum(min), labels[main.indexOf(min)] || '');
   }
@@ -10802,21 +10915,15 @@ function openChartZoom(src) {
       vals.join(' &nbsp;·&nbsp; ') + '</span></div>';
   }).reverse().join('');
 
-  const wrap = document.createElement('div');
-  wrap.id = 'chart-zoom';
-  wrap.innerHTML =
-    '<div class="cz-head"><div class="cz-title">' + chartTitleFor(canvas) + '</div>' +
-      '<button class="cz-close" onclick="closeChartZoom()" aria-label="Close">✕</button></div>' +
-    '<div class="cz-chart"><canvas id="chart-zoom-canvas"></canvas></div>' +
-    (statsHtml ? '<div class="cz-stats">' + statsHtml + '</div>' : '') +
-    (rows ? '<div class="cz-table">' + rows + '</div>' : '') +
-    '<div class="cz-hint">Rotate your phone for a wider view</div>';
-  document.body.appendChild(wrap);
-
+  if (zoomChartInstance) { try { zoomChartInstance.destroy(); } catch (e) {} zoomChartInstance = null; }
+  document.getElementById('cz-chart').innerHTML = '<canvas id="chart-zoom-canvas"></canvas>';
+  document.getElementById('cz-stats').innerHTML = statsHtml;
+  document.getElementById('cz-table').innerHTML = rows;
   zoomChartInstance = new Chart(document.getElementById('chart-zoom-canvas'), { type: cfg.type, data, options });
 }
 
 function closeChartZoom() {
+  zoomState = null;
   if (zoomChartInstance) { try { zoomChartInstance.destroy(); } catch(e) {} zoomChartInstance = null; }
   const el = document.getElementById('chart-zoom');
   if (el) el.remove();
