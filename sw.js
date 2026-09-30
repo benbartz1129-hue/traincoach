@@ -13,7 +13,7 @@
 // Bump CACHE_VERSION on deploys that change index.html so clients refresh.
 // ══════════════════════════════════════════════════════════════════════════
 
-const CACHE_VERSION = 'brb-v2';
+const CACHE_VERSION = 'brb-v3';
 const APP_SHELL = [
   './',
   './index.html'
@@ -76,24 +76,23 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Navigation requests (the app itself): stale-while-revalidate.
-  // Serve the cached shell instantly, refresh it in the background.
+  // Navigation requests (the app itself): NETWORK-FIRST.
+  // Always try for the latest deploy; fall back to the cached copy when offline.
+  // (Stale-while-revalidate left the app one build behind after every deploy.)
   if (req.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('index.html')) {
     event.respondWith(
-      caches.match('./index.html').then(cached => {
-        const network = fetch(req).then(res => {
-          if (res && res.status === 200) {
-            const copy = res.clone();
-            caches.open(CACHE_VERSION).then(c => c.put('./index.html', copy)).catch(() => {});
-          }
-          return res;
-        }).catch(() => null);
-        // Cached first if we have it; otherwise wait for network
-        return cached || network.then(r => r || new Response(
+      fetch(req, { cache: 'no-store' }).then(res => {
+        if (res && res.status === 200) {
+          const copy = res.clone();
+          caches.open(CACHE_VERSION).then(c => c.put('./index.html', copy)).catch(() => {});
+        }
+        return res;
+      }).catch(() =>
+        caches.match('./index.html').then(cached => cached || new Response(
           '<h1>Offline</h1><p>BRB Training needs one online visit before it can work offline.</p>',
           { headers: { 'Content-Type': 'text/html' } }
-        ));
-      })
+        ))
+      )
     );
     return;
   }
