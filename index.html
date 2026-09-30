@@ -2189,6 +2189,25 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
           </div>
         </div>
 
+        <!-- SLEEP CHART -->
+        <div class="section-label">Sleep trend</div>
+        <div class="card" style="padding:14px 16px;margin-bottom:20px">
+          <div style="display:flex;gap:8px;margin-bottom:12px" id="sleep-range-btns">
+            <button class="filter-btn active" onclick="setSleepRange(30,this)">30d</button>
+            <button class="filter-btn" onclick="setSleepRange(60,this)">60d</button>
+            <button class="filter-btn" onclick="setSleepRange(90,this)">90d</button>
+            <button class="filter-btn" onclick="setSleepRange(0,this)">All</button>
+          </div>
+          <div style="position:relative;height:160px">
+            <canvas id="sleep-chart" role="img" aria-label="Sleep hours trend chart"></canvas>
+          </div>
+          <div id="sleep-chart-empty" style="display:none;text-align:center;padding:1.5rem;font-size:12px;color:var(--dim)">No sleep entries yet.</div>
+          <div style="display:flex;gap:16px;margin-top:10px;font-size:11px;color:var(--muted)">
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:rgba(139,148,255,0.85);display:inline-block"></span>Sleep (hrs)</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:0;border-top:2px dashed rgba(240,160,80,0.55);display:inline-block"></span>Trend</span>
+          </div>
+        </div>
+
         <!-- COMBINED HISTORY -->
         <div class="section-label">Log history</div>
         <div id="combined-log-table"></div>
@@ -6080,10 +6099,31 @@ function renderRhrChart() {
   rhrChartInstance = makeStatsChart('rhr-chart','rhr-chart-empty', labels, values, 'rgba(232,112,112,0.85)', 'rgba(232,112,112,0.06)', 'bpm', trend, rhrChartInstance);
 }
 
+// Sleep chart
+let sleepRangeDays = 30;
+let sleepChartInstance = null;
+
+function setSleepRange(days, btn) {
+  sleepRangeDays = days;
+  document.querySelectorAll('#sleep-range-btns .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSleepChart();
+}
+
+function renderSleepChart() {
+  const cutoff = sleepRangeDays > 0 ? new Date(Date.now() - sleepRangeDays*86400000).toISOString().split('T')[0] : null;
+  const filtered = wellnessLog.filter(e => e.sleep && (!cutoff || e.date >= cutoff));
+  const labels = filtered.map(e => new Date(e.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+  const values = filtered.map(e => +e.sleep);
+  const trend = buildTrendLine(values);
+  sleepChartInstance = makeStatsChart('sleep-chart','sleep-chart-empty', labels, values, 'rgba(139,148,255,0.85)', 'rgba(139,148,255,0.07)', 'hrs', trend, sleepChartInstance);
+}
+
 // Legacy alias called from renderWellnessPage
 function renderWellnessChart() {
   renderHrvChart();
   renderRhrChart();
+  renderSleepChart();
 }
 
 // No-op stubs for old range buttons no longer in HTML
@@ -10788,7 +10828,8 @@ const ZOOM_RANGES = {
   'pace-chart':         { chips: ZOOM_DAY_CHIPS, get: () => paceRangeDays,        set: v => { paceRangeDays = v; },        render: () => renderPaceChart() },
   'sport-detail-chart': { chips: ZOOM_DAY_CHIPS, get: () => sportDetailRangeDays, set: v => { sportDetailRangeDays = v; }, render: () => renderSportDetailChart() },
   'hrv-chart':          { chips: ZOOM_DAY_CHIPS, get: () => hrvRangeDays,         set: v => { hrvRangeDays = v; },         render: () => renderHrvChart() },
-  'rhr-chart':          { chips: ZOOM_DAY_CHIPS, get: () => rhrRangeDays,         set: v => { rhrRangeDays = v; },         render: () => renderRhrChart() }
+  'rhr-chart':          { chips: ZOOM_DAY_CHIPS, get: () => rhrRangeDays,         set: v => { rhrRangeDays = v; },         render: () => renderRhrChart() },
+  'sleep-chart':        { chips: ZOOM_DAY_CHIPS, get: () => sleepRangeDays,       set: v => { sleepRangeDays = v; },       render: () => renderSleepChart() }
 };
 let zoomState = null; // { canvas, reg, range }
 
@@ -10908,8 +10949,13 @@ function renderZoomFromChart(src) {
       tile('Low', fmtZoomNum(min), labels[main.indexOf(min)] || '');
   }
 
-  // Full data table, newest first
-  const rows = labels.map((lab, i) => {
+  // Full data table, newest first — with a column header when there's more than one series
+  const seriesName = (ds, i) => ds.label || (ds.borderDash ? 'Trend' : (i === 0 ? 'Value' : 'Series ' + (i + 1)));
+  const header = datasets.length > 1
+    ? '<div class="cz-row" style="font-size:9px;text-transform:uppercase;letter-spacing:0.05em;color:var(--dim);position:sticky;top:0;background:var(--bg)">' +
+        '<span>Date</span><span>' + datasets.map(seriesName).join(' &nbsp;·&nbsp; ') + '</span></div>'
+    : '';
+  const rows = header + labels.slice().map((lab, i) => {
     const vals = datasets.map(ds => fmtZoomNum(valuesOf(ds)[i]));
     return '<div class="cz-row"><span style="color:var(--muted)">' + lab + '</span><span style="color:var(--text)">' +
       vals.join(' &nbsp;·&nbsp; ') + '</span></div>';
