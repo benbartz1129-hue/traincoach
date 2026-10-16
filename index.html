@@ -2455,6 +2455,39 @@ function zoomWeekCount(id, def, weekMap, thisWeekStart) {
   return Math.max(1, n);
 }
 
+// ── LOCAL DATES + WEEKDAYS ────────────────────────────────────────────────
+// "Today" must be the athlete's local date. toISOString() is UTC, which in Chicago
+// rolls over to tomorrow at 7 PM — so evening opens showed tomorrow's plan.
+function localDateStr(d = new Date()) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+const WEEKDAY_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function weekdayOf(dateStr) { return WEEKDAY_SHORT[new Date(dateStr + 'T12:00:00').getDay()]; }
+function addDaysStr(dateStr, n) { const d = new Date(dateStr + 'T12:00:00'); d.setDate(d.getDate() + n); return localDateStr(d); }
+function todayLabel() { const t = localDateStr(); return new Date(t + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }) + ', ' + t; }
+// Explicit weekday/date pairs for AI prompts. Models are unreliable at working out
+// which weekday a date falls on — hand them the answer instead.
+function dateReference(startStr, days) {
+  const out = [];
+  for (let i = 0; i < days; i++) { const ds = addDaysStr(startStr, i); out.push(weekdayOf(ds) + ' ' + ds); }
+  return out.join(', ');
+}
+// If an AI-planned session names a weekday ("day":"Sat") that doesn't match its date,
+// trust the weekday — that's what the athlete asked for — and move it to the nearest
+// date (within 3 days) that falls on that weekday.
+function reconcilePlanDay(item) {
+  if (!item || !item.date || !item.day) return item;
+  const target = WEEKDAY_SHORT.findIndex(w => w.toLowerCase() === String(item.day).slice(0, 3).toLowerCase());
+  if (target < 0) return item;
+  const actual = new Date(item.date + 'T12:00:00').getDay();
+  let diff = target - actual;
+  if (diff > 3) diff -= 7;
+  if (diff < -3) diff += 7;
+  if (diff === 0) return item;
+  console.warn('[plan] "' + item.title + '" labeled ' + item.day + ' but dated ' + item.date + ' (' + weekdayOf(item.date) + ') — moving ' + diff + ' day(s)');
+  return { ...item, date: addDaysStr(item.date, diff) };
+}
+
 const TRI_DATE = new Date('2026-07-26');
 
 // ════════════════════════════════════════════════════════════════════════
@@ -2513,7 +2546,7 @@ const MAR_DATE = new Date('2026-10-11');
 // Build an accurate race-context string from the user's actual race list, counting
 // only races that are still upcoming. Prevents stale "Olympic Tri in -4 days" phrasing.
 function upcomingRaceContext() {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateStr();
   const upcoming = (typeof races !== 'undefined' ? races : [])
     .filter(r => r.date >= todayStr)
     .sort((a,b) => new Date(a.date) - new Date(b.date));
@@ -2898,7 +2931,7 @@ const CACHE_KEY_USAGE = 'brb_api_usage';
 function logApiUsage(feature, inTok, outTok, cost) {
   let usage;
   try { usage = JSON.parse(localStorage.getItem(CACHE_KEY_USAGE) || 'null'); } catch(e) {}
-  if (!usage) usage = { totalCalls: 0, totalCost: 0, totalIn: 0, totalOut: 0, byFeature: {}, byMonth: {}, firstDate: new Date().toISOString().split('T')[0] };
+  if (!usage) usage = { totalCalls: 0, totalCost: 0, totalIn: 0, totalOut: 0, byFeature: {}, byMonth: {}, firstDate: localDateStr() };
 
   usage.totalCalls++;
   usage.totalCost += cost;
@@ -2919,7 +2952,7 @@ function logApiUsage(feature, inTok, outTok, cost) {
 
 async function runAnalysis(summary) {
   const triDays = daysUntil(TRI_DATE), marDays = daysUntil(MAR_DATE);
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateStr();
 
   // Calculate weekly totals directly from raw activity data — no AI guessing
   const startOfWeek = new Date();
@@ -2938,7 +2971,7 @@ async function runAnalysis(summary) {
 
   const text = await callClaude({
     model: 'claude-sonnet-4-6', max_tokens: 2000,
-    system: `You are an expert triathlon and marathon coach. Today is ${today}.
+    system: `You are an expert triathlon and marathon coach. Today is ${todayLabel()}.
 Athlete: father of 2 kids, full-time job, early morning training only. ${upcomingRaceContext()} Boston 2026: 3:38. Swim volume critically low, needs bricks, strong run base.
 Weekly totals have already been calculated from raw data — do NOT recalculate them, just use the values provided.
 IMPORTANT: Always include all 3 insights based on the athlete's MOST RECENT activities — make them specific and current, not generic.
@@ -3101,7 +3134,7 @@ function renderDashboard(d) {
               try {
                 const ft = (typeof buildFitnessTrend === 'function') ? buildFitnessTrend() : null;
                 if (ft && ft.weeks && ft.weeks.length) {
-                  const todayStr = now.toISOString().split('T')[0];
+                  const todayStr = localDateStr(now);
                   const past = ft.weeks.filter(w => w.weekStart < todayStr).slice(-4);
                   if (past.length) chronic = past.reduce((s,w) => s + w.tls, 0) / past.length;
                 }
@@ -3240,10 +3273,11 @@ async function sendChat() {
 
   try {
     const triDays = daysUntil(TRI_DATE), marDays = daysUntil(MAR_DATE);
-    const today = new Date().toISOString().split('T')[0];
-    const today2 = new Date().toISOString().split('T')[0];
+    const today = localDateStr();
+    const today2 = localDateStr();
     const planSummary = trainingPlan.length ? trainingPlan.filter(p=>p.date>=today2).slice(0,10).map(p=>p.date+':'+p.sport+' '+p.title).join('; ') : 'none yet';
-    const systemPrompt = `You are an expert, friendly triathlon and marathon coach for BRB Training. Today is ${today}.
+    const systemPrompt = `You are an expert, friendly triathlon and marathon coach for BRB Training. Today is ${todayLabel()}.
+DATE REFERENCE — the exact weekday for each upcoming date. Always use these pairs; never work out weekdays yourself: ${dateReference(localDateStr(), 35)}
 Athlete profile: father of 2 young kids, full-time job, early morning training only (~5-6am).
 Goals / upcoming races: ${upcomingRaceContext()}
 Boston Marathon April 2026: 3:38:18. Strong run base. Swim volume critically low. Needs brick sessions.
@@ -3277,9 +3311,9 @@ Saved swim drills: ${swimDrills.length ? swimDrills.map(d => d.name + ' — ' + 
 
 CALENDAR UPDATES: If the user asks you to generate, update, or modify their training plan or calendar, you MUST include a plan block. First give a short 2-3 sentence conversational response, then ALWAYS end with this exact format — the <<<PLAN>>> and <<<END>>> markers are required:
 <<<PLAN>>>
-[{"date":"2026-06-13","sport":"run","title":"Easy 4mi run","detail":"Zone 2, conversational pace. 40min.","id":1},{"date":"2026-06-14","sport":"swim","title":"Pool swim 1mi","detail":"Easy pace, focus on form. 30min.","id":2}]
+[{"date":"2026-06-13","day":"Sat","sport":"run","title":"Easy 4mi run","detail":"Zone 2, conversational pace. 40min.","id":1},{"date":"2026-06-14","day":"Sun","sport":"swim","title":"Pool swim 1mi","detail":"Easy pace, focus on form. 30min.","id":2}]
 <<<END>>>
-Rules: sport must be one of: run, swim, ride, rest, strength. date must be YYYY-MM-DD. Always include 'detail' with duration and intensity. Only dates from today onward. The <<<PLAN>>> block must be valid JSON array and MUST be closed with the <<<END>>> marker. CRITICAL LENGTH RULE: keep each 'detail' under 90 characters and each 'title' under 30 characters - terse, not prose. If the requested plan spans more than 4 weeks, generate ONLY the first 4 weeks, close the block properly, and tell the user conversationally to ask you to continue for the next block. Never let the JSON get cut off - a short complete plan is far better than a long truncated one.
+Rules: sport must be one of: run, swim, ride, rest, strength. date must be YYYY-MM-DD. Every item MUST include "day" (Mon/Tue/Wed/Thu/Fri/Sat/Sun), and its date MUST be the date listed for that day in DATE REFERENCE (weekend = Sat and Sun). Always include 'detail' with duration and intensity. Only dates from today onward. The <<<PLAN>>> block must be valid JSON array and MUST be closed with the <<<END>>> marker. CRITICAL LENGTH RULE: keep each 'detail' under 90 characters and each 'title' under 30 characters - terse, not prose. If the requested plan spans more than 4 weeks, generate ONLY the first 4 weeks, close the block properly, and tell the user conversationally to ask you to continue for the next block. Never let the JSON get cut off - a short complete plan is far better than a long truncated one.
 
 SWIM DRILLS: If the user explicitly asks you to remember, save, or log a swim drill (phrases like "remember this drill", "save this drill", "log this drill for future use"), you MUST include a drill block. First confirm conversationally in 1-2 sentences, then ALWAYS end with this exact format — the <<<DRILL>>> and <<<END>>> markers are required:
 <<<DRILL>>>
@@ -3595,7 +3629,7 @@ function renderRaces() {
   if (!races.length) { list.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--dim);text-align:center">No races added yet</div>'; return; }
   list.innerHTML = races.map(r => {
     const daysAway = Math.ceil((new Date(r.date) - new Date()) / 86400000);
-    const isPast = daysAway < 0 || r.date === new Date().toISOString().split('T')[0];
+    const isPast = daysAway < 0 || r.date === localDateStr();
     return `<div class="race-item" id="race-${r.id}">
       <div class="race-item-header">
         <div class="race-item-name">${r.name}</div>
@@ -3842,11 +3876,12 @@ function applyPlanUpdates(planItems, replaceAll=false) {
 
   if (isFullPlan || replaceAll) {
     // Full replacement — clear all future sessions and replace
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDateStr();
     trainingPlan = trainingPlan.filter(p => p.date < today);
   }
 
   let added = 0;
+  planItems = planItems.map(reconcilePlanDay);
   planItems.forEach(item => {
     if (!item.date || !item.sport || !item.title) return;
     // Remove ALL existing plan for same date (not just same sport) to prevent doubles
@@ -4161,7 +4196,7 @@ function renderTriPRs() {
   if (!el) return;
 
   // Group completed triathlons with logged overall results by distance (subtype)
-  const todayStr2 = new Date().toISOString().split('T')[0];
+  const todayStr2 = localDateStr();
   const triResults = races.filter(r => r.type === 'triathlon' && r.results && r.results.overall && r.date <= todayStr2);
   if (!triResults.length) { el.innerHTML = ''; return; }
 
@@ -4198,7 +4233,7 @@ function renderRaceHistory() {
   const el = document.getElementById('race-history-section');
   if (!el) return;
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateStr();
   const past = races.filter(r => r.date <= todayStr).sort((a,b) => new Date(b.date) - new Date(a.date));
   if (!past.length) { el.innerHTML = ''; return; }
 
@@ -4597,7 +4632,7 @@ function logMorning() {
   const hrvVal = parseFloat(document.getElementById('hrv-input').value) || null;
   const rhrVal = parseFloat(document.getElementById('rhr-input').value) || null;
   const sleepVal = parseFloat(document.getElementById('sleep-input').value) || null;
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateStr();
   let saved = [];
 
   // Save weight if entered
@@ -4762,7 +4797,7 @@ function renderStatsChart() {
 
 function renderStatsPage() {
   try { renderTrainingHeatmap(); } catch(e) { console.warn('heatmap error', e); }
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateStr();
 
   // Pre-fill morning log inputs with today's existing values if already logged
   const todayWeight = weightLog.find(e => e.date === today);
@@ -5912,7 +5947,7 @@ function applyDrillUpdates(drillItems) {
     if (!item.name || !item.description) return;
     // Avoid exact duplicate names
     swimDrills = swimDrills.filter(d => d.name.toLowerCase() !== item.name.toLowerCase());
-    swimDrills.push({ name: item.name, description: item.description, dateAdded: new Date().toISOString().split('T')[0], id: Date.now() + Math.random() });
+    swimDrills.push({ name: item.name, description: item.description, dateAdded: localDateStr(), id: Date.now() + Math.random() });
     added++;
   });
   if (added > 0) { saveSwimDrills(); return true; }
@@ -5934,7 +5969,7 @@ function logWellness() {
     return;
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = localDateStr();
   const existing = wellnessLog.find(e => e.date === today) || {};
   const entry = {
     date: today,
@@ -6574,14 +6609,14 @@ const CACHE_KEY_DAILY_INSIGHT = 'brb_daily_insight';
 // A fingerprint of "which races are upcoming" — if this changes (e.g. a race that was
 // upcoming is now completed), any cached insight referencing it is stale regardless of date.
 function racesFingerprint() {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateStr();
   return races.filter(r => r.date >= todayStr).map(r => r.id).sort().join(',');
 }
 
 function loadCachedDailyInsight() {
   try {
     const cached = JSON.parse(localStorage.getItem(CACHE_KEY_DAILY_INSIGHT) || 'null');
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDateStr();
     if (cached && cached.date === today && cached.text && cached.racesFp === racesFingerprint()) return cached.text;
   } catch(e) {}
   return null;
@@ -6608,7 +6643,7 @@ async function generateDailyInsight(forceRefresh) {
   if (refreshBtn) refreshBtn.style.opacity = '0.4';
 
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = localDateStr();
 
     // Gather all relevant context
     // Wellness — today and 7-day average
@@ -6638,7 +6673,7 @@ async function generateDailyInsight(forceRefresh) {
     const trainingCtx = 'This week: ' + swimMi.toFixed(1) + 'mi swim, ' + runMi.toFixed(1) + 'mi run, ' + bikeMi.toFixed(1) + 'mi bike (TLS ' + tls.toFixed(1) + ')';
 
     // Races — only genuinely upcoming ones (past races have happened, do not reference them as future)
-    const todayStr2 = new Date().toISOString().split('T')[0];
+    const todayStr2 = localDateStr();
     const upcomingRaces = races.filter(r => r.date >= todayStr2).sort((a,b) => new Date(a.date) - new Date(b.date));
     const raceCtx = upcomingRaces.length
       ? 'Upcoming races: ' + upcomingRaces.map(r => r.name + ' (' + r.subtype + ' ' + r.type + ') in ' + daysUntil(new Date(r.date)) + ' days' + (r.goal ? ', goal ' + r.goal : '')).join('; ') + '.'
@@ -6977,7 +7012,7 @@ For running races: splits should be mile or 5k segments instead of tri legs. Kee
 
     const cleaned = reply.replace(/```json|```/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
     const sim = JSON.parse(cleaned);
-    sim.generatedAt = new Date().toISOString().split('T')[0];
+    sim.generatedAt = localDateStr();
 
     raceSimulations[raceId] = sim;
     saveSimulations();
@@ -7126,7 +7161,7 @@ Keep each section to 2-4 short sentences. Be specific with numbers where you fou
       messages: [{ role: 'user', content: `Research this race: ${race.name} on ${raceDate} (${race.subtype} ${race.type === 'triathlon' ? 'triathlon' : 'running race'}). ${days} days from now. Athlete goal: ${race.goal || 'not set'}.\n\nAthlete training context:\n${paceCtx}` }]
     }, 'Race intel');
 
-    const intel = { text: reply, generatedAt: new Date().toISOString().split('T')[0] };
+    const intel = { text: reply, generatedAt: localDateStr() };
     raceIntel[raceId] = intel;
     saveIntel();
     renderIntel(intel);
@@ -7185,7 +7220,7 @@ function renderIntel(intel) {
 function getPlanCompliance(daysBack) {
   const today = new Date(); today.setHours(0,0,0,0);
   const cutoff = new Date(today); cutoff.setDate(today.getDate() - daysBack);
-  const todayStr = today.toISOString().split('T')[0];
+  const todayStr = localDateStr(today);
   const cutoffStr = cutoff.toISOString().split('T')[0];
 
   // Planned sessions in window (excluding rest days and today/future)
@@ -7216,7 +7251,7 @@ function getPlanCompliance(daysBack) {
 function renderPlanCompliance() {
   const el = document.getElementById('plan-compliance-card');
   if (!el) return;
-  const upcoming = trainingPlan.filter(p => p.date >= new Date().toISOString().split('T')[0]);
+  const upcoming = trainingPlan.filter(p => p.date >= localDateStr());
   if (!upcoming.length && !trainingPlan.length) { el.innerHTML = ''; return; }
 
   const c = getPlanCompliance(14);
@@ -7238,7 +7273,7 @@ function renderPlanCompliance() {
 async function adaptPlan() {
   const btn = document.getElementById('adapt-plan-btn');
   const resultEl = document.getElementById('adapt-plan-result');
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateStr();
 
   // Scope adaptation to the next 21 days only — keeps the AI response small
   // and reliable; the further-out plan stays untouched and can be re-adapted later
@@ -7280,7 +7315,8 @@ async function adaptPlan() {
 - Keep the athlete's early-morning constraint and roughly one session per day
 - Only output sessions for dates from today onward within the SAME date range as the current upcoming plan provided (do not extend beyond it)
 Return ONLY valid JSON on a single line, plain ASCII, no apostrophes, no line breaks inside the JSON:
-{"summary":"2-3 sentences explaining what you changed and why, referencing their actual compliance","plan":[{"date":"YYYY-MM-DD","sport":"run|swim|ride|rest|strength","title":"short title","detail":"duration and intensity"}]}`,
+{"summary":"2-3 sentences explaining what you changed and why, referencing their actual compliance","plan":[{"date":"YYYY-MM-DD","day":"Mon|Tue|Wed|Thu|Fri|Sat|Sun","sport":"run|swim|ride|rest|strength","title":"short title","detail":"duration and intensity"}]}
+DATE REFERENCE — exact weekday for each date (never work out weekdays yourself; "day" must match): ${dateReference(localDateStr(), 21)}`,
       messages: [{ role: 'user', content: 'PLANNED vs ACTUAL (last 14 days):\n' + (complianceCtx || 'No planned sessions in window') + '\n\nUnplanned extra activities: ' + c.unplanned + '\n\nThis week so far: ' + live.weekSwimMi.toFixed(1) + 'mi swim, ' + live.weekBikeMi.toFixed(1) + 'mi bike, ' + live.weekRunMi.toFixed(1) + 'mi run\n' + wellnessCtx + '\nRaces: ' + raceCtx + '\n\nCURRENT UPCOMING PLAN:\n' + upcomingCtx + '\n\nAdapt the upcoming plan.' }]
     }, 'Adapt plan');
 
@@ -7295,6 +7331,7 @@ Return ONLY valid JSON on a single line, plain ASCII, no apostrophes, no line br
       // Replace only plan entries within the 21-day adaptation window — keep past and far-future intact
       trainingPlan = trainingPlan.filter(p => p.date < todayStr || p.date > horizonStr);
       data.plan.forEach(item => {
+        item = reconcilePlanDay(item);
         if (item.date && item.sport && item.title && item.date >= todayStr && item.date <= horizonStr) {
           trainingPlan.push({ ...item, id: Date.now() + Math.random() });
         }
@@ -7441,7 +7478,7 @@ Keep strings short and specific with real numbers. Do not put goal-vs-finish mat
 
     const cleaned = reply.replace(/```json|```/g,'').replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"').replace(/[\u2013\u2014]/g,'-').trim();
     const debrief = JSON.parse(cleaned);
-    debrief.generatedAt = new Date().toISOString().split('T')[0];
+    debrief.generatedAt = localDateStr();
     // Store the code-computed goal result so the render shows a definitive badge
     if (goalResult) debrief.goalResult = { diffStr: fmtSecFull(Math.abs(goalResult.diff)), over: goalResult.over, goal: race.goal, finish: race.results.overall };
 
@@ -8069,7 +8106,7 @@ async function fetchRaceWeather(race, force) {
   try { cache = JSON.parse(localStorage.getItem(cacheKey) || '{}'); } catch(e) {}
 
   const cached = cache[race.id];
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateStr();
   // Reuse cache if it's from today (forecasts update ~daily, no need to refetch on every open)
   if (!force && cached && cached.fetchedOn === todayStr) {
     return cached;
@@ -8263,7 +8300,7 @@ function saveRaceResults() {
   const overall = get('overall');
   if (!overall) { document.getElementById('results-msg').textContent = 'Please enter at least your overall finish time.'; return; }
 
-  const results = { overall, loggedOn: new Date().toISOString().split('T')[0] };
+  const results = { overall, loggedOn: localDateStr() };
   if (isTri) {
     results.swim = get('swim');
     results.t1 = get('t1');
@@ -8396,7 +8433,7 @@ function saveWorkouts() {
 
 function initWorkoutsPage() {
   const dateEl = document.getElementById('wk-date');
-  if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().split('T')[0];
+  if (dateEl && !dateEl.value) dateEl.value = localDateStr();
   document.getElementById('workout-result').innerHTML = '';
   renderWorkoutList();
 }
@@ -8438,7 +8475,7 @@ async function generateWorkout() {
   const sport = document.getElementById('wk-sport').value;
   const type = document.getElementById('wk-type').value;
   const duration = parseInt(document.getElementById('wk-duration').value) || 45;
-  const date = document.getElementById('wk-date').value || new Date().toISOString().split('T')[0];
+  const date = document.getElementById('wk-date').value || localDateStr();
   const notes = document.getElementById('wk-notes').value.trim();
 
   btn.disabled = true;
@@ -8481,7 +8518,7 @@ Rules: use the derived paces provided rather than inventing numbers. For repeats
     wk.sport = sport;
     wk.type = type;
     wk.date = date;
-    wk.createdAt = new Date().toISOString().split('T')[0];
+    wk.createdAt = localDateStr();
 
     savedWorkouts.unshift(wk);
     savedWorkouts = savedWorkouts.slice(0, 30);
@@ -8745,7 +8782,7 @@ Return ONLY valid JSON, plain ASCII, no apostrophes:
     const fb = cleaned.indexOf('{'), lb = cleaned.lastIndexOf('}');
     if (fb > -1 && lb > fb) cleaned = cleaned.slice(fb, lb + 1);
     const fit = JSON.parse(cleaned);
-    fit.date = new Date().toISOString().split('T')[0];
+    fit.date = localDateStr();
     fit.bikeName = bike ? bike.name : 'Unspecified bike';
 
     if (bikeId) {
@@ -8868,7 +8905,7 @@ function openRaceHub(raceId) {
   document.querySelectorAll('.bottom-nav-item').forEach(n => n.classList.remove('active'));
   currentTab = 'racehub';
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateStr();
   const isPast = race.date < todayStr || (Math.ceil((new Date(race.date) - new Date())/86400000) < 0);
 
   document.getElementById('racehub-name').textContent = (race.type === 'triathlon' ? '🏊🚴🏃 ' : '🏃 ') + race.name;
@@ -8957,7 +8994,7 @@ function renderDebugPage() {
   const targets = (typeof getWeeklyTargetsFromPlan === 'function') ? getWeeklyTargetsFromPlan() : null;
 
   // Races
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = localDateStr(now);
   const upcoming = races.filter(r => r.date >= todayStr);
   const past = races.filter(r => r.date < todayStr);
 
@@ -9212,7 +9249,7 @@ function initPlanBuilder() {
   if (!el) return;
 
   // Next upcoming race is the plan target
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateStr();
   const race = races.filter(r => r.date >= todayStr).sort((a,b) => new Date(a.date) - new Date(b.date))[0];
   if (!race) {
     el.innerHTML = '<div class="card" style="padding:2rem;text-align:center;color:var(--muted);font-size:13px">Add an upcoming race first — the season plan builds backward from your race date.<br><br><button class="add-race-btn" style="margin-top:12px" onclick="switchTab(\'races\')">Add a race</button></div>';
@@ -9306,7 +9343,8 @@ async function fillPlanWeek(weekStart, isRegen) {
       model: 'claude-sonnet-4-6', max_tokens: 2000,
       system: `You are a running coach filling in ONE week of a periodized marathon plan. You are given the week's structure (phase, target mileage, long run) from a validated skeleton — honor those targets. Distribute sessions across 7 days for an early-morning-only athlete (father, works full-time). Include easy runs, one quality session appropriate to the phase (tempo/threshold in Build, race-pace in Peak, strides in Base), the long run on Saturday or Sunday, and rest/recovery days. Use the athlete's real paces.
 Return ONLY valid JSON — an array of 5-7 session objects, plain ASCII, no apostrophes, no markdown:
-[{"date":"YYYY-MM-DD","sport":"run|rest|strength","title":"short e.g. Easy 6mi","detail":"terse: pace/effort + purpose, under 90 chars"}]
+[{"date":"YYYY-MM-DD","day":"Mon|Tue|Wed|Thu|Fri|Sat|Sun","sport":"run|rest|strength","title":"short e.g. Easy 6mi","detail":"terse: pace/effort + purpose, under 90 chars"}]
+This week's dates (use exactly these weekday/date pairs; "day" must match): ${dateReference(weekStart, 7)}.
 Every date must fall between ${weekStart} and ${weekEndDate}. Keep total run mileage close to ${week.targetMi}mi with the long run around ${week.longRunMi}mi.`,
       messages: [{ role:'user', content: `Fill week ${week.weekNum} (${week.phase} phase, ${week.focus}). Target ${week.targetMi}mi, long run ${week.longRunMi}mi. Dates ${weekStart} to ${weekEndDate}. ${paceCtx} Race: ${race.name} in ${week.weeksToRace} weeks, goal ${race.goal||'none'}.` }]
     }, 'Plan week fill');
@@ -9319,7 +9357,7 @@ Every date must fall between ${weekStart} and ${weekEndDate}. Keep total run mil
     // Remove any existing plan entries in this week (for regen), then add new
     const ws = weekStart, we = new Date(new Date(weekStart+'T12:00:00').getTime() + 7*86400000).toISOString().split('T')[0];
     trainingPlan = trainingPlan.filter(p => !(p.date >= ws && p.date < we));
-    sessions.forEach(s => {
+    sessions.map(reconcilePlanDay).forEach(s => {
       if (s.date >= ws && s.date < we) {
         trainingPlan.push({ id: Date.now() + Math.random(), date: s.date, sport: (s.sport||'run').toLowerCase(), title: s.title||'', detail: s.detail||'' });
       }
@@ -9833,7 +9871,7 @@ async function renderTodayPage() {
   if (!el) return;
 
   const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = localDateStr(now);
   const hour = now.getHours();
   const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   document.getElementById('today-greeting').textContent = greet;
@@ -9973,7 +10011,7 @@ async function loadTodayWeather() {
     return;
   }
   try {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = localDateStr();
     const r = await fetch('/weather', {
       method: 'POST', headers: { 'Content-Type':'application/json' },
       body: JSON.stringify({ location: home, date: todayStr })
@@ -10084,7 +10122,7 @@ function exportAllData() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'brb-training-backup-' + new Date().toISOString().split('T')[0] + '.json';
+    a.download = 'brb-training-backup-' + localDateStr() + '.json';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   } catch(e) { console.warn('download failed', e); }
@@ -10188,7 +10226,7 @@ function renderRaceLab() {
 
   // Anchor pace from the athlete's real fitness, or their race goal if set
   const paces = deriveTrainingPaces();
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = localDateStr();
   const race = races.filter(r => r.date >= todayStr).sort((a,b) => new Date(a.date) - new Date(b.date))[0];
 
   if (!labState.basePace) {
@@ -10635,7 +10673,7 @@ async function init() {
     renderCalendar();
     initRecovery();
     // Restore plan summary if exists
-    const upcoming = trainingPlan.filter(p => p.date >= new Date().toISOString().split('T')[0]).length;
+    const upcoming = trainingPlan.filter(p => p.date >= localDateStr()).length;
     if (upcoming > 0) {
       const el = document.getElementById('cal-plan-summary');
       if (el) el.textContent = upcoming + ' sessions planned. Open Coach to update your plan.';
