@@ -1308,10 +1308,7 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
       </div>
     </div>
     <div class="header-right">
-      <div class="race-chips" id="header-race-chips">
-        <div class="chip chip-tri">Tri <span id="hdr-tri-days">—</span>d</div>
-        <div class="chip chip-mar">Chi <span id="hdr-mar-days">—</span>d</div>
-      </div>
+      <div class="race-chips" id="header-race-chips"></div>
       <button class="refresh-btn" id="refresh-btn" onclick="refreshData()" aria-label="Sync Strava" title="Sync latest Strava data" style="width:auto;padding:0 10px;font-size:11px;font-family:var(--font-display);font-weight:600;gap:5px;display:flex;align-items:center;">
         <span style="font-size:14px">↺</span> Sync
       </button>
@@ -3449,9 +3446,11 @@ function buildBannerRaces() {
     .sort((a,b) => new Date(a.date) - new Date(b.date))
     .slice(0, 2);
   if (!upcoming.length) {
-    // Fallback to hardcoded races if none added yet
-    return `<div class="race-countdown"><span style="color:var(--tri)">Tri</span><span class="days" style="color:var(--tri)">${daysUntil(TRI_DATE)}d</span></div>
-            <div class="race-countdown"><span style="color:var(--mar)">Chi</span><span class="days" style="color:var(--mar)">${daysUntil(MAR_DATE)}d</span></div>`;
+    // No upcoming races: say so (never fall back to old built-in dates, which go negative)
+    return `<div class="race-countdown" onclick="switchTab('races')" style="cursor:pointer;flex-direction:column;align-items:flex-end;gap:2px">
+              <span style="color:var(--muted)">No races scheduled</span>
+              <span style="color:var(--tri);font-size:11px">+ Add a race</span>
+            </div>`;
   }
   const colors = ['var(--tri)','var(--mar)','var(--ok)'];
   return upcoming.map((r,i) => {
@@ -3480,7 +3479,7 @@ function updateRaceCountdowns() {
       const r = upcoming[0];
       chipsEl.innerHTML = `<div class="chip chip-tri">${r.subtype} <span>${daysUntil(new Date(r.date))}d</span></div>`;
     } else {
-      chipsEl.innerHTML = `<div class="chip chip-tri">Tri <span id="hdr-tri-days">${daysUntil(TRI_DATE)}</span>d</div><div class="chip chip-mar">Chi <span id="hdr-mar-days">${daysUntil(MAR_DATE)}</span>d</div>`;
+      chipsEl.innerHTML = `<div class="chip" onclick="switchTab('races')" style="cursor:pointer;color:var(--muted);border-color:var(--border)">No races</div>`;
     }
   }
 }
@@ -8737,7 +8736,7 @@ Return ONLY valid JSON, plain ASCII, no apostrophes:
         role: 'user',
         content: [
           ...imageBlocks,
-          { type: 'text', text: 'Analyze my bike fit from these ' + fitFrames.length + ' sequential frames (side view, indoor trainer). Bike: ' + (bike ? bike.name + ' (' + bike.type + ')' : 'not specified') + '. ' + fitHistory + ' Rider context: triathlete and marathoner, Chicago Marathon in ' + daysUntil(MAR_DATE) + ' days.' }
+          { type: 'text', text: 'Analyze my bike fit from these ' + fitFrames.length + ' sequential frames (side view, indoor trainer). Bike: ' + (bike ? bike.name + ' (' + bike.type + ')' : 'not specified') + '. ' + fitHistory + ' Rider context: triathlete and marathoner. ' + upcomingRaceContext() }
         ]
       }]
     }, 'Bike fit check');
