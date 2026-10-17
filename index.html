@@ -3305,21 +3305,21 @@ function homeStreak(trained) {
 function homeWeekCardHtml(d) {
   const t = d.weeklyTargets || getWeeklyTargetsFromPlan();
   const rows = [
-    ['Run',  'Run',  d.weekRunMi  || 0, t.run,  'var(--run)'],
-    ['Bike', 'Ride', d.weekBikeMi || 0, t.bike, 'var(--ride)'],
-    ['Swim', 'Swim', d.weekSwimMi || 0, t.swim, 'var(--swim)']
+    ['Run',  'Run',  d.weekRunMi  || 0, t.planned.run,  'var(--run)'],
+    ['Bike', 'Ride', d.weekBikeMi || 0, t.planned.bike, 'var(--ride)'],
+    ['Swim', 'Swim', d.weekSwimMi || 0, t.planned.swim, 'var(--swim)']
   ].map(([label, type, val, target, color]) => {
     const pct = target > 0 ? Math.min(100, (val / target) * 100) : 0;
     return `<div class="home-sp" onclick="openSportDetail('${type}')">
         <div class="home-sp-n">${label}</div>
         <div class="home-bar"><i style="width:${pct}%;background:${color}"></i></div>
-        <div class="home-sp-v">${val.toFixed(1)} <small>/ ${target} mi</small></div>
+        <div class="home-sp-v">${val.toFixed(1)} <small>${target > 0 ? '/ ' + (+target.toFixed(1)) + ' mi' : 'mi · not planned'}</small></div>
       </div>`;
   }).join('') + (() => {
     // Strength is counted in sessions, not miles
     const monday0 = addDaysStr(localDateStr(), -((new Date().getDay() + 6) % 7));
     const done = allActivities.filter(a => homeSportOf(a) === 'Strength' && (a.start_date_local || '').slice(0, 10) >= monday0).length;
-    const target = t.strength || 2;
+    const target = 2;
     const pct = Math.min(100, (done / target) * 100);
     return `<div class="home-sp" onclick="homeOpenActivities('WeightTraining')">
         <div class="home-sp-n">Strength</div>
@@ -10792,59 +10792,64 @@ function loadFromCache() {
 // Plan sessions store distance as free text (e.g. "Long Run 12mi", "Zone 2 ~15mi"),
 // so we sum the mileage found in each session's title+detail, grouped by sport.
 // Falls back to sensible defaults when no plan exists for the week.
+// Miles for one planned session. Reads explicit distances (mi / km / yd / m) and,
+// when a session only gives a duration, estimates miles at easy training pace.
+const PLAN_EST_PACE_MPH = { run: 6.3, bike: 16, swim: 1.6 };
+function planSessionMiles(s, key) {
+  const text = ((s.title || '') + ' ' + (s.detail || ''))
+    .replace(/week\s*\d*\s*total[^.]*/gi, '').replace(/total\s*for\s*(the\s*)?week[^.]*/gi, '');
+  const num = '(\\d+(?:\\.\\d+)?)';
+  // 1. An explicit session total wins ("Total 12mi")
+  const tot = text.match(new RegExp('total\\s*~?' + num + '\\s*(mi|miles?|km|k)\\b', 'i'));
+  if (tot) return /k/i.test(tot[2]) ? parseFloat(tot[1]) / 1.609 : parseFloat(tot[1]);
+  // 2. Largest distance mentioned (so "4x1mi in a 7mi run" → 7)
+  const dists = [];
+  for (const m of text.matchAll(new RegExp(num + '\\s*(miles?|mi|km|k|yards?|yds?|meters?|m)\\b', 'gi'))) {
+    const v = parseFloat(m[1]), u = m[2].toLowerCase();
+    if (/^(mi|mile|miles)$/.test(u)) dists.push(v);
+    else if (/^(km|k)$/.test(u)) dists.push(v / 1.609);
+    else if (/^y/.test(u)) dists.push(v / 1760);
+    else if (key === 'swim' && v >= 100) dists.push(v / 1609.34);   // bare "m" = meters only for swims
+  }
+  if (dists.length) return Math.max(...dists);
+  // 3. Duration only ("60 min", "1h 15m", "1:30") → estimate
+  let mins = 0;
+  const hm = text.match(/(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hours?)\b(?:\s*(\d+)\s*(?:m|min|mins|minutes)\b)?/i);
+  const colon = text.match(/\b(\d):([0-5]\d)\b/);
+  const mn = text.match(/(\d+)\s*(?:-\s*\d+\s*)?(?:min|mins|minutes)\b/i);
+  if (hm) mins = parseFloat(hm[1]) * 60 + (hm[2] ? parseInt(hm[2]) : 0);
+  else if (colon) mins = parseInt(colon[1]) * 60 + parseInt(colon[2]);
+  else if (mn) mins = parseInt(mn[1]);
+  return mins > 0 ? (mins / 60) * PLAN_EST_PACE_MPH[key] : 0;
+}
+
+// This week's goals straight from the calendar plan.
+//   planned  → exact plan totals (0 = that sport isn't planned this week) — used on home
+//   swim/bike/run → same, but falling back to defaults so ratio-based scores never divide by 0
+//   strength → fixed 2 sessions/week
 function getWeeklyTargetsFromPlan() {
-  const fallback = { swim: 1.2, bike: 25, run: 15, strength: 2, fromPlan: false };
-  if (typeof trainingPlan === 'undefined' || !trainingPlan.length) return fallback;
+  const fallback = { swim: 1.2, bike: 25, run: 15 };
+  const out = { ...fallback, strength: 2, planned: { swim: 0, bike: 0, run: 0 }, hasPlan: false, fromPlan: false };
+  if (typeof trainingPlan === 'undefined' || !trainingPlan.length) return out;
 
-  // Current Monday-based week window
   const now = new Date();
-  const dow = (now.getDay() + 6) % 7; // 0 = Mon
-  const monday = new Date(now); monday.setDate(now.getDate() - dow); monday.setHours(0,0,0,0);
-  const nextMonday = new Date(monday); nextMonday.setDate(monday.getDate() + 7);
+  const monday = new Date(now); monday.setDate(now.getDate() - ((now.getDay() + 6) % 7)); monday.setHours(12,0,0,0);
   const mondayStr = localDateStr(monday);
-  const nextMondayStr = localDateStr(nextMonday);
-
+  const nextMondayStr = addDaysStr(mondayStr, 7);
   const weekSessions = trainingPlan.filter(p => p.date >= mondayStr && p.date < nextMondayStr);
-  if (!weekSessions.length) return fallback;
-  const strengthPlanned = weekSessions.filter(s => /strength|weight|lift|gym/i.test(s.sport || '')).length;
-  fallback.strength = strengthPlanned || fallback.strength;
+  if (!weekSessions.length) return out;
+  out.hasPlan = true;
 
   const sportKey = { run: 'run', ride: 'bike', bike: 'bike', swim: 'swim' };
-  const totals = { swim: 0, bike: 0, run: 0 };
-  let foundAny = false;
-
   weekSessions.forEach(s => {
-    const key = sportKey[(s.sport||'').toLowerCase()];
-    if (!key) return; // skip rest/strength
-    const text = ((s.title||'') + ' ' + (s.detail||''));
-    // Find the largest mileage-looking number (handles "4x1.5mi" by taking the session total when present)
-    // Prefer an explicit total like "Total 12mi" or "12mi" over interval fragments.
-    let miles = 0;
-    // Ignore "week total" style mentions — those are weekly sums, not this session distance
-    const cleanText = text.replace(/week\s*\d*\s*total[^.]*/gi, '').replace(/total\s*for\s*(the\s*)?week[^.]*/gi, '');
-    const totalMatch = cleanText.match(/(?:session\s*)?total\s*~?(\d+(?:\.\d+)?)\s*mi/i);
-    if (totalMatch) {
-      miles = parseFloat(totalMatch[1]);
-    } else {
-      const matches = [...cleanText.matchAll(/(\d+(?:\.\d+)?)\s*mi\b/gi)].map(m => parseFloat(m[1]));
-      if (matches.length) miles = Math.max(...matches);
-    }
-    if (!miles && key === 'swim') {
-      const yd = cleanText.match(/(\d{3,4})\s*(?:yd|yard|m)\b/i);
-      if (yd) miles = parseFloat(yd[1]) / 1760;
-    }
-    if (miles > 0) { totals[key] += miles; foundAny = true; }
+    const key = sportKey[(s.sport || '').toLowerCase()];
+    if (key) out.planned[key] += planSessionMiles(s, key);
   });
-
-  if (!foundAny) return fallback;
-  // Keep any sport with no planned distance at its fallback so the card is not misleadingly 0
-  return {
-    swim: totals.swim > 0 ? Math.round(totals.swim * 10) / 10 : fallback.swim,
-    bike: totals.bike > 0 ? Math.round(totals.bike) : fallback.bike,
-    run:  totals.run  > 0 ? Math.round(totals.run)  : fallback.run,
-    strength: fallback.strength,
-    fromPlan: true
-  };
+  out.planned.swim = Math.round(out.planned.swim * 10) / 10;
+  out.planned.bike = Math.round(out.planned.bike * 10) / 10;
+  out.planned.run  = Math.round(out.planned.run  * 10) / 10;
+  ['swim', 'bike', 'run'].forEach(k => { if (out.planned[k] > 0) { out[k] = out.planned[k]; out.fromPlan = true; } });
+  return out;
 }
 
 function calcLiveWeekTotals() {
