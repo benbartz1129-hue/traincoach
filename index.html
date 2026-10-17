@@ -1247,7 +1247,7 @@ body.on-home #header-race-chips { display: none; }
 .home-chip-caution { background: rgba(240,160,80,.13); color: var(--mar); cursor: pointer; }
 .home-chip-warn { background: rgba(232,112,112,.14); color: var(--warn); cursor: pointer; }
 .home-week { padding: 16px 18px; }
-.home-sp { display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: 12px; padding: 6px 0; cursor: pointer; }
+.home-sp { display: grid; grid-template-columns: 58px 1fr auto; align-items: center; gap: 12px; padding: 6px 0; cursor: pointer; }
 .home-sp-n { font-family: var(--font-display); font-size: 12px; font-weight: 600; color: var(--muted); }
 .home-bar { height: 6px; border-radius: 3px; background: var(--surface2); overflow: hidden; }
 .home-bar i { display: block; height: 100%; border-radius: 3px; }
@@ -3203,7 +3203,7 @@ function homeTodayCardHtml() {
   const todayStr = localDateStr();
   const sessions = trainingPlan.filter(p => p.date === todayStr);
   const workouts = sessions.filter(s => (s.sport || '').toLowerCase() !== 'rest');
-  const done = allActivities.filter(a => (a.start_date_local || '').slice(0, 10) === todayStr && (a.moving_time > 0 || a.distance > 0));
+  const done = allActivities.filter(a => homeSportOf(a) && (a.start_date_local || '').slice(0, 10) === todayStr && (a.moving_time > 0 || a.distance > 0));
   let icon, tint, title, detail, extra = '';
 
   if (done.length) {
@@ -3256,22 +3256,37 @@ function homeLoadPace(d) {
 }
 
 // One colored segment per sport done that day, width proportional to time spent.
-const HOME_DAY_COLORS = { Run:'var(--run)', Ride:'var(--ride)', Swim:'var(--swim)' };
+const HOME_DAY_COLORS = { Run:'var(--run)', Ride:'var(--ride)', Swim:'var(--swim)', Strength:'var(--info)' };
+// Only the four sports the plan tracks — walks, pickleball, etc. are ignored on home.
+function homeSportOf(a) {
+  const t = a.sport_type || a.type || '';
+  if (/^(Run|TrailRun|VirtualRun)$/.test(t)) return 'Run';
+  if (/^(Ride|VirtualRide|GravelRide|MountainBikeRide|EBikeRide)$/.test(t)) return 'Ride';
+  if (/^Swim$/.test(t)) return 'Swim';
+  if (/^(WeightTraining|Crossfit)$/.test(t)) return 'Strength';
+  return null;
+}
 function homeDaySegments(ds) {
   const mins = {};
   allActivities.forEach(a => {
     if ((a.start_date_local || '').slice(0, 10) !== ds || !(a.moving_time > 0 || a.distance > 0)) return;
-    const t = /run/i.test(a.type) ? 'Run' : /ride|cycl|bike/i.test(a.type) ? 'Ride' : /swim/i.test(a.type) ? 'Swim' : 'Other';
+    const t = homeSportOf(a); if (!t) return;
     mins[t] = (mins[t] || 0) + Math.max(a.moving_time || 0, 600);
   });
-  const order = ['Swim', 'Ride', 'Run', 'Other'].filter(t => mins[t]);
+  const order = ['Swim', 'Ride', 'Run', 'Strength'].filter(t => mins[t]);
   if (!order.length) return '';
-  return order.map(t => `<b style="flex:${mins[t]};background:${HOME_DAY_COLORS[t] || 'var(--info)'}" title="${t === 'Other' ? 'Strength / other' : t}"></b>`).join('');
+  return order.map(t => `<b style="flex:${mins[t]};background:${HOME_DAY_COLORS[t]}" title="${t}"></b>`).join('');
+}
+
+function homeOpenActivities(type) {
+  switchTab('activities');
+  const btn = [...document.querySelectorAll('.filter-btn')].find(b => (b.getAttribute('onclick') || '').includes("'" + type + "'"));
+  if (btn) filterActivities(type, btn);
 }
 
 function homeTrainedDates() {
   const set = {};
-  allActivities.forEach(a => { if (a.moving_time > 0 || a.distance > 0) set[(a.start_date_local || '').slice(0, 10)] = true; });
+  allActivities.forEach(a => { if (homeSportOf(a) && (a.moving_time > 0 || a.distance > 0)) set[(a.start_date_local || '').slice(0, 10)] = true; });
   return set;
 }
 
@@ -3299,13 +3314,26 @@ function homeWeekCardHtml(d) {
         <div class="home-bar"><i style="width:${pct}%;background:${color}"></i></div>
         <div class="home-sp-v">${val.toFixed(1)} <small>/ ${target} mi</small></div>
       </div>`;
-  }).join('');
+  }).join('') + (() => {
+    // Strength is counted in sessions, not miles
+    const monday0 = addDaysStr(localDateStr(), -((new Date().getDay() + 6) % 7));
+    const done = allActivities.filter(a => homeSportOf(a) === 'Strength' && (a.start_date_local || '').slice(0, 10) >= monday0).length;
+    const target = t.strength || 2;
+    const pct = Math.min(100, (done / target) * 100);
+    return `<div class="home-sp" onclick="homeOpenActivities('WeightTraining')">
+        <div class="home-sp-n">Strength</div>
+        <div class="home-bar"><i style="width:${pct}%;background:var(--info)"></i></div>
+        <div class="home-sp-v">${done} <small>/ ${target} sessions</small></div>
+      </div>`;
+  })();
 
   const pace = homeLoadPace(d);
   const trained = homeTrainedDates();
   const streak = homeStreak(trained);
   const monday = addDaysStr(localDateStr(), -((new Date().getDay() + 6) % 7));
   const todayStr = localDateStr();
+  const weekHrs = allActivities.filter(a => homeSportOf(a) && (a.start_date_local || '').slice(0, 10) >= monday)
+    .reduce((s, a) => s + (a.moving_time || 0), 0) / 3600;
   const days = ['M','T','W','T','F','S','S'].map((l, i) => {
     const ds = addDaysStr(monday, i);
     const cls = (trained[ds] ? ' on' : '') + (ds === todayStr ? ' today' : '');
@@ -3315,12 +3343,12 @@ function homeWeekCardHtml(d) {
   return `<div class="card home-week">
       ${rows}
       <div class="home-foot">
-        <span><b>${(d.weekHours || 0).toFixed(1)} h</b> trained</span>
+        <span><b>${weekHrs.toFixed(1)} h</b> trained</span>
         <span onclick="switchTab('load')" style="cursor:pointer">Load <b style="color:${pace.color}">${pace.label}</b></span>
         <span>${streak > 1 ? '🔥 <b>' + streak + '-day</b> streak' : '<b>' + Object.keys(trained).filter(k => k >= monday).length + '</b> days this wk'}</span>
       </div>
-      <div class="home-days" onclick="switchTab('stats')">${days}</div>
-      <div class="home-legend"><span><i style="background:var(--swim)"></i>Swim</span><span><i style="background:var(--ride)"></i>Bike</span><span><i style="background:var(--run)"></i>Run</span><span><i style="background:var(--info)"></i>Strength/other</span></div>
+      <div class="home-days" onclick="homeOpenActivities('all')">${days}</div>
+      <div class="home-legend"><span><i style="background:var(--swim)"></i>Swim</span><span><i style="background:var(--ride)"></i>Bike</span><span><i style="background:var(--run)"></i>Run</span><span><i style="background:var(--info)"></i>Strength</span></div>
     </div>`;
 }
 
@@ -10764,7 +10792,7 @@ function loadFromCache() {
 // so we sum the mileage found in each session's title+detail, grouped by sport.
 // Falls back to sensible defaults when no plan exists for the week.
 function getWeeklyTargetsFromPlan() {
-  const fallback = { swim: 1.2, bike: 25, run: 15, fromPlan: false };
+  const fallback = { swim: 1.2, bike: 25, run: 15, strength: 2, fromPlan: false };
   if (typeof trainingPlan === 'undefined' || !trainingPlan.length) return fallback;
 
   // Current Monday-based week window
@@ -10772,11 +10800,13 @@ function getWeeklyTargetsFromPlan() {
   const dow = (now.getDay() + 6) % 7; // 0 = Mon
   const monday = new Date(now); monday.setDate(now.getDate() - dow); monday.setHours(0,0,0,0);
   const nextMonday = new Date(monday); nextMonday.setDate(monday.getDate() + 7);
-  const mondayStr = monday.toISOString().split('T')[0];
-  const nextMondayStr = nextMonday.toISOString().split('T')[0];
+  const mondayStr = localDateStr(monday);
+  const nextMondayStr = localDateStr(nextMonday);
 
   const weekSessions = trainingPlan.filter(p => p.date >= mondayStr && p.date < nextMondayStr);
   if (!weekSessions.length) return fallback;
+  const strengthPlanned = weekSessions.filter(s => /strength|weight|lift|gym/i.test(s.sport || '')).length;
+  fallback.strength = strengthPlanned || fallback.strength;
 
   const sportKey = { run: 'run', ride: 'bike', bike: 'bike', swim: 'swim' };
   const totals = { swim: 0, bike: 0, run: 0 };
@@ -10811,6 +10841,7 @@ function getWeeklyTargetsFromPlan() {
     swim: totals.swim > 0 ? Math.round(totals.swim * 10) / 10 : fallback.swim,
     bike: totals.bike > 0 ? Math.round(totals.bike) : fallback.bike,
     run:  totals.run  > 0 ? Math.round(totals.run)  : fallback.run,
+    strength: fallback.strength,
     fromPlan: true
   };
 }
