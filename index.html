@@ -1225,6 +1225,29 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
   .cz-table, .cz-hint { display: none; }
 }
 
+/* ── STATS (same visual language as home) ── */
+.st-row { display: grid; grid-template-columns: 58px auto 1fr; align-items: baseline; gap: 12px; padding: 9px 0; cursor: pointer; border-bottom: 1px solid var(--border); }
+.st-row:last-child { border-bottom: none; }
+.st-val { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--text); white-space: nowrap; }
+.st-sub { font-size: 11px; color: var(--muted); text-align: right; font-family: var(--font-mono); }
+.st-sub b { font-weight: 600; }
+.st-lbl-row { display: flex; justify-content: space-between; align-items: center; }
+.st-link { background: none; border: none; color: var(--tri); font-size: 11px; font-family: var(--font-display); font-weight: 600; cursor: pointer; padding: 0; letter-spacing: 0; text-transform: none; }
+.st-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: var(--surface2); border-radius: 10px; padding: 3px; margin-bottom: 12px; }
+.st-tabs button { background: none; border: none; color: var(--muted); font-family: var(--font-display); font-size: 12px; font-weight: 600; padding: 8px 0; border-radius: 8px; cursor: pointer; }
+.st-tabs button.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 0 var(--border2); }
+.st-chips { display: flex; gap: 6px; margin-bottom: 10px; }
+.st-chips .filter-btn { padding: 4px 10px; font-size: 11px; }
+.st-legend { display: flex; gap: 14px; margin-top: 10px; font-size: 10px; color: var(--dim); }
+.st-legend i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+.st-legend i.dash { width: 14px; height: 0; border-radius: 0; border-top: 2px dashed rgba(240,160,80,0.55); vertical-align: 3px; }
+.st-more { margin: 22px 0 8px; }
+.st-more summary { list-style: none; cursor: pointer; font-family: var(--font-display); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.st-more summary::-webkit-details-marker { display: none; }
+.st-more summary span { transition: transform .2s; font-size: 14px; }
+.st-more[open] summary span { transform: rotate(90deg); }
+#morning-save-msg:empty { display: none; }
+
 /* ── HOME (streamlined dashboard) ── */
 .home-legend { display: flex; justify-content: center; gap: 12px; margin-top: 10px; font-size: 10px; color: var(--dim); flex-wrap: wrap; }
 .home-legend i { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
@@ -2058,113 +2081,137 @@ body.on-home #header-race-chips { display: none; }
     <div class="page" id="page-stats">
       <div class="page-inner">
 
-        <!-- Header with today's snapshot -->
-        <div class="date-banner" style="margin-bottom:20px">
-          <div>
-            <div class="date-greeting" style="font-size:16px">📊 Body Stats</div>
-            <div class="date-sub">Weight, HRV, sleep & recovery</div>
+        <div class="home-greet">
+          <h1>Body stats</h1>
+          <p><span id="stats-date-line"></span> · Readiness <b id="wellness-readiness">—</b></p>
+        </div>
+
+        <!-- THIS MORNING — collapses to a summary once logged -->
+        <div class="home-lbl">This morning</div>
+        <div class="card home-hero" id="morning-card">
+          <div id="morning-summary" style="display:none"></div>
+          <div id="morning-form">
+            <div class="morning-log-grid">
+              <div class="morning-log-field">
+                <div class="morning-log-label">⚖️ Weight</div>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <input class="form-input" id="weight-input" type="number" step="0.1" min="50" max="500" placeholder="0.0" style="text-align:center;font-size:16px" />
+                  <select class="form-select" id="weight-unit" style="width:52px;font-size:16px;padding:8px 4px">
+                    <option value="lbs">lbs</option>
+                    <option value="kg">kg</option>
+                  </select>
+                </div>
+              </div>
+              <div class="morning-log-field">
+                <div class="morning-log-label">💓 HRV (ms)</div>
+                <input class="form-input" id="hrv-input" type="number" step="1" min="0" max="300" placeholder="0" style="text-align:center;font-size:16px" />
+              </div>
+              <div class="morning-log-field">
+                <div class="morning-log-label">❤️ RHR (bpm)</div>
+                <input class="form-input" id="rhr-input" type="number" step="1" min="20" max="150" placeholder="0" style="text-align:center;font-size:16px" />
+              </div>
+              <div class="morning-log-field">
+                <div class="morning-log-label">😴 Sleep (hrs)</div>
+                <input class="form-input" id="sleep-input" type="number" step="0.1" min="0" max="16" placeholder="0.0" style="text-align:center;font-size:16px" />
+              </div>
+            </div>
+            <button class="add-race-btn" style="margin-top:14px;width:100%" onclick="logMorning()">Save morning log</button>
           </div>
-          <div style="text-align:right">
-            <div style="font-family:var(--font-display);font-size:20px;font-weight:800;letter-spacing:-0.02em;color:var(--text)" id="stats-current-weight">—</div>
-            <div style="font-size:10px;color:var(--muted)" id="stats-weight-date"></div>
+          <div id="morning-save-msg" style="font-size:11px;color:var(--tri);margin-top:8px;min-height:0;text-align:center"></div>
+        </div>
+
+        <!-- LAST 7 DAYS — tap a row to show its trend below -->
+        <div class="home-lbl">Last 7 days</div>
+        <div class="card home-week">
+          <div class="st-row" onclick="setStatsTab('weight', true)">
+            <div class="home-sp-n">Weight</div>
+            <div class="st-val" id="stat-current">—</div>
+            <div class="st-sub">7d <b id="stat-7d">—</b> · 30d <b id="stat-30d">—</b><b id="stat-low" hidden></b></div>
+          </div>
+          <div class="st-row" onclick="setStatsTab('hrv', true)">
+            <div class="home-sp-n">HRV</div>
+            <div class="st-val" id="wellness-hrv-avg">—</div>
+            <div class="st-sub" id="wellness-hrv-trend">7d avg</div>
+          </div>
+          <div class="st-row" onclick="setStatsTab('rhr', true)">
+            <div class="home-sp-n">RHR</div>
+            <div class="st-val" id="wellness-rhr-avg">—</div>
+            <div class="st-sub" id="wellness-rhr-trend">7d avg</div>
+          </div>
+          <div class="st-row" onclick="setStatsTab('sleep', true)">
+            <div class="home-sp-n">Sleep</div>
+            <div class="st-val" id="wellness-sleep-avg">—</div>
+            <div class="st-sub">avg per night</div>
           </div>
         </div>
 
-        <div id="stats-weekly-summary-slot"></div>
-
-        <!-- TODAY'S MORNING LOG — single unified entry point -->
-        <div class="section-label">Morning log</div>
-        <div class="card" style="padding:16px;margin-bottom:20px">
-          <div class="morning-log-grid">
-            <div class="morning-log-field">
-              <div class="morning-log-label">⚖️ Weight</div>
-              <div style="display:flex;gap:6px;align-items:center">
-                <input class="form-input" id="weight-input" type="number" step="0.1" min="50" max="500" placeholder="0.0" style="text-align:center;font-size:16px" />
-                <select class="form-select" id="weight-unit" style="width:52px;font-size:16px;padding:8px 4px">
-                  <option value="lbs">lbs</option>
-                  <option value="kg">kg</option>
-                </select>
-              </div>
-            </div>
-            <div class="morning-log-field">
-              <div class="morning-log-label">💓 HRV (ms)</div>
-              <input class="form-input" id="hrv-input" type="number" step="1" min="0" max="300" placeholder="0" style="text-align:center;font-size:16px" />
-            </div>
-            <div class="morning-log-field">
-              <div class="morning-log-label">❤️ RHR (bpm)</div>
-              <input class="form-input" id="rhr-input" type="number" step="1" min="20" max="150" placeholder="0" style="text-align:center;font-size:16px" />
-            </div>
-            <div class="morning-log-field">
-              <div class="morning-log-label">😴 Sleep (hrs)</div>
-              <input class="form-input" id="sleep-input" type="number" step="0.1" min="0" max="16" placeholder="0.0" style="text-align:center;font-size:16px" />
-            </div>
-          </div>
-          <button class="add-race-btn" style="margin-top:14px;width:100%" onclick="logMorning()">Save Morning Log</button>
-          <div id="morning-save-msg" style="font-size:11px;color:var(--tri);margin-top:8px;min-height:14px;text-align:center"></div>
+        <!-- DAILY INSIGHT -->
+        <div class="home-lbl st-lbl-row">Daily insight
+          <button id="daily-insight-refresh-btn" onclick="generateDailyInsight(true)" class="st-link">↻ Refresh</button>
         </div>
-
-        <!-- TODAY'S SUMMARY CARDS -->
-        <div class="metrics-grid" style="margin-bottom:20px">
-          <div class="metric-card load">
-            <div class="metric-label">Weight</div>
-            <div class="metric-value" id="stat-current" style="font-size:18px">—</div>
-            <div class="metric-sub" id="stat-current-unit">lbs</div>
-          </div>
-          <div class="metric-card swim">
-            <div class="metric-label">HRV</div>
-            <div class="metric-value" id="wellness-hrv-avg" style="font-size:18px">—</div>
-            <div class="metric-sub" id="wellness-hrv-trend">7d avg</div>
-          </div>
-          <div class="metric-card run">
-            <div class="metric-label">RHR</div>
-            <div class="metric-value" id="wellness-rhr-avg" style="font-size:18px">—</div>
-            <div class="metric-sub" id="wellness-rhr-trend">7d avg</div>
-          </div>
-          <div class="metric-card bike">
-            <div class="metric-label">Sleep</div>
-            <div class="metric-value" id="wellness-sleep-avg" style="font-size:18px">—</div>
-            <div class="metric-sub">7d avg hrs</div>
+        <div class="card" style="padding:16px">
+          <div id="daily-insight-content">
+            <button class="add-race-btn" style="font-size:12px;padding:9px 16px" onclick="generateDailyInsight(false)">✨ Generate daily insight</button>
           </div>
         </div>
 
-        <!-- Readiness + Daily Insight -->
-        <div class="card" style="padding:14px 16px;margin-bottom:20px">
-          <!-- Top row: readiness + weight changes -->
-          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border)">
-            <div>
-              <div class="section-label" style="margin-bottom:2px">Readiness</div>
-              <div style="font-family:var(--font-display);font-size:18px;font-weight:700" id="wellness-readiness">—</div>
-            </div>
-            <div style="display:flex;gap:20px;flex-wrap:wrap">
-              <div style="text-align:center">
-                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-display);margin-bottom:2px">Weight 7d</div>
-                <div style="font-size:14px;font-weight:500" id="stat-7d">—</div>
-              </div>
-              <div style="text-align:center">
-                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-display);margin-bottom:2px">Weight 30d</div>
-                <div style="font-size:14px;font-weight:500" id="stat-30d">—</div>
-              </div>
-              <div style="text-align:center">
-                <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-family:var(--font-display);margin-bottom:2px">Low</div>
-                <div style="font-size:14px;font-weight:500" id="stat-low">—</div>
-              </div>
-            </div>
+        <!-- TRENDS — one chart at a time -->
+        <div class="home-lbl">Trends</div>
+        <div class="card" style="padding:14px 16px">
+          <div class="st-tabs" id="stats-tabs">
+            <button data-tab="weight" class="on" onclick="setStatsTab('weight')">Weight</button>
+            <button data-tab="hrv" onclick="setStatsTab('hrv')">HRV</button>
+            <button data-tab="rhr" onclick="setStatsTab('rhr')">RHR</button>
+            <button data-tab="sleep" onclick="setStatsTab('sleep')">Sleep</button>
           </div>
-          <!-- Daily Insight -->
-          <div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-              <div class="section-label" style="margin-bottom:0">Daily Insight</div>
-              <button id="daily-insight-refresh-btn" onclick="generateDailyInsight(true)" style="background:none;border:none;color:var(--tri);font-size:11px;font-family:var(--font-display);font-weight:600;cursor:pointer;padding:0">↻ Refresh</button>
+          <div class="st-pane" data-pane="weight">
+            <div class="st-chips" id="stats-range-btns">
+              <button class="filter-btn active" onclick="setStatsRange(30,this)">30d</button>
+              <button class="filter-btn" onclick="setStatsRange(60,this)">60d</button>
+              <button class="filter-btn" onclick="setStatsRange(90,this)">90d</button>
+              <button class="filter-btn" onclick="setStatsRange(0,this)">All</button>
             </div>
-            <div id="daily-insight-content">
-              <button class="add-race-btn" style="font-size:12px;padding:9px 16px" onclick="generateDailyInsight(false)">✨ Generate daily insight</button>
+            <div style="position:relative;height:180px"><canvas id="weight-chart" role="img" aria-label="Weight over time chart"></canvas></div>
+            <div id="stats-chart-empty" style="display:none;text-align:center;padding:1.5rem;font-size:12px;color:var(--dim)">No weight entries yet.</div>
+          </div>
+          <div class="st-pane" data-pane="hrv" style="display:none">
+            <div class="st-chips" id="hrv-range-btns">
+              <button class="filter-btn active" onclick="setHrvRange(30,this)">30d</button>
+              <button class="filter-btn" onclick="setHrvRange(60,this)">60d</button>
+              <button class="filter-btn" onclick="setHrvRange(90,this)">90d</button>
+              <button class="filter-btn" onclick="setHrvRange(0,this)">All</button>
             </div>
+            <div style="position:relative;height:180px"><canvas id="hrv-chart" role="img" aria-label="HRV trend chart"></canvas></div>
+            <div id="hrv-chart-empty" style="display:none;text-align:center;padding:1.5rem;font-size:12px;color:var(--dim)">No HRV entries yet.</div>
+            <div class="st-legend"><span><i style="background:rgba(79,196,168,0.9)"></i>HRV (ms)</span><span><i class="dash"></i>Trend</span></div>
+          </div>
+          <div class="st-pane" data-pane="rhr" style="display:none">
+            <div class="st-chips" id="rhr-range-btns">
+              <button class="filter-btn active" onclick="setRhrRange(30,this)">30d</button>
+              <button class="filter-btn" onclick="setRhrRange(60,this)">60d</button>
+              <button class="filter-btn" onclick="setRhrRange(90,this)">90d</button>
+              <button class="filter-btn" onclick="setRhrRange(0,this)">All</button>
+            </div>
+            <div style="position:relative;height:180px"><canvas id="rhr-chart" role="img" aria-label="Resting heart rate trend chart"></canvas></div>
+            <div id="rhr-chart-empty" style="display:none;text-align:center;padding:1.5rem;font-size:12px;color:var(--dim)">No RHR entries yet.</div>
+            <div class="st-legend"><span><i style="background:rgba(232,112,112,0.85)"></i>RHR (bpm)</span><span><i class="dash"></i>Trend</span></div>
+          </div>
+          <div class="st-pane" data-pane="sleep" style="display:none">
+            <div class="st-chips" id="sleep-range-btns">
+              <button class="filter-btn active" onclick="setSleepRange(30,this)">30d</button>
+              <button class="filter-btn" onclick="setSleepRange(60,this)">60d</button>
+              <button class="filter-btn" onclick="setSleepRange(90,this)">90d</button>
+              <button class="filter-btn" onclick="setSleepRange(0,this)">All</button>
+            </div>
+            <div style="position:relative;height:180px"><canvas id="sleep-chart" role="img" aria-label="Sleep hours trend chart"></canvas></div>
+            <div id="sleep-chart-empty" style="display:none;text-align:center;padding:1.5rem;font-size:12px;color:var(--dim)">No sleep entries yet.</div>
+            <div class="st-legend"><span><i style="background:rgba(139,148,255,0.85)"></i>Sleep (hrs)</span><span><i class="dash"></i>Trend</span></div>
           </div>
         </div>
 
-        <!-- TRAINING HEATMAP -->
-        <div class="section-label">Training consistency</div>
-        <div class="card" style="padding:16px;margin-bottom:20px">
+        <!-- TRAINING CONSISTENCY -->
+        <div class="home-lbl">Training consistency</div>
+        <div class="card" style="padding:16px">
           <div id="heatmap-container"></div>
           <div id="heatmap-legend" style="display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-top:10px;font-size:10px;color:var(--muted)">
             <span>Less</span>
@@ -2180,81 +2227,11 @@ body.on-home #header-race-chips { display: none; }
           <div id="heatmap-stats" style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.6"></div>
         </div>
 
-        <!-- WEIGHT CHART -->
-        <div class="section-label">Weight trend</div>
-        <div class="card" style="padding:14px 16px;margin-bottom:20px">
-          <div style="display:flex;gap:8px;margin-bottom:12px" id="stats-range-btns">
-            <button class="filter-btn active" onclick="setStatsRange(30,this)">30d</button>
-            <button class="filter-btn" onclick="setStatsRange(60,this)">60d</button>
-            <button class="filter-btn" onclick="setStatsRange(90,this)">90d</button>
-            <button class="filter-btn" onclick="setStatsRange(0,this)">All</button>
-          </div>
-          <div style="position:relative;height:160px">
-            <canvas id="weight-chart" role="img" aria-label="Weight over time chart"></canvas>
-          </div>
-          <div id="stats-chart-empty" style="display:none;text-align:center;padding:1.5rem;font-size:12px;color:var(--dim)">No weight entries yet.</div>
-        </div>
-
-        <!-- HRV CHART -->
-        <div class="section-label">HRV trend</div>
-        <div class="card" style="padding:14px 16px;margin-bottom:20px">
-          <div style="display:flex;gap:8px;margin-bottom:12px" id="hrv-range-btns">
-            <button class="filter-btn active" onclick="setHrvRange(30,this)">30d</button>
-            <button class="filter-btn" onclick="setHrvRange(60,this)">60d</button>
-            <button class="filter-btn" onclick="setHrvRange(90,this)">90d</button>
-            <button class="filter-btn" onclick="setHrvRange(0,this)">All</button>
-          </div>
-          <div style="position:relative;height:160px">
-            <canvas id="hrv-chart" role="img" aria-label="HRV trend chart"></canvas>
-          </div>
-          <div id="hrv-chart-empty" style="display:none;text-align:center;padding:1.5rem;font-size:12px;color:var(--dim)">No HRV entries yet.</div>
-          <div style="display:flex;gap:16px;margin-top:10px;font-size:11px;color:var(--muted)">
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:rgba(79,196,168,0.9);display:inline-block"></span>HRV (ms)</span>
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:0;border-top:2px dashed rgba(240,160,80,0.55);display:inline-block"></span>Trend</span>
-          </div>
-        </div>
-
-        <!-- RHR CHART -->
-        <div class="section-label">Resting HR trend</div>
-        <div class="card" style="padding:14px 16px;margin-bottom:20px">
-          <div style="display:flex;gap:8px;margin-bottom:12px" id="rhr-range-btns">
-            <button class="filter-btn active" onclick="setRhrRange(30,this)">30d</button>
-            <button class="filter-btn" onclick="setRhrRange(60,this)">60d</button>
-            <button class="filter-btn" onclick="setRhrRange(90,this)">90d</button>
-            <button class="filter-btn" onclick="setRhrRange(0,this)">All</button>
-          </div>
-          <div style="position:relative;height:160px">
-            <canvas id="rhr-chart" role="img" aria-label="Resting heart rate trend chart"></canvas>
-          </div>
-          <div id="rhr-chart-empty" style="display:none;text-align:center;padding:1.5rem;font-size:12px;color:var(--dim)">No RHR entries yet.</div>
-          <div style="display:flex;gap:16px;margin-top:10px;font-size:11px;color:var(--muted)">
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:rgba(232,112,112,0.85);display:inline-block"></span>RHR (bpm)</span>
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:0;border-top:2px dashed rgba(240,160,80,0.55);display:inline-block"></span>Trend</span>
-          </div>
-        </div>
-
-        <!-- SLEEP CHART -->
-        <div class="section-label">Sleep trend</div>
-        <div class="card" style="padding:14px 16px;margin-bottom:20px">
-          <div style="display:flex;gap:8px;margin-bottom:12px" id="sleep-range-btns">
-            <button class="filter-btn active" onclick="setSleepRange(30,this)">30d</button>
-            <button class="filter-btn" onclick="setSleepRange(60,this)">60d</button>
-            <button class="filter-btn" onclick="setSleepRange(90,this)">90d</button>
-            <button class="filter-btn" onclick="setSleepRange(0,this)">All</button>
-          </div>
-          <div style="position:relative;height:160px">
-            <canvas id="sleep-chart" role="img" aria-label="Sleep hours trend chart"></canvas>
-          </div>
-          <div id="sleep-chart-empty" style="display:none;text-align:center;padding:1.5rem;font-size:12px;color:var(--dim)">No sleep entries yet.</div>
-          <div style="display:flex;gap:16px;margin-top:10px;font-size:11px;color:var(--muted)">
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:rgba(139,148,255,0.85);display:inline-block"></span>Sleep (hrs)</span>
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:0;border-top:2px dashed rgba(240,160,80,0.55);display:inline-block"></span>Trend</span>
-          </div>
-        </div>
-
-        <!-- COMBINED HISTORY -->
-        <div class="section-label">Log history</div>
-        <div id="combined-log-table"></div>
+        <!-- LOG HISTORY — tucked away -->
+        <details class="st-more">
+          <summary>Log history <span>›</span></summary>
+          <div id="combined-log-table" style="margin-top:10px"></div>
+        </details>
 
       </div>
     </div>
@@ -3150,7 +3127,8 @@ function renderDashboard(d) {
     ${homeTodayCardHtml()}
     <div class="home-lbl">This week</div>
     ${homeWeekCardHtml(d)}
-    ${homeUpNextHtml()}`;
+    ${homeUpNextHtml()}
+    ${renderWeeklySummaryCard()}`;
   updateRaceCountdowns();
   if (currentTab === 'dashboard') document.body.classList.add('on-home');
   if (taperRace) loadWeatherInto('taper-weather-slot', taperRace, true);
@@ -4879,6 +4857,7 @@ function logMorning() {
     msg.textContent = 'Enter at least one value to save.';
   }
   setTimeout(() => { if (msg) msg.textContent = ''; }, 3000);
+  if (saved.length) morningEditing = false;
   renderStatsPage();
 }
 
@@ -4998,8 +4977,44 @@ function renderStatsChart() {
   });
 }
 
+// ── Stats page helpers ──
+let statsTab = 'weight';
+let morningEditing = false;
+function setStatsTab(tab, scroll) {
+  statsTab = tab;
+  if (scroll) { const tabs = document.getElementById('stats-tabs'); if (tabs) tabs.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  document.querySelectorAll('#stats-tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  document.querySelectorAll('#page-stats .st-pane').forEach(p => { p.style.display = p.dataset.pane === tab ? '' : 'none'; });
+  // Re-render the visible chart so it sizes to its now-visible box
+  try {
+    ({ weight: renderStatsChart, hrv: renderHrvChart, rhr: renderRhrChart, sleep: renderSleepChart })[tab]();
+  } catch (e) { console.warn('stats tab', e); }
+}
+function editMorningLog() { morningEditing = true; renderMorningCard(); }
+function renderMorningCard() {
+  const today = localDateStr();
+  const w = weightLog.find(e => e.date === today);
+  const well = wellnessLog.find(e => e.date === today) || {};
+  const sum = document.getElementById('morning-summary'), form = document.getElementById('morning-form');
+  if (!sum || !form) return;
+  const logged = w || well.hrv || well.rhr || well.sleep;
+  if (!logged || morningEditing) { sum.style.display = 'none'; form.style.display = ''; return; }
+  const chip = (lbl, v) => v != null && v !== '' ? `<span class="home-chip">${lbl} <b>${v}</b></span>` : '';
+  const missing = [!w && 'weight', !well.hrv && 'HRV', !well.rhr && 'RHR', !well.sleep && 'sleep'].filter(Boolean);
+  sum.innerHTML = `<div class="home-hero-row">
+      <div class="home-ico" style="background:rgba(109,186,109,.13)">✅</div>
+      <div style="min-width:0;flex:1"><h2>Logged this morning</h2>
+        <div class="home-det">${missing.length ? 'Still to add: ' + missing.join(', ') : 'All four logged.'}</div></div>
+      <button class="st-link" onclick="editMorningLog()">${missing.length ? '+ Add' : 'Edit'}</button>
+    </div>
+    <div class="home-chips">${chip('⚖', w ? w.value + ' ' + w.unit : null)}${chip('HRV', well.hrv ? well.hrv + ' ms' : null)}${chip('RHR', well.rhr ? well.rhr + ' bpm' : null)}${chip('Sleep', well.sleep ? well.sleep + ' h' : null)}</div>`;
+  sum.style.display = ''; form.style.display = 'none';
+}
+
 function renderStatsPage() {
-  try { const slot = document.getElementById('stats-weekly-summary-slot'); if (slot) slot.innerHTML = renderWeeklySummaryCard(); } catch(e) { console.warn('week summary', e); }
+  try { renderMorningCard(); } catch(e) { console.warn('morning card', e); }
+  const dl = document.getElementById('stats-date-line');
+  if (dl) dl.textContent = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
   try { renderTrainingHeatmap(); } catch(e) { console.warn('heatmap error', e); }
   const today = localDateStr();
 
@@ -5043,13 +5058,13 @@ function renderStatsPage() {
     const stat7 = document.getElementById('stat-7d');
     if (stat7 && entry7) {
       const diff = (latest.value - entry7.value).toFixed(1);
-      stat7.textContent = (diff > 0 ? '+' : '') + diff + ' ' + unit;
+      stat7.textContent = (diff > 0 ? '+' : '') + diff;
       stat7.style.color = diff > 0 ? 'var(--warn)' : diff < 0 ? 'var(--ok)' : 'var(--text)';
     }
     const stat30 = document.getElementById('stat-30d');
     if (stat30 && entry30) {
       const diff = (latest.value - entry30.value).toFixed(1);
-      stat30.textContent = (diff > 0 ? '+' : '') + diff + ' ' + unit;
+      stat30.textContent = (diff > 0 ? '+' : '') + diff;
       stat30.style.color = diff > 0 ? 'var(--warn)' : diff < 0 ? 'var(--ok)' : 'var(--text)';
     }
     const low = weightLog.reduce((m,e) => e.value < m.value ? e : m, weightLog[0]);
@@ -5059,6 +5074,7 @@ function renderStatsPage() {
 
   // Summary cards — wellness (7d avg via renderWellnessPage)
   renderWellnessPage();
+  if (statsTab !== 'weight') setTimeout(() => setStatsTab(statsTab), 0);
 
   // Load cached daily insight if available, show generate button if not
   const cachedInsight = loadCachedDailyInsight();
@@ -6413,17 +6429,18 @@ function renderWellnessPage() {
   document.getElementById('wellness-rhr-avg').textContent = rhrAvg !== null ? rhrAvg.toFixed(0) + ' bpm' : '—';
   document.getElementById('wellness-sleep-avg').textContent = sleepAvg !== null ? sleepAvg.toFixed(1) + 'h' : '—';
 
-  const hrvTrend = (hrvAvg !== null && hrvPrevAvg !== null) ? hrvAvg - hrvPrevAvg : null;
-  const rhrTrend = (rhrAvg !== null && rhrPrevAvg !== null) ? rhrAvg - rhrPrevAvg : null;
+  // Round before comparing so the label never reads "-0" / "+0"
+  const hrvTrend = (hrvAvg !== null && hrvPrevAvg !== null) ? Math.round(hrvAvg - hrvPrevAvg) || 0 : null;
+  const rhrTrend = (rhrAvg !== null && rhrPrevAvg !== null) ? Math.round(rhrAvg - rhrPrevAvg) || 0 : null;
 
   const hrvTrendEl = document.getElementById('wellness-hrv-trend');
   if (hrvTrendEl) {
-    hrvTrendEl.textContent = hrvTrend !== null ? (hrvTrend > 0 ? '+' : '') + hrvTrend.toFixed(0) + ' vs last wk' : '7d avg';
+    hrvTrendEl.textContent = hrvTrend === null ? '7d avg' : hrvTrend === 0 ? 'steady vs last wk' : (hrvTrend > 0 ? '+' : '') + hrvTrend + ' vs last wk';
     hrvTrendEl.style.color = hrvTrend > 0 ? 'var(--ok)' : hrvTrend < 0 ? 'var(--warn)' : 'var(--muted)';
   }
   const rhrTrendEl = document.getElementById('wellness-rhr-trend');
   if (rhrTrendEl) {
-    rhrTrendEl.textContent = rhrTrend !== null ? (rhrTrend > 0 ? '+' : '') + rhrTrend.toFixed(0) + ' vs last wk' : '7d avg';
+    rhrTrendEl.textContent = rhrTrend === null ? '7d avg' : rhrTrend === 0 ? 'steady vs last wk' : (rhrTrend > 0 ? '+' : '') + rhrTrend + ' vs last wk';
     rhrTrendEl.style.color = rhrTrend < 0 ? 'var(--ok)' : rhrTrend > 0 ? 'var(--warn)' : 'var(--muted)';
   }
 
@@ -6574,15 +6591,11 @@ function renderWeeklySummaryCard() {
   const alreadyGenerated = cached && cached.weekStart === wk.weekStart;
 
   return `
-    <div class="section">
-      <div class="card" style="padding:16px;border-left:3px solid var(--tri)">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:16px">📆</span>
-            <span style="font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--tri)">Week in Review</span>
-          </div>
-          <button onclick="generateWeeklySummary(true)" style="background:none;border:none;color:var(--tri);font-size:11px;font-family:var(--font-display);font-weight:600;cursor:pointer;padding:0">↻ Refresh</button>
-        </div>
+    <div class="home-lbl st-lbl-row">Week in review
+      <button onclick="generateWeeklySummary(true)" class="st-link">↻ Refresh</button>
+    </div>
+    <div>
+      <div class="card" style="padding:16px;margin-bottom:8px">
         <div style="font-size:11px;color:var(--muted);margin-bottom:10px">${wk.count} activities across ${wk.activeDays} active days this week</div>
         <div id="weekly-summary-ai-content">
           ${alreadyGenerated
