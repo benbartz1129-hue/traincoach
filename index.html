@@ -1226,6 +1226,12 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
 }
 
 /* ── RACES ── */
+.race-del { text-align: center; margin-top: 10px; }
+.race-del-link { background: none; border: none; color: var(--dim); font-size: 11px; font-family: var(--font-display); cursor: pointer; padding: 4px 8px; }
+.race-del-confirm { background: rgba(232,112,112,.08); border: 1px solid rgba(232,112,112,.3); border-radius: 10px; padding: 12px; font-size: 12px; color: var(--text); text-align: left; line-height: 1.5; }
+.race-del-btns { display: flex; gap: 8px; margin-top: 10px; }
+.race-del-btns button { flex: 1; padding: 9px; border-radius: 8px; border: 1px solid var(--border2); background: var(--surface2); color: var(--text); font-family: var(--font-display); font-size: 12px; font-weight: 600; cursor: pointer; }
+.race-del-btns button.danger { background: var(--warn); border-color: var(--warn); color: #fff; }
 .race-add { margin: 18px 0 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
 .race-add summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; font-family: var(--font-display); font-size: 14px; font-weight: 700; color: var(--tri); }
 .race-add summary::-webkit-details-marker { display: none; }
@@ -3858,7 +3864,6 @@ function raceCardHtml(r) {
   return `<div class="race-item" id="race-${r.id}">
       <div class="race-item-header">
         <div class="race-item-name">${r.name}</div>
-        <button class="race-delete-btn" onclick="event.stopPropagation();deleteRace(${r.id})">✕</button>
       </div>
       <div class="race-item-meta">
         <span class="race-type-badge ${r.type}">${r.subtype || ''} ${r.type === 'triathlon' ? 'Tri' : ''}</span>
@@ -3874,6 +3879,23 @@ function raceCardHtml(r) {
         &#128194; Open race &rsaquo;
       </button>
       <div id="race-weather-${r.id}"></div>
+      <div class="race-del" id="race-del-${r.id}">
+        <button class="race-del-link" onclick="askDeleteRace(${r.id})">Delete race</button>
+      </div>
+    </div>`;
+}
+
+// Two-step delete: tap "Delete race", then confirm with the race named.
+function askDeleteRace(id) {
+  const r = races.find(x => x.id === id); const box = document.getElementById('race-del-' + id);
+  if (!r || !box) return;
+  const extra = r.results ? ' Your results for this race will be lost.' : '';
+  box.innerHTML = `<div class="race-del-confirm">
+      <div>Delete <b>${r.name}</b>?${extra} This can't be undone.</div>
+      <div class="race-del-btns">
+        <button onclick="renderRaces()">Cancel</button>
+        <button class="danger" onclick="deleteRace(${id})">Delete</button>
+      </div>
     </div>`;
 }
 
