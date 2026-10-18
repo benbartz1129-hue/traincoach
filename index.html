@@ -1225,6 +1225,9 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
   .cz-table, .cz-hint { display: none; }
 }
 
+/* ── PRs: section headings match home/stats ── */
+#page-prs .section-label { font-family: var(--font-display); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 22px 0 10px; }
+
 /* ── RACES ── */
 .race-del { text-align: center; margin-top: 10px; }
 .race-del-link { background: none; border: none; color: var(--dim); font-size: 11px; font-family: var(--font-display); cursor: pointer; padding: 4px 8px; }
@@ -1370,7 +1373,7 @@ body.on-home #header-race-chips { display: none; }
         <span class="nav-icon">🏁</span>My Races
       </button>
       <button class="nav-item" id="nav-prs" onclick="switchTab('prs')">
-        <span class="nav-icon">🏆</span>PR &amp; History
+        <span class="nav-icon">🏆</span>Personal Records
       </button>
       <div class="drawer-section-label">Gear</div>
       <button class="nav-item" id="nav-garage" onclick="switchTab('garage')">
@@ -2283,14 +2286,11 @@ body.on-home #header-race-chips { display: none; }
     <!-- PR WALL -->
     <div class="page" id="page-prs">
       <div class="page-inner">
-        <div class="date-banner" style="margin-bottom:20px">
-          <div>
-            <div class="date-greeting" style="font-size:16px">🏆 PR &amp; Race History</div>
-            <div class="date-sub">Your best performances &amp; completed races</div>
-          </div>
-          <div id="pr-total-badge" style="font-size:11px;color:var(--tri);font-family:var(--font-display);font-weight:700;text-align:right"></div>
+        <div class="home-greet">
+          <h1>Personal records</h1>
+          <p>Your best efforts from Strava and logged race results <span id="pr-total-badge" style="color:var(--tri)"></span></p>
         </div>
-        <div id="pr-content">
+        <div id="pr-content" style="margin-top:18px">
           <div class="loading-state">
             <div class="loading-dots"><span></span><span></span><span></span></div>
             <div class="loading-text">Loading your PRs…</div>
@@ -2299,30 +2299,6 @@ body.on-home #header-race-chips { display: none; }
 
         <!-- Triathlon PRs (from logged race results) -->
         <div id="tri-pr-section"></div>
-
-        <!-- Race history -->
-        <div id="race-history-section"></div>
-
-        <!-- Pace trend -->
-        <div class="section-label">Run pace trend</div>
-        <div class="card" style="padding:14px 16px;margin-bottom:20px">
-          <div style="display:flex;gap:8px;margin-bottom:12px" id="pace-range-btns">
-            <button class="filter-btn active" onclick="setPaceRange(90,this)">90d</button>
-            <button class="filter-btn" onclick="setPaceRange(180,this)">6mo</button>
-            <button class="filter-btn" onclick="setPaceRange(365,this)">1yr</button>
-            <button class="filter-btn" onclick="setPaceRange(0,this)">All</button>
-          </div>
-          <div style="position:relative;height:200px">
-            <canvas id="pace-chart" role="img" aria-label="Running pace trend over time chart"></canvas>
-          </div>
-          <div id="pace-chart-empty" style="display:none;text-align:center;padding:2rem;font-size:12px;color:var(--dim)">
-            Not enough run data yet to show a pace trend.
-          </div>
-          <div style="display:flex;gap:16px;margin-top:12px;font-size:11px;color:var(--muted);flex-wrap:wrap">
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:var(--run);display:inline-block"></span>Pace per run</span>
-            <span style="display:flex;align-items:center;gap:4px"><span style="width:16px;height:2px;background:var(--mar);display:inline-block;border-top:2px dashed var(--mar);height:0"></span>Trend</span>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -4475,7 +4451,7 @@ function buildPRs() {
 
   document.getElementById('pr-content').innerHTML = html;
   const badge = document.getElementById('pr-total-badge');
-  if (badge && totalPRs > 0) badge.textContent = totalPRs + ' PRs tracked';
+  if (badge && totalPRs > 0) badge.textContent = '· ' + totalPRs + ' tracked';
 }
 
 
@@ -4575,13 +4551,10 @@ function initPRWall() {
     </div>`;
     // Race history + tri PRs come from logged results, not Strava — still render them
     renderTriPRs();
-    renderRaceHistory();
     return;
   }
   buildPRs();
   renderTriPRs();
-  renderRaceHistory();
-  renderPaceChart();
 }
 
 
