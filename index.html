@@ -1225,6 +1225,26 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
   .cz-table, .cz-hint { display: none; }
 }
 
+/* ── RACES ── */
+.race-add { margin: 18px 0 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+.race-add summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; font-family: var(--font-display); font-size: 14px; font-weight: 700; color: var(--tri); }
+.race-add summary::-webkit-details-marker { display: none; }
+.race-add-chev { color: var(--muted); font-size: 16px; transition: transform .2s; }
+.race-add[open] .race-add-chev { transform: rotate(90deg); }
+.race-add .add-race-form { border-top: 1px solid var(--border); }
+.race-past-list { padding: 4px 0; }
+.rp-item { border-bottom: 1px solid var(--border); }
+.rp-item:last-child { border-bottom: none; }
+.rp-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; cursor: pointer; }
+.rp-ico { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.rp-main { flex: 1; min-width: 0; }
+.rp-main b { display: block; font-family: var(--font-display); font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp-main span { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.rp-time { font-family: var(--font-mono); font-size: 13px; color: var(--tri); font-weight: 600; }
+.rp-chev { color: var(--dim); font-size: 16px; transition: transform .2s; }
+.rp-item.open .rp-chev { transform: rotate(90deg); }
+.rp-body { padding: 0 12px 12px; }
+
 /* ── STATS (same visual language as home) ── */
 .st-why { font-size: 11px !important; color: var(--dim) !important; margin-top: 2px !important; }
 .st-why:empty { display: none; }
@@ -1601,17 +1621,16 @@ body.on-home #header-race-chips { display: none; }
     <!-- RACE PLANNER PAGE -->
     <div class="page" id="page-races">
       <div class="page-inner">
-        <div class="date-banner" style="margin-bottom:20px">
-          <div>
-            <div class="date-greeting" style="font-size:16px">🏁 My Races</div>
-            <div class="date-sub">Upcoming races &amp; goals</div>
-          </div>
+        <div class="home-greet">
+          <h1>Races</h1>
+          <p id="races-subline">Upcoming races &amp; results</p>
         </div>
-        <div class="race-planner" id="race-planner">
-          <div class="race-list" id="race-list"></div>
+
+        <!-- ADD A RACE — top, collapsed until tapped -->
+        <details class="race-add" id="race-add">
+          <summary><span>＋ Add a race</span><span class="race-add-chev">›</span></summary>
           <div class="add-race-form">
-            <div class="section-label" style="margin-bottom:10px">Add a race</div>
-            <div class="form-field">
+                        <div class="form-field">
               <div class="form-label">Race name</div>
               <input class="form-input" id="race-name" placeholder="e.g. Chicago Sprint Tri" />
             </div>
@@ -1640,7 +1659,23 @@ body.on-home #header-race-chips { display: none; }
               <div class="form-label">Distance</div>
               <div class="subtype-row" id="subtype-row"></div>
             </div>
-            <button class="add-race-btn" onclick="addRace()">+ Add Race</button>
+                        <button class="add-race-btn" onclick="addRace()">+ Add Race</button>
+          </div>
+        </details>
+
+        <div class="race-planner" id="race-planner" style="background:none;border:none;overflow:visible">
+          <div id="race-upcoming-wrap">
+            <div class="home-lbl">Upcoming</div>
+            <div class="race-list" id="race-list" style="padding:0"></div>
+          </div>
+          <div id="race-past-wrap">
+            <div class="home-lbl">Past races</div>
+            <div class="st-tabs" id="race-past-tabs" style="grid-template-columns:repeat(3,1fr)">
+              <button data-f="all" class="on" onclick="setPastRaceFilter('all')">All</button>
+              <button data-f="triathlon" onclick="setPastRaceFilter('triathlon')">Triathlon</button>
+              <button data-f="running" onclick="setPastRaceFilter('running')">Running</button>
+            </div>
+            <div class="card race-past-list" id="race-past-list"></div>
           </div>
         </div>
       </div>
@@ -3794,6 +3829,7 @@ async function addRace() {
   selectedSubtype = '';
   renderSubtypes();
   renderRaces();
+  const addBox = document.getElementById('race-add'); if (addBox && races.length) addBox.open = false;
   // Generate insight async
   generateRaceInsight(race.id);
 }
@@ -3804,24 +3840,29 @@ function deleteRace(id) {
   renderRaces();
 }
 
-function renderRaces() {
-  updateRaceCountdowns();
-  const list = document.getElementById('race-list');
-  if (!list) return; // race planner not rendered yet — safe no-op
-  const badge = document.getElementById('race-count');
-  if (badge) badge.textContent = races.length;
-  if (!races.length) { list.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--dim);text-align:center">No races added yet</div>'; return; }
-  list.innerHTML = races.map(r => {
-    const daysAway = Math.ceil((new Date(r.date) - new Date()) / 86400000);
-    const isPast = daysAway < 0 || r.date === localDateStr();
-    return `<div class="race-item" id="race-${r.id}">
+let pastRaceFilter = 'all';
+const raceOpen = {};
+function setPastRaceFilter(f) { pastRaceFilter = f; renderRaces(); }
+function togglePastRace(id) {
+  raceOpen[id] = !raceOpen[id];
+  renderRaces();
+  if (raceOpen[id]) { const r = races.find(x => x.id === id); if (r && !r.insight && activitySummary) generateRaceInsight(id); }
+}
+function raceIsPast(r) { return r.date <= localDateStr(); }
+function raceDateTxt(r) { return new Date(r.date + 'T12:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }); }
+
+// Full race card (the original detailed view)
+function raceCardHtml(r) {
+  const daysAway = daysUntil(new Date(r.date + 'T12:00:00'));
+  const isPast = raceIsPast(r);
+  return `<div class="race-item" id="race-${r.id}">
       <div class="race-item-header">
         <div class="race-item-name">${r.name}</div>
-        <button class="race-delete-btn" onclick="deleteRace(${r.id})">✕</button>
+        <button class="race-delete-btn" onclick="event.stopPropagation();deleteRace(${r.id})">✕</button>
       </div>
       <div class="race-item-meta">
-        <span class="race-type-badge ${r.type}">${r.subtype} ${r.type === 'triathlon' ? 'Tri' : ''}</span>
-        <span class="race-item-date">${new Date(r.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} · ${isPast ? 'Completed' : daysAway + 'd away'}</span>
+        <span class="race-type-badge ${r.type}">${r.subtype || ''} ${r.type === 'triathlon' ? 'Tri' : ''}</span>
+        <span class="race-item-date">${raceDateTxt(r)} · ${isPast ? 'Completed' : daysAway + 'd away'}</span>
       </div>
       <div style="font-size:11px;color:var(--muted);margin:2px 0 4px">📍 ${r.location || '<span style="color:var(--dim)">no location set</span>'} <span onclick="editRaceLocation(${r.id})" style="color:var(--tri);cursor:pointer;margin-left:4px">✏️ edit</span></div>
       ${r.goal ? `<div class="race-item-goal">&#127945; Goal: ${r.goal}</div>` : ''}
@@ -3834,18 +3875,62 @@ function renderRaces() {
       </button>
       <div id="race-weather-${r.id}"></div>
     </div>`;
-  }).join('');
+}
+
+function renderRaces() {
+  updateRaceCountdowns();
+  const list = document.getElementById('race-list');
+  if (!list) return; // race planner not rendered yet — safe no-op
+  const badge = document.getElementById('race-count');
+  if (badge) badge.textContent = races.length;
+
+  const upcoming = races.filter(r => !raceIsPast(r)).sort((a,b) => a.date.localeCompare(b.date));
+  const past = races.filter(raceIsPast).sort((a,b) => b.date.localeCompare(a.date));
+
+  const sub = document.getElementById('races-subline');
+  if (sub) sub.textContent = races.length ? `${upcoming.length} upcoming · ${past.length} completed` : 'Add your first race to get a countdown and race plan.';
+  const add = document.getElementById('race-add');
+  if (add && !races.length) add.open = true;
+
+  // Upcoming — full cards
+  const upWrap = document.getElementById('race-upcoming-wrap');
+  if (upWrap) upWrap.style.display = upcoming.length ? '' : 'none';
+  list.innerHTML = upcoming.map(raceCardHtml).join('');
+
+  // Past — compact collapsible rows, filterable by type
+  const pastWrap = document.getElementById('race-past-wrap');
+  if (pastWrap) pastWrap.style.display = past.length ? '' : 'none';
+  document.querySelectorAll('#race-past-tabs button').forEach(b => b.classList.toggle('on', b.dataset.f === pastRaceFilter));
+  const shown = past.filter(r => pastRaceFilter === 'all' || r.type === pastRaceFilter);
+  const pl = document.getElementById('race-past-list');
+  if (pl) pl.innerHTML = shown.length ? shown.map(r => {
+      const open = !!raceOpen[r.id];
+      const time = r.results && r.results.overall ? r.results.overall : '—';
+      const type = (r.subtype || '') + (r.type === 'triathlon' ? ' Tri' : r.subtype ? '' : 'Run');
+      return `<div class="rp-item${open ? ' open' : ''}">
+        <div class="rp-row" onclick="togglePastRace(${r.id})">
+          <div class="rp-ico" style="background:${r.type === 'triathlon' ? 'rgba(90,176,240,.13)' : 'rgba(109,186,109,.13)'}">${r.type === 'triathlon' ? '🏊' : '🏃'}</div>
+          <div class="rp-main"><b>${r.name}</b><span>${type} · ${raceDateTxt(r)}</span></div>
+          <div class="rp-time"${time === '—' ? ' style="color:var(--dim)"' : ''}>${time}</div>
+          <div class="rp-chev">›</div>
+        </div>
+        ${open ? `<div class="rp-body">${raceCardHtml(r)}</div>` : ''}
+      </div>`;
+    }).join('')
+    : `<div style="padding:16px;font-size:12px;color:var(--dim);text-align:center">No past ${pastRaceFilter === 'all' ? '' : pastRaceFilter + ' '}races.</div>`;
 
   // Load weather into each upcoming race card within forecast range (async)
-  races.forEach(r => {
-    const daysAway = Math.ceil((new Date(r.date) - new Date()) / 86400000);
+  upcoming.forEach(r => {
+    const daysAway = daysUntil(new Date(r.date + 'T12:00:00'));
     if (daysAway >= 0 && daysAway <= 16) loadWeatherInto('race-weather-' + r.id, r, false);
   });
 }
 
+const raceInsightPending = {};
 async function generateRaceInsight(id) {
   const race = races.find(r => r.id === id);
-  if (!race || !activitySummary) return;
+  if (!race || race.insight || !activitySummary || raceInsightPending[id]) return;  // stored once, never re-requested
+  raceInsightPending[id] = true;
   const daysAway = Math.ceil((new Date(race.date) - new Date()) / 86400000);
   try {
     const reply = await callClaude({
@@ -3853,18 +3938,21 @@ async function generateRaceInsight(id) {
       system: 'You are a concise triathlon and marathon coach. Give a 2-sentence coaching insight for the athlete specific to this race and their recent training. Use miles not km. Be direct and specific.',
       messages: [{ role: 'user', content: `Race: ${race.name} (${race.subtype} ${race.type}), ${daysAway} days away. Goal: ${race.goal || 'not set'}. Recent training: ${activitySummary.split('\n').slice(0,15).join(', ')}` }]
     }, 'Race insight');
-    race.insight = reply;
+    // Write to the CURRENT copy — a cloud sync may have replaced the races array meanwhile
+    const live = races.find(r => r.id === id) || race;
+    live.insight = reply;
     saveRaces();
+    delete raceInsightPending[id];
     const el = document.getElementById('insight-' + id);
     if (el) { el.textContent = reply; el.classList.remove('loading'); }
-  } catch(e) { console.error('Insight error', e); }
+  } catch(e) { delete raceInsightPending[id]; console.error('Insight error', e); }
 }
 
 function initRacePlanner() {
   renderSubtypes();
   renderRaces();
   updateRaceCountdowns();
-  races.forEach(r => { if (!r.insight && activitySummary) generateRaceInsight(r.id); });
+  races.forEach(r => { if (!raceIsPast(r) && !r.insight && activitySummary) generateRaceInsight(r.id); });
 }
 
 
@@ -5191,7 +5279,11 @@ async function kvSyncAll() {
 
     // Always use KV data if it exists — it's the source of truth
     if (data.brb_races && Array.isArray(data.brb_races) && data.brb_races.length > 0) {
-      races = data.brb_races;
+      // Keep any insight already generated on this device if the cloud copy is older
+      const localInsights = {}; races.forEach(r => { if (r.insight) localInsights[r.id] = r.insight; });
+      let restored = false;
+      races = data.brb_races.map(r => { if (!r.insight && localInsights[r.id]) { restored = true; return { ...r, insight: localInsights[r.id] }; } return r; });
+      if (restored) setTimeout(saveRaces, 0);   // push the kept insights back up
       localStorage.setItem('brb_races', JSON.stringify(races));
       changed = true;
       console.log('KV: updated races, count:', races.length);
