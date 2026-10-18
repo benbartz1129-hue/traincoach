@@ -1226,6 +1226,8 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
 }
 
 /* ── STATS (same visual language as home) ── */
+.st-why { font-size: 11px !important; color: var(--dim) !important; margin-top: 2px !important; }
+.st-why:empty { display: none; }
 .st-row { display: grid; grid-template-columns: 58px auto 1fr; align-items: baseline; gap: 12px; padding: 9px 0; cursor: pointer; border-bottom: 1px solid var(--border); }
 .st-row:last-child { border-bottom: none; }
 .st-val { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--text); white-space: nowrap; }
@@ -2084,6 +2086,7 @@ body.on-home #header-race-chips { display: none; }
         <div class="home-greet">
           <h1>Body stats</h1>
           <p><span id="stats-date-line"></span> · Readiness <b id="wellness-readiness">—</b></p>
+          <p id="wellness-readiness-why" class="st-why"></p>
         </div>
 
         <!-- THIS MORNING — collapses to a summary once logged -->
@@ -6388,12 +6391,47 @@ function getFilteredWellnessLog() {
   return wellnessLog.filter(e => e.date >= cutoff.toISOString().split('T')[0]);
 }
 
-function getReadinessStatus(hrvTrend, rhrTrend) {
-  // hrvTrend > 0 = improving, rhrTrend < 0 = improving (lower RHR is better)
-  if (hrvTrend === null || rhrTrend === null) return { label: '—', color: 'var(--muted)' };
-  if (hrvTrend >= 0 && rhrTrend <= 0) return { label: 'Good', color: 'var(--ok)' };
-  if (hrvTrend < -5 || rhrTrend > 3) return { label: 'Fatigued', color: 'var(--warn)' };
-  return { label: 'Watch', color: 'var(--mar)' };
+// ── READINESS: recent days vs YOUR normal range ─────────────────────────
+// Recent  = average of the last 3 logged mornings (within the last 7 days) — smooths
+//           one-off bad nights without hiding a real multi-day trend.
+// Normal  = mean ± 0.75 SD of daily values from the 30 days before that (needs ≥ 10 entries).
+//           SD has a floor so a very steady athlete isn't flagged for a 1 ms wobble.
+// HRV below normal or RHR above normal is a flag; well outside (> 1.5 SD) is a strong flag.
+//   Good     → both inside (or better than) normal
+//   Watch    → one mild flag
+//   Fatigued → both flagged, or any strong flag
+function calcReadiness() {
+  const today = localDateStr();
+  const recentFrom = addDaysStr(today, -6);
+  const baseTo = addDaysStr(today, -7), baseFrom = addDaysStr(today, -37);
+  const stat = (field, minSd) => {
+    const recentVals = wellnessLog.filter(e => e.date >= recentFrom && e.date <= today && e[field] != null)
+      .sort((a,b) => b.date.localeCompare(a.date)).slice(0, 3).map(e => e[field]);
+    const base = wellnessLog.filter(e => e.date >= baseFrom && e.date <= baseTo && e[field] != null).map(e => e[field]);
+    if (!recentVals.length) return { status: 'none' };
+    const recent = recentVals.reduce((s,v) => s+v, 0) / recentVals.length;
+    if (base.length < 10) return { status: 'building', recent, baseN: base.length };
+    const mean = base.reduce((s,v) => s+v, 0) / base.length;
+    const sd = Math.max(minSd, Math.sqrt(base.reduce((s,v) => s + (v-mean)**2, 0) / (base.length - 1)));
+    return { status: 'ok', recent, mean, sd, lo: mean - 0.75*sd, hi: mean + 0.75*sd, z: (recent - mean) / sd };
+  };
+  const hrv = stat('hrv', 2), rhr = stat('rhr', 1);
+  // flags: HRV low is bad, RHR high is bad
+  const hrvFlag = hrv.status === 'ok' ? (hrv.z < -1.5 ? 2 : hrv.z < -0.75 ? 1 : 0) : 0;
+  const rhrFlag = rhr.status === 'ok' ? (rhr.z >  1.5 ? 2 : rhr.z >  0.75 ? 1 : 0) : 0;
+  let label, color;
+  if (hrv.status !== 'ok' && rhr.status !== 'ok') {
+    const building = hrv.status === 'building' || rhr.status === 'building';
+    label = building ? 'Learning' : '—'; color = 'var(--muted)';
+  } else if (hrvFlag === 2 || rhrFlag === 2 || (hrvFlag && rhrFlag)) { label = 'Fatigued'; color = 'var(--warn)'; }
+  else if (hrvFlag || rhrFlag) { label = 'Watch'; color = 'var(--mar)'; }
+  else { label = 'Good'; color = 'var(--ok)'; }
+  const why = [];
+  if (hrvFlag) why.push('HRV below your normal');
+  if (rhrFlag) why.push('resting HR above your normal');
+  if (!why.length && label === 'Good') why.push('HRV and resting HR within your normal range');
+  if (label === 'Learning') why.push('needs ~10 days of logs to learn your normal range');
+  return { label, color, why: why.join(' · '), hrv, rhr, hrvFlag, rhrFlag };
 }
 
 function renderWellnessPage() {
@@ -6402,6 +6440,7 @@ function renderWellnessPage() {
     document.getElementById('wellness-rhr-avg').textContent = '—';
     document.getElementById('wellness-sleep-avg').textContent = '—';
     document.getElementById('wellness-readiness').textContent = '—';
+    const whyEl0 = document.getElementById('wellness-readiness-why'); if (whyEl0) whyEl0.textContent = 'Log HRV and resting HR each morning to see readiness.';
     renderWellnessChart();
     return;
   }
@@ -6444,10 +6483,24 @@ function renderWellnessPage() {
     rhrTrendEl.style.color = rhrTrend < 0 ? 'var(--ok)' : rhrTrend > 0 ? 'var(--warn)' : 'var(--muted)';
   }
 
-  const readiness = getReadinessStatus(hrvTrend, rhrTrend);
+  const readiness = calcReadiness();
   const readinessEl = document.getElementById('wellness-readiness');
   readinessEl.textContent = readiness.label;
   readinessEl.style.color = readiness.color;
+  const whyEl = document.getElementById('wellness-readiness-why');
+  if (whyEl) whyEl.textContent = readiness.why;
+  // Row subtitles: show each metric against your normal range when we have one
+  const rangeTxt = (m, unit, flag) => m.status === 'ok'
+    ? (() => {
+        // Use a decimal when whole numbers would make a flagged value look inside the range
+        const r0 = Math.round(m.recent), lo0 = Math.round(m.lo), hi0 = Math.round(m.hi);
+        const d = (r0 === lo0 || r0 === hi0) ? 1 : 0;
+        return { t: m.recent.toFixed(d) + ' lately · normal ' + m.lo.toFixed(d) + '–' + m.hi.toFixed(d), c: flag ? (flag === 2 ? 'var(--warn)' : 'var(--mar)') : 'var(--muted)' };
+      })()
+    : null;
+  const hr = rangeTxt(readiness.hrv, 'ms', readiness.hrvFlag), rr = rangeTxt(readiness.rhr, 'bpm', readiness.rhrFlag);
+  if (hr && hrvTrendEl) { hrvTrendEl.textContent = hr.t; hrvTrendEl.style.color = hr.c; }
+  if (rr && rhrTrendEl) { rhrTrendEl.textContent = rr.t; rhrTrendEl.style.color = rr.c; }
 
   renderWellnessChart();
 }
