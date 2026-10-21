@@ -712,10 +712,11 @@ body {
   border-color: var(--tri);
   background: var(--tri-dim);
 }
-.stretch-timer-display.running #stretch-timer-seconds {
+.stretch-timer-display.running #stretch-timer-seconds,
+.stretch-timer-display.running #sg-timer-seconds {
   color: var(--tri);
 }
-#stretch-timer-seconds {
+#stretch-timer-seconds, #sg-timer-seconds {
   font-family: var(--font-display);
   font-size: 80px;
   font-weight: 800;
@@ -1229,6 +1230,15 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
 #page-prs .section-label { font-family: var(--font-display); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 22px 0 10px; }
 
 /* ── STRENGTH GENERATOR ── */
+.sg-timer-wrap { position: sticky; top: 0; z-index: 5; margin: 14px 0 0; background: var(--bg); padding: 8px 0; }
+.sg-timer-wrap .stretch-timer-display { padding: 14px 0; }
+.sg-timer-wrap #sg-timer-seconds { font-size: 56px; }
+.sg-timer-wrap .stretch-timer-display.running { border-color: var(--strength); background: rgba(232,93,117,.10); }
+.sg-timer-wrap .stretch-timer-display.running #sg-timer-seconds { color: var(--strength); }
+.sg-complete-wrap { margin: 22px 0 12px; text-align: center; }
+.sg-complete { width: 100%; padding: 15px; border-radius: 12px; border: none; background: var(--strength); color: #fff; font-family: var(--font-display); font-size: 15px; font-weight: 700; cursor: pointer; }
+.sg-complete.done { background: rgba(109,186,109,.13); color: var(--ok); border: 1px solid rgba(109,186,109,.35); cursor: default; font-size: 14px; }
+
 .sg-len { font-family: var(--font-mono); font-size: 13px; color: var(--text); letter-spacing: 0; text-transform: none; }
 .sg-range { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 3px; outline: none;
   background: linear-gradient(to right, var(--strength) var(--pct, 40%), var(--surface2) var(--pct, 40%)); }
@@ -2429,6 +2439,13 @@ body.on-home #header-race-chips { display: none; }
 
         <button class="add-race-btn" id="sg-generate-btn" style="margin:20px 0 4px;padding:14px;font-size:14px" onclick="generateStrength()">✨ Generate workout</button>
 
+        <div class="sg-timer-wrap" id="sg-timer-wrap" style="display:none">
+          <div class="stretch-timer-display" id="sg-timer-display" onclick="timerTap('sg-timer')">
+            <span id="sg-timer-seconds">0</span>
+            <div class="stretch-timer-hint" id="sg-timer-hint">tap to start</div>
+          </div>
+        </div>
+
         <div id="sg-content"></div>
       </div>
     </div>
@@ -2708,7 +2725,7 @@ function switchTab(tab) {
   if (tab === 'calendar') { renderCalendar(); renderPlanCompliance(); }
   if (tab === 'strength') { try { initStrength(); } catch(e) { console.warn('strength', e); } }
   if (tab === 'recovery') { updateRecoveryMetrics(); try { renderBodyMap(); } catch(e) { console.warn('bodymap', e); } }
-  if (tab !== 'recovery') { initTimer(); }
+  initTimer();   // leaving or entering a page always stops a running timer and releases the screen
   if (tab === 'prs') initPRWall();
   if (tab === 'load') { initLoadPage(); renderFitnessTrend(); renderWeeklyHours(); renderFitnessBars(); }
   if (tab === 'stats') renderStatsPage();
@@ -3332,6 +3349,7 @@ function homeDaySegments(ds) {
     const t = homeSportOf(a); if (!t) return;
     mins[t] = (mins[t] || 0) + Math.max(a.moving_time || 0, 600);
   });
+  const sg = sgCompletedOn(ds); if (sg) mins.Strength = (mins.Strength || 0) + (sg.minutes || 30) * 60;
   const order = ['Swim', 'Ride', 'Run', 'Strength'].filter(t => mins[t]);
   if (!order.length) return '';
   return order.map(t => `<b style="flex:${mins[t]};background:${HOME_DAY_COLORS[t]}" title="${t}"></b>`).join('');
@@ -3346,6 +3364,7 @@ function homeOpenActivities(type) {
 function homeTrainedDates() {
   const set = {};
   allActivities.forEach(a => { if (homeSportOf(a) && (a.moving_time > 0 || a.distance > 0)) set[(a.start_date_local || '').slice(0, 10)] = true; });
+  sgLog().forEach(e => { if (e.date) set[e.date] = true; });
   return set;
 }
 
@@ -3376,7 +3395,8 @@ function homeWeekCardHtml(d) {
   }).join('') + (() => {
     // Strength is counted in sessions, not miles
     const monday0 = addDaysStr(localDateStr(), -((new Date().getDay() + 6) % 7));
-    const done = allActivities.filter(a => homeSportOf(a) === 'Strength' && (a.start_date_local || '').slice(0, 10) >= monday0).length;
+    let done = allActivities.filter(a => homeSportOf(a) === 'Strength' && (a.start_date_local || '').slice(0, 10) >= monday0).length;
+    for (let i = 0; i < 7; i++) { const ds = addDaysStr(monday0, i); if (ds <= localDateStr() && sgCompletedOn(ds)) done++; }
     const target = 2;
     const pct = Math.min(100, (done / target) * 100);
     return `<div class="home-sp" onclick="homeOpenActivities('WeightTraining')">
@@ -4467,6 +4487,7 @@ async function generateStrength() {
   const btn = document.getElementById('sg-generate-btn');
   const el = document.getElementById('sg-content');
   if (btn) { btn.disabled = true; btn.textContent = 'Building your workout…'; }
+  const tw0 = document.getElementById('sg-timer-wrap'); if (tw0) tw0.style.display = 'none';
   el.innerHTML = `<div class="recovery-generating" style="margin-top:14px"><div class="loading-dots" style="justify-content:center;margin-bottom:12px"><span></span><span></span><span></span></div>Building your ${sgPrefs.minutes}-min workout…</div>`;
 
   try {
@@ -4514,6 +4535,37 @@ Blocks should be: Warm-up, one or more main blocks, and Cool-down. Warm-up and c
   if (btn) { btn.disabled = false; sgRenderControls(); }
 }
 
+const CACHE_KEY_STRENGTH_LOG = 'brb_strength_log';
+function sgLog() { try { return JSON.parse(localStorage.getItem(CACHE_KEY_STRENGTH_LOG) || '[]'); } catch (e) { return []; } }
+// Completed generator workouts on a date — only counted when Strava has no strength session that day
+function sgCompletedOn(ds) {
+  const stravaHas = allActivities.some(a => /^(WeightTraining|Crossfit)$/.test(a.type) && (a.start_date_local || '').slice(0, 10) === ds);
+  return stravaHas ? null : sgLog().find(e => e.date === ds) || null;
+}
+function completeStrength() {
+  let cached = null; try { cached = JSON.parse(localStorage.getItem(CACHE_KEY_STRENGTH) || 'null'); } catch (e) {}
+  if (!cached) return;
+  const total = document.querySelectorAll('#sg-content .sg-ex').length;
+  const done = Object.values(sgDone).filter(Boolean).length;
+  const entry = { date: localDateStr(), completedAt: new Date().toISOString(), title: cached.data.title || '', focus: cached.focus, minutes: cached.minutes, done, total };
+  const log = sgLog().filter(e => e.completedAt !== cached.completedAt);
+  log.push(entry);
+  try { localStorage.setItem(CACHE_KEY_STRENGTH_LOG, JSON.stringify(log.slice(-200))); } catch (e) {}
+  cached.completedAt = entry.completedAt;
+  localStorage.setItem(CACHE_KEY_STRENGTH, JSON.stringify(cached));
+  initTimer();   // stop the timer and let the screen sleep
+  renderStrength(cached.data, cached);
+  const cw = document.getElementById('sg-complete-wrap'); if (cw) cw.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function undoCompleteStrength() {
+  let cached = null; try { cached = JSON.parse(localStorage.getItem(CACHE_KEY_STRENGTH) || 'null'); } catch (e) {}
+  if (!cached || !cached.completedAt) return;
+  try { localStorage.setItem(CACHE_KEY_STRENGTH_LOG, JSON.stringify(sgLog().filter(e => e.completedAt !== cached.completedAt))); } catch (e) {}
+  delete cached.completedAt;
+  localStorage.setItem(CACHE_KEY_STRENGTH, JSON.stringify(cached));
+  renderStrength(cached.data, cached);
+}
+
 function sgToggleDone(key) {
   sgDone[key] = !sgDone[key];
   try { const c = JSON.parse(localStorage.getItem(CACHE_KEY_STRENGTH) || 'null'); if (c) { c.done = sgDone; localStorage.setItem(CACHE_KEY_STRENGTH, JSON.stringify(c)); } } catch (e) {}
@@ -4558,8 +4610,19 @@ function renderStrength(data, meta) {
     html += `</div>`;
   });
   if (data.notes && data.notes.length) html += `<div class="home-lbl">Coach notes</div><div class="card" style="padding:14px 16px">${data.notes.map(n => `<div class="sg-note">• ${n}</div>`).join('')}</div>`;
+  if (meta.completedAt) {
+    const t = new Date(meta.completedAt);
+    const day = localDateStr(t) === localDateStr() ? 'today' : t.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+    html += `<div class="sg-complete-wrap" id="sg-complete-wrap">
+        <div class="sg-complete done">✓ Completed ${day} at ${t.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' })}</div>
+        <button class="race-del-link" onclick="undoCompleteStrength()">Undo</button>
+      </div>`;
+  } else {
+    html += `<div class="sg-complete-wrap" id="sg-complete-wrap"><button class="sg-complete" onclick="completeStrength()">Complete workout</button></div>`;
+  }
   el.innerHTML = html;
   sgUpdateProgress();
+  const tw = document.getElementById('sg-timer-wrap'); if (tw) tw.style.display = meta.completedAt ? 'none' : '';
 }
 
 
@@ -5590,35 +5653,41 @@ document.addEventListener('visibilitychange', async () => {
   }
 });
 
-function timerTap() {
-  const display = document.getElementById('stretch-timer-display');
-  const hint = document.getElementById('stretch-timer-hint');
+// Shared by Recovery ('stretch-timer') and Strength ('sg-timer'): tap to (re)start a seconds
+// counter; the screen stays awake while it runs.
+function timerTap(prefix = 'stretch-timer') {
+  const display = document.getElementById(prefix + '-display');
+  const hint = document.getElementById(prefix + '-hint');
+  const secEl = document.getElementById(prefix + '-seconds');
+  if (!display || !secEl) return;
 
   // Always restart from 0 and start counting
   if (timerInterval) clearInterval(timerInterval);
   timerSeconds = 0;
   timerRunning = true;
   display.classList.add('running');
-  hint.textContent = 'tap to restart';
-  document.getElementById('stretch-timer-seconds').textContent = '0';
+  if (hint) hint.textContent = 'tap to restart';
+  secEl.textContent = '0';
   requestWakeLock();
   timerInterval = setInterval(() => {
     timerSeconds++;
-    document.getElementById('stretch-timer-seconds').textContent = timerSeconds;
+    secEl.textContent = timerSeconds;
   }, 1000);
 }
 
 function initTimer() {
-  // Reset timer state when switching to recovery tab
+  // Reset every timer display and let the screen sleep again
   if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
   timerRunning = false;
   timerSeconds = 0;
-  const display = document.getElementById('stretch-timer-display');
-  const hint = document.getElementById('stretch-timer-hint');
-  if (display) display.classList.remove('running');
-  const secEl = document.getElementById('stretch-timer-seconds');
-  if (secEl) secEl.textContent = '0';
-  if (hint) hint.textContent = 'tap to start';
+  ['stretch-timer', 'sg-timer'].forEach(prefix => {
+    const display = document.getElementById(prefix + '-display');
+    const hint = document.getElementById(prefix + '-hint');
+    const secEl = document.getElementById(prefix + '-seconds');
+    if (display) display.classList.remove('running');
+    if (secEl) secEl.textContent = '0';
+    if (hint) hint.textContent = 'tap to start';
+  });
   releaseWakeLock();
 }
 
