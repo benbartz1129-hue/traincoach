@@ -4542,6 +4542,37 @@ Blocks should be: Warm-up, one or more main blocks, and Cool-down. Warm-up and c
 
 const CACHE_KEY_STRENGTH_LOG = 'brb_strength_log';
 function sgLog() { try { return JSON.parse(localStorage.getItem(CACHE_KEY_STRENGTH_LOG) || '[]'); } catch (e) { return []; } }
+
+// ── Cloud sync for completed strength workouts ──
+// Stored in KV as one object { entries, deleted }. Devices MERGE rather than overwrite:
+// entries are unioned by completedAt, and anything in `deleted` (from any device) stays gone.
+const CACHE_KEY_STRENGTH_DELETED = 'brb_strength_deleted';
+function sgDeleted() { try { return JSON.parse(localStorage.getItem(CACHE_KEY_STRENGTH_DELETED) || '[]'); } catch (e) { return []; } }
+function sgPushCloud() {
+  try { kvSet('brb_strength_sync', { entries: sgLog(), deleted: sgDeleted(), updatedAt: new Date().toISOString() }); } catch (e) { console.warn('strength sync push', e); }
+}
+// Returns true if anything changed locally
+function sgMergeCloud(cloud) {
+  if (!cloud || !Array.isArray(cloud.entries)) return false;
+  const deleted = [...new Set([...sgDeleted(), ...(cloud.deleted || [])])];
+  const del = new Set(deleted);
+  const byKey = {};
+  [...sgLog(), ...cloud.entries].forEach(e => { if (e && e.completedAt && !del.has(e.completedAt)) byKey[e.completedAt] = e; });
+  const merged = Object.values(byKey).sort((a, b) => a.completedAt.localeCompare(b.completedAt)).slice(-500);
+  const before = JSON.stringify(sgLog()) + JSON.stringify(sgDeleted());
+  localStorage.setItem(CACHE_KEY_STRENGTH_LOG, JSON.stringify(merged));
+  localStorage.setItem(CACHE_KEY_STRENGTH_DELETED, JSON.stringify(deleted.slice(-500)));
+  const localChanged = before !== JSON.stringify(merged) + JSON.stringify(deleted.slice(-500));
+  // If this device had something the cloud did not, push the merged result back up
+  const cloudKeys = new Set(cloud.entries.map(e => e.completedAt));
+  if (merged.some(e => !cloudKeys.has(e.completedAt)) || deleted.length > (cloud.deleted || []).length) sgPushCloud();
+  // A workout deleted elsewhere that is still showing as completed here → un-complete it
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY_STRENGTH) || 'null');
+    if (cached && cached.completedAt && del.has(cached.completedAt)) { delete cached.completedAt; localStorage.setItem(CACHE_KEY_STRENGTH, JSON.stringify(cached)); const el = document.getElementById('sg-content'); if (el) delete el.dataset.filled; }
+  } catch (e) {}
+  return localChanged;
+}
 // Completed generator workouts on a date — only counted when Strava has no strength session that day
 function sgCompletedOn(ds) {
   const stravaHas = allActivities.some(a => /^(WeightTraining|Crossfit)$/.test(a.type) && (a.start_date_local || '').slice(0, 10) === ds);
@@ -4561,6 +4592,8 @@ function sgActivities() {
 }
 function deleteStrengthLogEntry(completedAt) {
   try { localStorage.setItem(CACHE_KEY_STRENGTH_LOG, JSON.stringify(sgLog().filter(e => e.completedAt !== completedAt))); } catch (e) {}
+  try { const d = sgDeleted(); if (!d.includes(completedAt)) { d.push(completedAt); localStorage.setItem(CACHE_KEY_STRENGTH_DELETED, JSON.stringify(d.slice(-500))); } } catch (e) {}
+  sgPushCloud();
   // If it's the workout currently on the Strength page, put it back to "not completed"
   try {
     const cached = JSON.parse(localStorage.getItem(CACHE_KEY_STRENGTH) || 'null');
@@ -4576,7 +4609,8 @@ function completeStrength() {
   const entry = { date: localDateStr(), completedAt: new Date().toISOString(), title: cached.data.title || '', focus: cached.focus, minutes: cached.minutes, done, total };
   const log = sgLog().filter(e => e.completedAt !== cached.completedAt);
   log.push(entry);
-  try { localStorage.setItem(CACHE_KEY_STRENGTH_LOG, JSON.stringify(log.slice(-200))); } catch (e) {}
+  try { localStorage.setItem(CACHE_KEY_STRENGTH_LOG, JSON.stringify(log.slice(-500))); } catch (e) {}
+  sgPushCloud();
   cached.completedAt = entry.completedAt;
   localStorage.setItem(CACHE_KEY_STRENGTH, JSON.stringify(cached));
   initTimer();   // stop the timer and let the screen sleep
@@ -5625,6 +5659,19 @@ async function kvSyncAll() {
         changed = true;
         console.log('KV: updated garage, bikes:', garage.length);
       }
+    }
+
+    if (data.brb_strength_sync && typeof data.brb_strength_sync === 'object') {
+      try {
+        if (sgMergeCloud(data.brb_strength_sync)) {
+          console.log('KV: merged strength workouts, count:', sgLog().length);
+          if (currentTab === 'activities') renderActivities(allActivities);
+          if (currentTab === 'strength') initStrength();
+          if (currentTab === 'dashboard' && window._lastDashboardData) renderDashboard({ ...window._lastDashboardData, ...calcLiveWeekTotals() });
+        }
+      } catch (e) { console.warn('strength merge', e); }
+    } else if (sgLog().length || sgDeleted().length) {
+      sgPushCloud();   // first sync from this device: seed the cloud with what is already here
     }
 
     if (changed) {
@@ -10781,6 +10828,7 @@ function saveHomeLocation() {
 const MIGRATE_KEYS = [
   'brb_races','brb_training_plan','brb_weight_log','brb_activity_notes',
   'brb_wellness_log','brb_swim_drills','brb_race_checklists','brb_garage',
+  'brb_strength_log','brb_strength_deleted','brb_strength_prefs',
   // Local-only (NOT in KV) — these are the ones that would otherwise be lost:
   'brb_race_simulations','brb_race_debriefs','brb_race_intel','brb_race_weather',
   'brb_workouts','brb_fit_checks','brb_shoe_finder','brb_strava_gear',
