@@ -1230,6 +1230,7 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
 #page-prs .section-label { font-family: var(--font-display); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 22px 0 10px; }
 
 /* ── STRENGTH GENERATOR ── */
+.act-brb-tag { font-family: var(--font-display); font-size: 9px; font-weight: 700; letter-spacing: .06em; padding: 2px 5px; border-radius: 4px; background: rgba(232,93,117,.15); color: var(--strength); vertical-align: 2px; }
 .sg-timer-wrap { position: sticky; top: 0; z-index: 5; margin: 14px 0 0; background: var(--bg); padding: 8px 0; }
 .sg-timer-wrap .stretch-timer-display { padding: 14px 0; }
 .sg-timer-wrap #sg-timer-seconds { font-size: 56px; }
@@ -2811,7 +2812,9 @@ function renderActivities(acts) {
     return;
   }
 
-  const filtered = activeFilter === 'all' ? acts : acts.filter(a => a.type === activeFilter);
+  let merged = acts;
+  try { if (acts === allActivities) merged = [...acts, ...sgActivities()].sort((a,b) => (b.start_date_local || '').localeCompare(a.start_date_local || '')); } catch (e) {}
+  const filtered = activeFilter === 'all' ? merged : merged.filter(a => a.type === activeFilter);
   renderTotalsBar(filtered);
   const list = document.getElementById('act-list');
   if (!filtered.length) { list.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--muted);font-size:13px">No activities found</div>'; return; }
@@ -2830,13 +2833,14 @@ function renderActivities(acts) {
       <div class="act-item" onclick="toggleActivityNote(${a.id})" style="cursor:pointer">
         <div class="act-icon ${typeClass}">${sportEmoji(a.type)}</div>
         <div class="act-body">
-          <div class="act-name">${a.name}${note ? ' <span class="act-note-indicator">&#128221;</span>' : ''}</div>
+          <div class="act-name">${a.name}${a._brbStrength ? ' <span class="act-brb-tag">BRB</span>' : ''}${note ? ' <span class="act-note-indicator">&#128221;</span>' : ''}</div>
           <div class="act-date">${date}</div>
           <div class="act-stats">
             ${a.moving_time ? `<div class="act-stat"><strong>${secToTime(a.moving_time)}</strong></div>` : ''}
             ${a.total_elevation_gain > 5 ? `<div class="act-stat">↑<strong>${Math.round(a.total_elevation_gain * 3.281)}ft</strong></div>` : ''}
             ${a.calories ? `<div class="act-stat"><strong>${a.calories}</strong> cal</div>` : ''}
             ${a.kudos_count > 0 ? `<div class="act-stat" style="color:var(--mar)">♥ <strong>${a.kudos_count}</strong></div>` : ''}
+            ${a._brbStrength && a.sgTotal ? `<div class="act-stat"><strong>${a.sgDone}/${a.sgTotal}</strong> exercises</div>` : ''}
           </div>
           ${note ? `<div class="act-note-preview">${note}</div>` : ''}
         </div>
@@ -3280,6 +3284,7 @@ function homeTodayCardHtml() {
   const sessions = trainingPlan.filter(p => p.date === todayStr);
   const workouts = sessions.filter(s => (s.sport || '').toLowerCase() !== 'rest');
   const done = allActivities.filter(a => homeSportOf(a) && (a.start_date_local || '').slice(0, 10) === todayStr && (a.moving_time > 0 || a.distance > 0));
+  try { if (sgCompletedOn(todayStr)) done.push(...sgActivities().filter(a => a.start_date_local.slice(0, 10) === todayStr).slice(0, 1)); } catch (e) {}
   let icon, tint, title, detail, extra = '';
 
   if (done.length) {
@@ -4542,6 +4547,27 @@ function sgCompletedOn(ds) {
   const stravaHas = allActivities.some(a => /^(WeightTraining|Crossfit)$/.test(a.type) && (a.start_date_local || '').slice(0, 10) === ds);
   return stravaHas ? null : sgLog().find(e => e.date === ds) || null;
 }
+// Completed generator workouts shown on the Activities page. Negative ids never collide with
+// Strava ids, and these are never added to allActivities (so no KV archive / double counting).
+function sgActivities() {
+  return sgLog().map(e => {
+    const d = new Date(e.completedAt);
+    const hh = String(d.getHours()).padStart(2,'0'), mm = String(d.getMinutes()).padStart(2,'0');
+    return { id: -Date.parse(e.completedAt), _brbStrength: true, completedAt: e.completedAt,
+      name: e.title || ({ upper:'Upper body', lower:'Lower body', full:'Full body' })[e.focus] + ' strength',
+      type: 'WeightTraining', distance: 0, moving_time: (e.minutes || 0) * 60, total_elevation_gain: 0,
+      start_date_local: localDateStr(d) + 'T' + hh + ':' + mm + ':00Z', sgDone: e.done, sgTotal: e.total };
+  });
+}
+function deleteStrengthLogEntry(completedAt) {
+  try { localStorage.setItem(CACHE_KEY_STRENGTH_LOG, JSON.stringify(sgLog().filter(e => e.completedAt !== completedAt))); } catch (e) {}
+  // If it's the workout currently on the Strength page, put it back to "not completed"
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY_STRENGTH) || 'null');
+    if (cached && cached.completedAt === completedAt) { delete cached.completedAt; localStorage.setItem(CACHE_KEY_STRENGTH, JSON.stringify(cached)); const el = document.getElementById('sg-content'); if (el) delete el.dataset.filled; }
+  } catch (e) {}
+}
+
 function completeStrength() {
   let cached = null; try { cached = JSON.parse(localStorage.getItem(CACHE_KEY_STRENGTH) || 'null'); } catch (e) {}
   if (!cached) return;
@@ -4560,9 +4586,8 @@ function completeStrength() {
 function undoCompleteStrength() {
   let cached = null; try { cached = JSON.parse(localStorage.getItem(CACHE_KEY_STRENGTH) || 'null'); } catch (e) {}
   if (!cached || !cached.completedAt) return;
-  try { localStorage.setItem(CACHE_KEY_STRENGTH_LOG, JSON.stringify(sgLog().filter(e => e.completedAt !== cached.completedAt))); } catch (e) {}
+  deleteStrengthLogEntry(cached.completedAt);
   delete cached.completedAt;
-  localStorage.setItem(CACHE_KEY_STRENGTH, JSON.stringify(cached));
   renderStrength(cached.data, cached);
 }
 
@@ -10055,6 +10080,17 @@ function swipeEnd(e, id) {
 
 async function confirmDeleteActivity(id, event) {
   if (event) event.stopPropagation();
+  if (Number(id) < 0) {
+    const w = sgActivities().find(a => String(a.id) === String(id));
+    if (!w || !confirm('Delete "' + w.name + '"?\n\nThis removes the completed workout from your activities and weekly strength count.')) {
+      const el = document.getElementById('swipe-' + id); if (el) el.classList.remove('swiped');
+      return;
+    }
+    deleteStrengthLogEntry(w.completedAt);
+    renderActivities(allActivities);
+    try { renderDashboard({ ...calcLiveWeekTotals() }); } catch (e) {}
+    return;
+  }
   const act = allActivities.find(a => String(a.id) === String(id));
   const name = act ? act.name : 'this activity';
   if (!confirm('Delete "' + name + '"?\n\nThis removes it from your BRB Training counts and archive. (Delete it in Strava too if you have not already.)')) {
