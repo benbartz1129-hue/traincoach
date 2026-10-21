@@ -1228,6 +1228,32 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
 /* ── PRs: section headings match home/stats ── */
 #page-prs .section-label { font-family: var(--font-display); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 22px 0 10px; }
 
+/* ── STRENGTH GENERATOR ── */
+.sg-len { font-family: var(--font-mono); font-size: 13px; color: var(--text); letter-spacing: 0; text-transform: none; }
+.sg-range { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; border-radius: 3px; outline: none;
+  background: linear-gradient(to right, var(--strength) var(--pct, 40%), var(--surface2) var(--pct, 40%)); }
+.sg-range::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; border-radius: 50%; background: var(--text); border: 4px solid var(--strength); cursor: pointer; }
+.sg-range::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--text); border: 4px solid var(--strength); cursor: pointer; }
+.sg-range-ticks { display: flex; justify-content: space-between; margin-top: 10px; font-size: 10px; color: var(--dim); font-family: var(--font-mono); }
+.sg-equip { display: flex; flex-wrap: wrap; gap: 8px; }
+.sg-chip { padding: 8px 12px; border-radius: 999px; border: 1px solid var(--border2); background: var(--surface); color: var(--muted); font-size: 12px; font-family: var(--font-display); cursor: pointer; }
+.sg-chip.on { background: rgba(232,93,117,.13); border-color: rgba(232,93,117,.45); color: var(--text); }
+.sg-equip-note { width: 100%; font-size: 10px; color: var(--dim); margin-top: 2px; }
+.sg-block { padding: 4px 0; }
+.sg-ex { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.sg-ex:last-child { border-bottom: none; }
+.sg-check { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--border2); flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+.sg-ex.done .sg-check { background: var(--ok); border-color: var(--ok); }
+.sg-ex.done .sg-check::after { content: '✓'; color: #0a0a0f; font-weight: 700; }
+.sg-ex.done .sg-ex-main { opacity: .45; }
+.sg-ex-main { flex: 1; min-width: 0; }
+.sg-ex-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.sg-ex-top b { font-family: var(--font-display); font-size: 14px; font-weight: 600; color: var(--text); }
+.sg-ex-top span { font-family: var(--font-mono); font-size: 11px; color: var(--strength); white-space: nowrap; }
+.sg-ex-load { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.sg-ex-cue { font-size: 11px; color: var(--dim); margin-top: 2px; font-style: italic; }
+.sg-note { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
 /* ── RACES ── */
 .race-del { text-align: center; margin-top: 10px; }
 .race-del-link { background: none; border: none; color: var(--dim); font-size: 11px; font-family: var(--font-display); cursor: pointer; padding: 4px 8px; }
@@ -1364,6 +1390,9 @@ body.on-home #header-race-chips { display: none; }
       </button>
       <button class="nav-item" id="nav-recovery" onclick="switchTab('recovery')">
         <span class="nav-icon">🧘</span>Recovery
+      </button>
+      <button class="nav-item" id="nav-strength" onclick="switchTab('strength')">
+        <span class="nav-icon">🏋️</span>Strength
       </button>
       <button class="nav-item" id="nav-workouts" onclick="switchTab('workouts')">
         <span class="nav-icon">⏱</span>Workouts
@@ -2374,6 +2403,36 @@ body.on-home #header-race-chips { display: none; }
       </div>
     </div>
 
+    <!-- STRENGTH GENERATOR -->
+    <div class="page" id="page-strength">
+      <div class="page-inner">
+        <div class="home-greet">
+          <h1>Strength</h1>
+          <p>Home workouts with free weights. No gym machines.</p>
+        </div>
+
+        <div class="home-lbl">Focus</div>
+        <div class="st-tabs" id="sg-focus" style="grid-template-columns:repeat(3,1fr)">
+          <button data-v="upper" onclick="sgSet('focus','upper')">Upper body</button>
+          <button data-v="lower" onclick="sgSet('focus','lower')">Lower body</button>
+          <button data-v="full" onclick="sgSet('focus','full')">Full body</button>
+        </div>
+
+        <div class="home-lbl st-lbl-row">Length <span class="sg-len" id="sg-len-val">45 min</span></div>
+        <div class="card" style="padding:16px 18px">
+          <input type="range" id="sg-len" class="sg-range" min="15" max="90" step="5" value="45" oninput="sgSet('minutes', +this.value)" />
+          <div class="sg-range-ticks"><span>15</span><span>30</span><span>45</span><span>60</span><span>75</span><span>90</span></div>
+        </div>
+
+        <div class="home-lbl">What you have</div>
+        <div class="sg-equip" id="sg-equip"></div>
+
+        <button class="add-race-btn" id="sg-generate-btn" style="margin:20px 0 4px;padding:14px;font-size:14px" onclick="generateStrength()">✨ Generate workout</button>
+
+        <div id="sg-content"></div>
+      </div>
+    </div>
+
     <!-- COACH CHAT -->
     <div class="page" id="page-coach">
       <div class="chat-wrap">
@@ -2647,6 +2706,7 @@ function switchTab(tab) {
   }
   if (tab === 'activities' && allActivities.length > 0) renderActivities(allActivities);
   if (tab === 'calendar') { renderCalendar(); renderPlanCompliance(); }
+  if (tab === 'strength') { try { initStrength(); } catch(e) { console.warn('strength', e); } }
   if (tab === 'recovery') { updateRecoveryMetrics(); try { renderBodyMap(); } catch(e) { console.warn('bodymap', e); } }
   if (tab !== 'recovery') { initTimer(); }
   if (tab === 'prs') initPRWall();
@@ -4350,6 +4410,156 @@ function initRecovery() {
       }
     }
   } catch(e) {}
+}
+
+
+// ── STRENGTH GENERATOR ────────────────────────────────────────────────────
+// Home, free-weight workouts. Settings persist; the last workout is kept until you make a new one.
+const CACHE_KEY_STRENGTH = 'brb_strength';
+const CACHE_KEY_STRENGTH_PREFS = 'brb_strength_prefs';
+const SG_EQUIPMENT = [
+  { id:'dumbbells',  label:'Dumbbells' },
+  { id:'kettlebell', label:'Kettlebell' },
+  { id:'barbell',    label:'Barbell + plates' },
+  { id:'bench',      label:'Bench' },
+  { id:'pullup',     label:'Pull-up bar' },
+  { id:'bands',      label:'Resistance bands' },
+];
+let sgPrefs = { focus:'full', minutes:45, equipment:['dumbbells'] };
+try { sgPrefs = { ...sgPrefs, ...(JSON.parse(localStorage.getItem(CACHE_KEY_STRENGTH_PREFS) || '{}')) }; } catch (e) {}
+let sgDone = {};
+
+function sgSave() { try { localStorage.setItem(CACHE_KEY_STRENGTH_PREFS, JSON.stringify(sgPrefs)); } catch (e) {} }
+function sgSet(key, val) {
+  if (key === 'equip') {
+    const has = sgPrefs.equipment.includes(val);
+    sgPrefs.equipment = has ? sgPrefs.equipment.filter(x => x !== val) : [...sgPrefs.equipment, val];
+  } else sgPrefs[key] = val;
+  sgSave(); sgRenderControls();
+}
+function sgRenderControls() {
+  document.querySelectorAll('#sg-focus button').forEach(b => b.classList.toggle('on', b.dataset.v === sgPrefs.focus));
+  const r = document.getElementById('sg-len'); if (r && +r.value !== sgPrefs.minutes) r.value = sgPrefs.minutes;
+  const lv = document.getElementById('sg-len-val'); if (lv) lv.textContent = sgPrefs.minutes + ' min';
+  if (r) r.style.setProperty('--pct', ((sgPrefs.minutes - 15) / 75 * 100) + '%');
+  const eq = document.getElementById('sg-equip');
+  if (eq) eq.innerHTML = SG_EQUIPMENT.map(e => `<button class="sg-chip${sgPrefs.equipment.includes(e.id) ? ' on' : ''}" onclick="sgSet('equip','${e.id}')">${sgPrefs.equipment.includes(e.id) ? '✓ ' : ''}${e.label}</button>`).join('')
+    + `<div class="sg-equip-note">Bodyweight moves are always included.</div>`;
+  const btn = document.getElementById('sg-generate-btn');
+  if (btn && !btn.disabled) btn.textContent = `✨ Generate ${sgPrefs.minutes}-min ${({upper:'upper body',lower:'lower body',full:'full body'})[sgPrefs.focus]} workout`;
+}
+
+function initStrength() {
+  sgRenderControls();
+  const el = document.getElementById('sg-content');
+  if (!el || el.dataset.filled) return;
+  try {
+    const cached = JSON.parse(localStorage.getItem(CACHE_KEY_STRENGTH) || 'null');
+    if (cached && cached.data) { sgDone = cached.done || {}; renderStrength(cached.data, cached); return; }
+  } catch (e) {}
+  el.innerHTML = `<div class="card" style="padding:2rem;text-align:center;margin-top:14px">
+      <div style="font-size:32px;margin-bottom:10px">🏋️</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.7">Pick a focus and a length, then generate. The workout takes your recent training and upcoming sessions into account.</div>
+    </div>`;
+}
+
+async function generateStrength() {
+  const btn = document.getElementById('sg-generate-btn');
+  const el = document.getElementById('sg-content');
+  if (btn) { btn.disabled = true; btn.textContent = 'Building your workout…'; }
+  el.innerHTML = `<div class="recovery-generating" style="margin-top:14px"><div class="loading-dots" style="justify-content:center;margin-bottom:12px"><span></span><span></span><span></span></div>Building your ${sgPrefs.minutes}-min workout…</div>`;
+
+  try {
+    const today = localDateStr();
+    const recent = allActivities.filter(a => (a.start_date_local || '') >= addDaysStr(today, -7)).slice(0, 12).map(a => {
+      const d = Math.round((new Date(today + 'T12:00:00') - new Date(a.start_date_local.slice(0,10) + 'T12:00:00')) / 86400000);
+      return `${d === 0 ? 'today' : d + 'd ago'}: ${a.type}${a.distance > 0 ? ' ' + mToMi(a.distance).toFixed(1) + 'mi' : ''}${a.moving_time ? ' ' + secToTime(a.moving_time) : ''}`;
+    }).join('; ') || 'none logged';
+    const lastStrength = allActivities.find(a => /^(WeightTraining|Crossfit)$/.test(a.type));
+    const lastStrTxt = lastStrength ? `Last strength session: ${lastStrength.start_date_local.slice(0,10)} (${lastStrength.name || 'strength'}).` : '';
+    const next = [0,1,2].map(n => { const ds = addDaysStr(today, n); const s = trainingPlan.filter(p => p.date === ds).map(p => p.sport + ' - ' + p.title).join(', '); return s ? `${n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : weekdayOf(ds)}: ${s}` : ''; }).filter(Boolean).join('. ');
+    const race = races.filter(r => r.date >= today).sort((a,b) => a.date.localeCompare(b.date))[0];
+    const raceTxt = race ? `Next race: ${race.name} (${race.subtype || ''} ${race.type}) in ${daysUntil(new Date(race.date + 'T12:00:00'))} days.` : 'No race scheduled.';
+    const equip = sgPrefs.equipment.map(id => (SG_EQUIPMENT.find(e => e.id === id) || {}).label).filter(Boolean);
+    const focusTxt = ({ upper:'UPPER BODY (chest, back, shoulders, arms; core finisher allowed)', lower:'LOWER BODY (quads, hamstrings, glutes, calves, hips; core finisher allowed)', full:'FULL BODY (balanced upper, lower and core)' })[sgPrefs.focus];
+    const nEx = sgPrefs.minutes <= 20 ? '4-5' : sgPrefs.minutes <= 35 ? '5-6' : sgPrefs.minutes <= 50 ? '6-8' : sgPrefs.minutes <= 70 ? '8-10' : '10-12';
+
+    const text = await callClaude({
+      model: 'claude-sonnet-4-6', max_tokens: 3000,
+      system: `You are a strength coach for an endurance athlete (triathlon and marathon) who trains at HOME.
+Design a ${sgPrefs.minutes}-minute ${focusTxt} strength workout.
+EQUIPMENT: ONLY ${equip.length ? equip.join(', ') + ', and ' : ''}bodyweight. Never use cable machines, Smith machines, leg press, lat pulldown, selectorized or any commercial gym machine. ${equip.includes('Bench') ? '' : 'No bench: use the floor (floor press, etc.).'} ${equip.includes('Pull-up bar') ? '' : 'No pull-up bar: use rows for vertical/horizontal pulling.'}
+TIME: total must fit ${sgPrefs.minutes} minutes INCLUDING warm-up, rest between sets and cool-down. Use about ${nEx} main exercises. For 30 min or less, prefer supersets or circuits to fit the time.
+ENDURANCE CONTEXT: prioritize single-leg work, posterior chain, core anti-rotation and shoulder stability that support running, cycling and swimming. If a hard or long run/ride is planned today or tomorrow, keep lower-body volume moderate and avoid training to failure. Within 10 days of a race, keep it light and maintenance-focused.
+Return ONLY valid JSON, plain ASCII, no apostrophes, no markdown:
+{"title":"short name","intro":"1-2 sentences on the goal and how it fits their week","totalMin":${sgPrefs.minutes},"blocks":[{"name":"Warm-up","format":"straight sets|superset|circuit","rounds":1,"exercises":[{"name":"Goblet squat","sets":3,"reps":"8-10","rest":"60 sec","load":"moderate dumbbell, 2 reps in reserve","cue":"under 12 words"}]}],"notes":["1-3 short tips"]}
+Blocks should be: Warm-up, one or more main blocks, and Cool-down. Warm-up and cool-down use bodyweight or bands and give time in reps like "45 sec".`,
+      messages: [{ role: 'user', content: `Recent 7 days: ${recent}.\n${lastStrTxt}\n${next ? 'Upcoming plan: ' + next + '.' : 'No sessions planned in the next 2 days.'}\n${raceTxt}\nGenerate the workout.` }]
+    }, 'Strength workout');
+
+    const cleaned = text.replace(/```json|```/g, '').replace(/[‘’ʼ]/g, '').replace(/[“”]/g, '"').replace(/[–—―]/g, '-').replace(/\n/g, ' ').trim();
+    const data = JSON.parse(cleaned.slice(cleaned.indexOf('{'), cleaned.lastIndexOf('}') + 1));
+    if (!data.blocks || !data.blocks.length) throw new Error('no blocks');
+    sgDone = {};
+    const meta = { focus: sgPrefs.focus, minutes: sgPrefs.minutes, equipment: equip, timestamp: new Date().toISOString() };
+    localStorage.setItem(CACHE_KEY_STRENGTH, JSON.stringify({ data, ...meta, done: {} }));
+    renderStrength(data, meta);
+  } catch (e) {
+    console.error('Strength error:', e);
+    el.innerHTML = `<div class="card" style="padding:1.5rem;text-align:center;margin-top:14px">
+        <div style="font-size:13px;color:var(--warn)">Could not build the workout. Try again.</div>
+        <button class="add-race-btn" style="margin-top:12px" onclick="generateStrength()">Retry</button>
+      </div>`;
+  }
+  if (btn) { btn.disabled = false; sgRenderControls(); }
+}
+
+function sgToggleDone(key) {
+  sgDone[key] = !sgDone[key];
+  try { const c = JSON.parse(localStorage.getItem(CACHE_KEY_STRENGTH) || 'null'); if (c) { c.done = sgDone; localStorage.setItem(CACHE_KEY_STRENGTH, JSON.stringify(c)); } } catch (e) {}
+  const row = document.querySelector(`[data-sg="${key}"]`); if (row) row.classList.toggle('done', !!sgDone[key]);
+  sgUpdateProgress();
+}
+function sgUpdateProgress() {
+  const all = document.querySelectorAll('#sg-content .sg-ex').length;
+  const n = Object.values(sgDone).filter(Boolean).length;
+  const el = document.getElementById('sg-progress'); if (el) el.textContent = n ? `${n} of ${all} done` : `${all} exercises`;
+}
+
+function renderStrength(data, meta) {
+  const el = document.getElementById('sg-content'); if (!el) return;
+  el.dataset.filled = '1';
+  const focusLbl = ({ upper:'Upper body', lower:'Lower body', full:'Full body' })[meta.focus] || '';
+  const when = meta.timestamp ? new Date(meta.timestamp) : null;
+  const whenTxt = when ? (localDateStr(when) === localDateStr() ? 'today' : when.toLocaleDateString('en-US', { month:'short', day:'numeric' })) : '';
+  let html = `<div class="home-lbl st-lbl-row">Your workout <span class="st-link" style="color:var(--muted)" id="sg-progress"></span></div>
+    <div class="card home-hero" style="cursor:default;border-left-color:var(--strength)">
+      <div class="home-hero-row">
+        <div class="home-ico" style="background:rgba(232,93,117,.13)">🏋️</div>
+        <div style="min-width:0"><h2>${data.title || focusLbl + ' strength'}</h2><div class="home-det">${data.intro || ''}</div></div>
+      </div>
+      <div class="home-chips"><span class="home-chip">⏱ <b>${data.totalMin || meta.minutes} min</b></span><span class="home-chip">${focusLbl}</span>${whenTxt ? `<span class="home-chip">Made ${whenTxt}</span>` : ''}</div>
+    </div>`;
+  (data.blocks || []).forEach((b, bi) => {
+    const fmt = b.format && b.format !== 'straight sets' ? ` · ${b.format}${b.rounds > 1 ? ' × ' + b.rounds : ''}` : (b.rounds > 1 ? ` · ${b.rounds} rounds` : '');
+    html += `<div class="home-lbl">${b.name}${fmt}</div><div class="card sg-block">`;
+    (b.exercises || []).forEach((x, xi) => {
+      const key = bi + '-' + xi;
+      const dose = [x.sets && x.sets > 1 ? x.sets + ' × ' + x.reps : x.reps, x.rest && !/^0/.test(x.rest) ? 'rest ' + x.rest : ''].filter(Boolean).join(' · ');
+      html += `<div class="sg-ex${sgDone[key] ? ' done' : ''}" data-sg="${key}" onclick="sgToggleDone('${key}')">
+          <div class="sg-check"></div>
+          <div class="sg-ex-main">
+            <div class="sg-ex-top"><b>${x.name}</b><span>${dose}</span></div>
+            ${x.load ? `<div class="sg-ex-load">${x.load}</div>` : ''}
+            ${x.cue ? `<div class="sg-ex-cue">${x.cue}</div>` : ''}
+          </div>
+        </div>`;
+    });
+    html += `</div>`;
+  });
+  if (data.notes && data.notes.length) html += `<div class="home-lbl">Coach notes</div><div class="card" style="padding:14px 16px">${data.notes.map(n => `<div class="sg-note">• ${n}</div>`).join('')}</div>`;
+  el.innerHTML = html;
+  sgUpdateProgress();
 }
 
 
