@@ -1739,6 +1739,17 @@ body.on-home #header-race-chips { display: none; }
             <div class="date-sub">Raw values for diagnosing issues</div>
           </div>
         </div>
+        <!-- Garmin Personal API setup check -->
+        <div class="home-lbl" style="margin-top:4px">Garmin connection</div>
+        <div class="card" style="padding:14px 16px;margin-bottom:18px">
+          <div style="font-size:12px;color:var(--muted);line-height:1.6;margin-bottom:12px">Checks your Garmin key, reads Garmin's endpoint list, and pulls a small sample of your sleep, HRV and daily data. Copy the report and send it to Claude to finish the auto-fill.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="garage-add-btn" style="flex:1;padding:10px" id="gm-run-btn" onclick="garminRunChecks()">▶ Run Garmin check</button>
+            <button class="garage-add-btn" style="flex:1;padding:10px" id="gm-copy-btn" onclick="garminCopyReport()" disabled>📋 Copy report</button>
+          </div>
+          <div id="gm-out" style="margin-top:12px;font-size:11px;font-family:var(--font-mono);color:var(--muted);line-height:1.6;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto"></div>
+        </div>
+
         <div id="debug-content"></div>
         <button class="add-race-btn" style="margin-top:16px;background:var(--surface2);color:var(--text)" onclick="renderDebugPage()">↻ Refresh values</button>
       </div>
@@ -9678,6 +9689,78 @@ function switchHubTab(tab) {
 
 
 // ── DEBUG / HEALTH VIEW — raw values for fast diagnosis ───────────────────
+// ── GARMIN PERSONAL API: setup check ─────────────────────────────────────
+// Step 1 of the Garmin integration: confirm the key, learn the real endpoints from Garmin's spec,
+// and sample health data so the auto-fill can be mapped to exact field names.
+let garminReport = '';
+async function garminCall(body) {
+  const r = await fetch('/garmin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const t = await r.text();
+  try { return JSON.parse(t); } catch (e) { return { ok: false, error: 'HTTP ' + r.status + ' — not JSON (is functions/garmin deployed?): ' + t.slice(0, 160) }; }
+}
+// Fill an endpoint's date-ish parameters for "the last few days"
+function garminQueryFor(ep) {
+  const today = localDateStr(), start = addDaysStr(today, -3), yday = addDaysStr(today, -1);
+  const epoch = ds => Math.floor(new Date(ds + 'T00:00:00').getTime() / 1000);
+  const q = {}; let path = ep.path;
+  (ep.params || []).forEach(spec => {
+    const [rawName, where, type] = spec.split(':'); const name = rawName.replace('*', '');
+    // Whole-word match on camelCase/snake_case parts (so "calendarDate" is not an "end" date)
+    const words = name.split(/(?=[A-Z])|[_\-]/).map(w => w.toLowerCase());
+    const isStart = words.some(w => ['start','from','begin'].includes(w)), isEnd = words.some(w => ['end','to','until'].includes(w));
+    const isEpoch = /int|long|number/i.test(type) || /seconds|epoch|timestamp/i.test(name);
+    let val = null;
+    if (/date|day|time|start|end|from|until/i.test(name)) {
+      const ds = isStart ? start : isEnd ? today : yday;
+      val = isEpoch ? (isEnd ? epoch(today) + 86399 : epoch(ds)) : ds;
+    }
+    if (val == null) return;
+    if (where === 'path') path = path.replace('{' + name + '}', val);
+    else q[name] = val;
+  });
+  return { path, query: q, ready: !/\{/.test(path) };
+}
+async function garminRunChecks() {
+  const out = document.getElementById('gm-out'), btn = document.getElementById('gm-run-btn'), copy = document.getElementById('gm-copy-btn');
+  const lines = []; const log = s => { lines.push(s); out.textContent = lines.join('\n'); };
+  btn.disabled = true; copy.disabled = true; out.textContent = '';
+  log('BRB Garmin report · ' + new Date().toISOString());
+  try {
+    const st = await garminCall({ action: 'status' });
+    log('\n[1] Key → token: ' + (st.ok ? 'OK (expires ' + st.expiresAt + ', fields: ' + (st.tokenFields || []).join(',') + ')' : 'FAILED — ' + st.error));
+    if (!st.ok) return;
+    const dc = await garminCall({ action: 'discover' });
+    if (!dc.ok) { log('\n[2] Endpoint list: FAILED — ' + dc.error + (dc.tried ? '\n  tried: ' + dc.tried.join('\n  ') : '')); return; }
+    log('\n[2] Endpoint list: ' + dc.endpoints.length + ' GET endpoints (spec: ' + dc.from + ', v' + (dc.version || '?') + ')');
+    dc.endpoints.forEach(e => log('  ' + e.path + '  ' + (e.params.join(' ') || '-') + (e.fields.length ? '\n     → ' + e.fields.join(', ') : '')));
+    const wanted = dc.endpoints.filter(e => /sleep|hrv|daily|dailies|summar|body.?battery|weight|heart|stress|user.?metric/i.test(e.path + ' ' + e.summary) && !/file|download|fit\b/i.test(e.path)).slice(0, 14);
+    log('\n[3] Samples (' + wanted.length + ' health endpoints, last few days):');
+    for (const ep of wanted) {
+      const { path, query, ready } = garminQueryFor(ep);
+      if (!ready) { log('\n  ' + ep.path + ' — skipped (unfilled path param)'); continue; }
+      const r = await garminCall({ action: 'probe', path, query });
+      const bodyTxt = r.data !== undefined && r.data !== null ? JSON.stringify(r.data) : (r.text || r.error || '');
+      log('\n  ' + (r.url || path) + ' → HTTP ' + (r.status || '?') + '\n  ' + bodyTxt.slice(0, 1200) + (bodyTxt.length > 1200 ? ' …(' + bodyTxt.length + ' chars)' : ''));
+    }
+    log('\nDone.');
+  } catch (e) {
+    log('\nERROR: ' + e.message);
+  } finally {
+    garminReport = lines.join('\n');
+    btn.disabled = false; copy.disabled = !garminReport;
+  }
+}
+async function garminCopyReport() {
+  const btn = document.getElementById('gm-copy-btn');
+  try { await navigator.clipboard.writeText(garminReport); btn.textContent = '✓ Copied'; }
+  catch (e) {
+    // Fallback: select the text so it can be copied manually
+    const out = document.getElementById('gm-out'); const range = document.createRange(); range.selectNodeContents(out);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); btn.textContent = 'Selected — tap Copy';
+  }
+  setTimeout(() => { btn.textContent = '📋 Copy report'; }, 2500);
+}
+
 function renderDebugPage() {
   const el = document.getElementById('debug-content');
   if (!el) return;
