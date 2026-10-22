@@ -9728,7 +9728,11 @@ async function garminRunChecks() {
   try {
     const st = await garminCall({ action: 'status' });
     log('\n[1] Key → token: ' + (st.ok ? 'OK (expires ' + st.expiresAt + ', fields: ' + (st.tokenFields || []).join(',') + ')' : 'FAILED — ' + st.error));
-    if (!st.ok) return;
+    if (!st.ok) {
+      if (st.server || st.cfRay) log('    server: ' + (st.server || '?') + ' · cf-ray: ' + (st.cfRay || '?'));
+      if (st.net) { log('\n    Reachability from the Cloudflare function:'); st.net.forEach(n => log('    ' + n.label + ': ' + (n.error ? 'ERROR ' + n.error : 'HTTP ' + n.status + ' · server ' + (n.server || '?') + (n.cfRay ? ' · cf-ray ' + n.cfRay : '')))); }
+      return;
+    }
     const dc = await garminCall({ action: 'discover' });
     if (!dc.ok) { log('\n[2] Endpoint list: FAILED — ' + dc.error + (dc.tried ? '\n  tried: ' + dc.tried.join('\n  ') : '')); return; }
     log('\n[2] Endpoint list: ' + dc.endpoints.length + ' GET endpoints (spec: ' + dc.from + ', v' + (dc.version || '?') + ')');
