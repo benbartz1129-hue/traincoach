@@ -22,9 +22,15 @@ async function getToken(env, force) {
   if (!force && cachedToken && cachedToken.expiresAt - Date.now() > 60 * 60 * 1000) return cachedToken.token;
   const key = env.GARMIN_API_KEY;
   if (!key) throw new Error('GARMIN_API_KEY is not set in Cloudflare');
-  const r = await fetch(TOKEN_URL, { method: 'POST', headers: { 'Authorization': 'ApiKey ' + key, 'Accept': 'application/json' } });
+  const call = () => fetch(TOKEN_URL, { method: 'POST', headers: { 'Authorization': 'ApiKey ' + key, 'Accept': 'application/json' } });
+  let r = await call();
+  if (r.status >= 500) { await new Promise(z => setTimeout(z, 1500)); r = await call(); }   // one retry on server/edge errors
   const text = await r.text();
-  if (!r.ok) throw new Error('Token request failed (HTTP ' + r.status + '): ' + text.slice(0, 300));
+  if (!r.ok) {
+    const err = new Error('Token request failed (HTTP ' + r.status + '): ' + text.slice(0, 300));
+    err.status = r.status; err.cfRay = r.headers.get('cf-ray'); err.server = r.headers.get('server');
+    throw err;
+  }
   let data = {}; try { data = JSON.parse(text); } catch (e) { data = { access_token: text.trim() }; }
   const token = data.access_token || data.accessToken || data.token;
   if (!token) throw new Error('Token response had no access token. Fields: ' + Object.keys(data).join(', '));
@@ -104,13 +110,33 @@ function summarizeSpec(spec) {
   return out;
 }
 
+// Which Garmin hosts can this function reach at all? (Diagnoses edge/TLS errors like 526.)
+async function netCheck() {
+  const targets = [
+    ['personal API host', 'https://personal.connectapi.garmin.com/'],
+    ['token endpoint (GET)', TOKEN_URL],
+    ['main Connect API host', 'https://connectapi.garmin.com/'],
+    ['developer site', 'https://developer.garmin.com/'],
+  ];
+  const out = [];
+  for (const [label, url] of targets) {
+    try {
+      const r = await fetch(url, { method: 'GET', redirect: 'manual' });
+      out.push({ label, url, status: r.status, server: r.headers.get('server'), cfRay: r.headers.get('cf-ray') });
+    } catch (e) { out.push({ label, url, error: e.message }); }
+  }
+  return out;
+}
+
 export async function onRequestPost(context) {
   try {
     const body = await context.request.json().catch(() => ({}));
     const action = body.action || 'status';
 
     if (action === 'status') {
-      const token = await getToken(context.env, true);
+      let token;
+      try { token = await getToken(context.env, true); }
+      catch (e) { return json({ ok: false, error: e.message, status: e.status, cfRay: e.cfRay, server: e.server, net: await netCheck() }); }
       return json({ ok: true, tokenOk: !!token, tokenFields: cachedToken.raw, expiresAt: new Date(cachedToken.expiresAt).toISOString() });
     }
 
