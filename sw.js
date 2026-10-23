@@ -20,7 +20,7 @@ const APP_SHELL = [
 ];
 
 // Paths that must always go to the network — live data and auth endpoints.
-const NEVER_CACHE = ['/kv', '/claude', '/weather', '/strava-token', '/garmin'];
+const NEVER_CACHE = ['/kv', '/claude', '/weather', '/strava-token', '/garmin', '/widget'];
 
 // Cross-origin hosts that must NEVER be cached. API responses are live data —
 // caching them serves stale activity lists and silently hides new activities.
