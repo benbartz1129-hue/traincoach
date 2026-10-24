@@ -125,6 +125,71 @@ function summarizeSpec(spec) {
   return out;
 }
 
+// ── Daily wellness for the morning log ──────────────────────────────────────
+// Returns one compact record per morning: { date, hrv, hrvStatus, hrvBaseline, sleepHrs, sleepScore, rhr, weightKg }
+// Dates are the morning a night ENDS on (Garmin's calendarDate), matching the app's morning log.
+async function gget(token, path) {
+  const url = API_HOST + path;
+  let r = await fetch(url, { headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' } });
+  if (r.status === 406) r = await fetch(url, { headers: { Authorization: 'Bearer ' + token, Accept: '*/*' } });
+  if (!r.ok) return { status: r.status, data: null };
+  try { return { status: r.status, data: JSON.parse(await r.text()) }; } catch (e) { return { status: r.status, data: null }; }
+}
+function deepFind(obj, re, depth = 0) {           // first numeric value whose key matches re
+  if (!obj || typeof obj !== 'object' || depth > 6) return null;
+  for (const [k, v] of Object.entries(obj)) if (re.test(k) && typeof v === 'number' && v > 0) return v;
+  for (const v of Object.values(obj)) { const f = deepFind(v, re, depth + 1); if (f != null) return f; }
+  return null;
+}
+function addDays(ds, n) { const d = new Date(ds + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+// Candidate resting-HR endpoints (the Personal API's exact one isn't documented publicly yet)
+const RHR_CANDIDATES = [
+  d => '/usersummary-service/usersummary/daily?calendarDate=' + d,
+  d => '/wellness-service/wellness/dailyHeartRate?date=' + d,
+];
+async function dailyWellness(token, endDate, days) {
+  const out = [], notes = {};
+  let rhrPick = null;   // index of the RHR endpoint that works, found on the first date
+  // weight for the whole window in one call (grams → kg)
+  const startDate = addDays(endDate, -(days - 1));
+  const w = await gget(token, `/weight-service/weight/range/${startDate}/${endDate}`);
+  const weights = {};
+  ((w.data && w.data.dailyWeightSummaries) || []).forEach(x => {
+    const d = x.summaryDate || x.calendarDate; const g = x.latestWeight ? x.latestWeight.weight : x.weight;
+    if (d && g) weights[d] = Math.round(g / 100) / 10;
+  });
+  for (let i = 0; i < days; i++) {
+    const d = addDays(endDate, -i);
+    const rec = { date: d };
+    const h = await gget(token, '/hrv-service/hrv/' + d);
+    const hs = h.data && h.data.hrvSummary;
+    if (hs && hs.lastNightAvg) {
+      rec.hrv = hs.lastNightAvg; rec.hrvStatus = hs.status || null;
+      if (hs.baseline) rec.hrvBaseline = [hs.baseline.balancedLow, hs.baseline.balancedUpper];
+    }
+    const sl = await gget(token, '/sleep-service/sleep/dailySleep?date=' + d);
+    if (sl.data && sl.data.sleepTimeSeconds) {
+      rec.sleepHrs = Math.round(sl.data.sleepTimeSeconds / 360) / 10;
+      const sc = sl.data.sleepScores && sl.data.sleepScores.overall; if (sc && sc.value) rec.sleepScore = sc.value;
+    }
+    let rhr = sl.data ? deepFind(sl.data, /^restingHeartRate$/i) : null;
+    if (rhr) notes.rhr = 'sleep';
+    if (!rhr) {
+      const tryIdx = rhrPick != null ? [rhrPick] : (i === 0 ? RHR_CANDIDATES.map((_, k) => k) : []);
+      for (const k of tryIdx) {
+        const r = await gget(token, RHR_CANDIDATES[k](d));
+        const v = r.data ? deepFind(r.data, /^restingHeartRate$/i) : null;
+        notes['rhr_' + k] = r.status;
+        if (v) { rhr = v; rhrPick = k; notes.rhr = 'endpoint ' + k; break; }
+      }
+    }
+    if (rhr) rec.rhr = rhr;
+    if (weights[d]) rec.weightKg = weights[d];
+    out.push(rec);
+  }
+  return { days: out, notes };
+}
+
 // Which Garmin hosts can this function reach at all? (Diagnoses edge/TLS errors like 526.)
 async function netCheck() {
   const targets = [
@@ -162,6 +227,14 @@ export async function onRequestPost(context) {
       if (!spec) return json({ ok: true, from: 'fallback list (spec not found: ' + tried.length + ' places tried)', version: null, endpoints: KNOWN_ENDPOINTS });
       return json({ ok: true, from, title: spec.info && spec.info.title, version: spec.info && spec.info.version,
         servers: spec.servers || spec.basePath || null, endpoints: summarizeSpec(spec) });
+    }
+
+    if (action === 'daily') {
+      const token = await getToken(context.env);
+      const days = Math.max(1, Math.min(10, Number(body.days) || 3));          // ≤10 days/call stays well under Cloudflare's 50-subrequest limit
+      const endDate = /^\d{4}-\d{2}-\d{2}$/.test(body.endDate || '') ? body.endDate : new Date().toISOString().slice(0, 10);
+      const res = await dailyWellness(token, endDate, days);
+      return json({ ok: true, ...res });
     }
 
     if (action === 'probe') {
