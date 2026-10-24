@@ -1762,6 +1762,7 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
             <button class="garage-add-btn" style="flex:1;padding:10px" id="gm-run-btn" onclick="garminRunChecks()">▶ Run Garmin check</button>
             <button class="garage-add-btn" style="flex:1;padding:10px" id="gm-copy-btn" onclick="garminCopyReport()" disabled>📋 Copy report</button>
           </div>
+          <button class="garage-add-btn" style="width:100%;padding:10px;margin-top:8px" onclick="garminImportNow()">⌚ Import last 40 days now</button>
           <div id="gm-out" style="margin-top:12px;font-size:11px;font-family:var(--font-mono);color:var(--muted);line-height:1.6;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto"></div>
         </div>
 
@@ -5379,11 +5380,15 @@ function logMorning() {
   if (hrvVal || rhrVal || sleepVal) {
     const existing = wellnessLog.find(e => e.date === today) || {};
     wellnessLog = wellnessLog.filter(e => e.date !== today);
+    const src = { ...(existing.src || {}) };
+    if (hrvVal) src.hrv = 'manual'; if (rhrVal) src.rhr = 'manual'; if (sleepVal) src.sleep = 'manual';
     wellnessLog.push({
+      ...existing,
       date: today,
       hrv: hrvVal || existing.hrv || null,
       rhr: rhrVal || existing.rhr || null,
-      sleep: sleepVal || existing.sleep || null
+      sleep: sleepVal || existing.sleep || null,
+      src
     });
     wellnessLog.sort((a,b) => a.date.localeCompare(b.date));
     saveWellnessLog();
@@ -5553,7 +5558,7 @@ function renderMorningCard() {
   sum.innerHTML = `<div class="home-hero-row">
       <div class="home-ico" style="background:rgba(109,186,109,.13)">✅</div>
       <div style="min-width:0;flex:1"><h2>Logged this morning</h2>
-        <div class="home-det">${missing.length ? 'Still to add: ' + missing.join(', ') : 'All four logged.'}</div></div>
+        <div class="home-det">${missing.length ? 'Still to add: ' + missing.join(', ') : 'All four logged.'}${Object.values(well.src || {}).includes('garmin') ? ' <span style="color:var(--tri)">⌚ ' + ['hrv','rhr','sleep'].filter(k => (well.src || {})[k] === 'garmin').map(k => ({hrv:'HRV',rhr:'RHR',sleep:'sleep'})[k]).join(', ') + ' from Garmin</span>' : ''}</div></div>
       <button class="st-link" onclick="editMorningLog()">${missing.length ? '+ Add' : 'Edit'}</button>
     </div>
     <div class="home-chips">${chip('⚖', w ? w.value + ' ' + w.unit : null)}${chip('HRV', well.hrv ? well.hrv + ' ms' : null)}${chip('RHR', well.rhr ? well.rhr + ' bpm' : null)}${chip('Sleep', well.sleep ? well.sleep + ' h' : null)}</div>`;
@@ -9812,6 +9817,96 @@ function switchHubTab(tab) {
 
 
 // ── DEBUG / HEALTH VIEW — raw values for fast diagnosis ───────────────────
+// ── GARMIN AUTO-FILL: morning log from Garmin's Personal API ──────────────
+// Fills HRV, resting HR and sleep (and weight, if you use a Garmin scale) for recent mornings.
+// Never overwrites a value you typed (src[field] === 'manual'); refreshes its own Garmin values.
+const GARMIN_LAST_KEY = 'brb_garmin_last';           // { at, ok, backfilled, disabledUntil, info }
+function garminState() { try { return JSON.parse(localStorage.getItem(GARMIN_LAST_KEY) || '{}'); } catch (e) { return {}; } }
+function garminSaveState(s) { try { localStorage.setItem(GARMIN_LAST_KEY, JSON.stringify(s)); } catch (e) {} }
+
+function garminMerge(days) {
+  let changedWell = false, changedWeight = false;
+  const unit = (weightLog[weightLog.length - 1] || {}).unit || 'lbs';
+  days.forEach(d => {
+    const has = d.hrv || d.rhr || d.sleepHrs;
+    if (has) {
+      const existing = wellnessLog.find(e => e.date === d.date) || null;
+      const e = existing ? { ...existing } : { date: d.date, hrv: null, rhr: null, sleep: null };
+      e.src = { ...(e.src || {}) };
+      const fill = (field, val) => {
+        if (val == null) return;
+        const mine = e.src[field] === 'manual' || (e[field] != null && !e.src[field]);   // typed by you (incl. older entries)
+        if (mine || e[field] === val) return;
+        e[field] = val; e.src[field] = 'garmin'; changedWell = true;
+      };
+      fill('hrv', d.hrv); fill('rhr', d.rhr); fill('sleep', d.sleepHrs);
+      const g = { hrvStatus: d.hrvStatus || null, hrvBaseline: d.hrvBaseline || null, sleepScore: d.sleepScore || null };
+      if (JSON.stringify(e.garmin || {}) !== JSON.stringify(g)) { e.garmin = g; changedWell = true; }
+      if (changedWell) { wellnessLog = wellnessLog.filter(x => x.date !== d.date); wellnessLog.push(e); }
+    }
+    if (d.weightKg && !weightLog.some(x => x.date === d.date)) {
+      const v = unit === 'kg' ? d.weightKg : Math.round(d.weightKg * 2.20462 * 10) / 10;
+      weightLog.push({ date: d.date, value: v, unit, src: 'garmin' }); changedWeight = true;
+    }
+  });
+  if (changedWell) { wellnessLog.sort((a, b) => a.date.localeCompare(b.date)); saveWellnessLog(); }
+  if (changedWeight) { weightLog.sort((a, b) => a.date.localeCompare(b.date)); saveWeightLog(); }
+  return changedWell || changedWeight;
+}
+
+let garminSyncing = false;
+async function garminAutoSync(force = false, daysOverride) {
+  if (garminSyncing) return { skipped: 'busy' };
+  const st = garminState(), now = Date.now();
+  if (!force) {
+    if (st.disabledUntil && now < st.disabledUntil) return { skipped: 'disabled' };
+    const today = wellnessLog.find(e => e.date === localDateStr()) || {};
+    const haveToday = today.hrv && today.sleep;
+    const wait = haveToday ? 6 * 3600e3 : 20 * 60e3;          // poll until this morning's data lands, then rarely
+    if (st.at && now - st.at < wait) return { skipped: 'recent' };
+  }
+  garminSyncing = true;
+  // First run backfills ~40 days (enough for the readiness baseline) in chunks of 10 days per call
+  const total = daysOverride || (st.backfilled ? 3 : 40);
+  try {
+    let data = { ok: true, days: [], notes: {} };
+    for (let done = 0; done < total; done += 10) {
+      const chunk = Math.min(10, total - done);
+      const r = await fetch('/garmin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'daily', days: chunk, endDate: addDaysStr(localDateStr(), -done) }) });
+      const part = await r.json().catch(() => ({ ok: false, error: 'HTTP ' + r.status }));
+      if (!part.ok) { if (done === 0) { data = part; } break; }
+      data.days.push(...(part.days || [])); Object.assign(data.notes, part.notes || {});
+    }
+    if (!data.ok) {
+      // No key / rejected key: stop trying for a day instead of calling on every open
+      const off = /not set|401|403|rejected/i.test(data.error || '') ? now + 24 * 3600e3 : null;
+      garminSaveState({ ...st, at: now, ok: false, error: data.error, disabledUntil: off });
+      return data;
+    }
+    const changed = garminMerge(data.days || []);
+    garminSaveState({ at: now, ok: true, backfilled: true, info: data.notes, lastDays: (data.days || []).length });
+    if (changed) {
+      if (currentTab === 'stats') renderStatsPage();
+      if (currentTab === 'dashboard' && window._lastDashboardData) renderDashboard({ ...window._lastDashboardData, ...calcLiveWeekTotals() });
+    }
+    return { ok: true, changed, days: data.days, notes: data.notes };
+  } catch (e) {
+    garminSaveState({ ...st, at: now, ok: false, error: e.message });
+    return { ok: false, error: e.message };
+  } finally { garminSyncing = false; }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') garminAutoSync().catch(() => {}); });
+
+async function garminImportNow() {
+  const out = document.getElementById('gm-out'); if (out) out.textContent = 'Importing the last 40 days from Garmin…';
+  const r = await garminAutoSync(true, 40);
+  if (!out) return;
+  if (!r.ok) { out.textContent = 'Import failed: ' + (r.error || 'unknown'); return; }
+  out.textContent = 'Imported ' + (r.days || []).length + ' days' + (r.changed ? ' (log updated)' : ' (nothing new)') + '\n' +
+    (r.days || []).map(d => d.date + '  HRV ' + (d.hrv ?? '—') + '  RHR ' + (d.rhr ?? '—') + '  sleep ' + (d.sleepHrs ?? '—') + 'h' + (d.weightKg ? '  ' + d.weightKg + 'kg' : '')).join('\n') +
+    '\nRHR source: ' + JSON.stringify(r.notes || {});
+}
+
 // ── GARMIN PERSONAL API: setup check ─────────────────────────────────────
 // Step 1 of the Garmin integration: confirm the key, learn the real endpoints from Garmin's spec,
 // and sample health data so the auto-fill can be mapped to exact field names.
@@ -11644,6 +11739,7 @@ async function init() {
       initRacePlanner();
       renderCalendar();
       updateRefreshBanner(localStorage.getItem(CACHE_KEY_TIMESTAMP));
+      garminAutoSync().catch(e => console.warn('garmin', e));   // after KV so its wellness copy can't overwrite the fill
     });
     // (Archive now loads from localStorage cache — KV archive is only pulled during manual Sync)
   }
