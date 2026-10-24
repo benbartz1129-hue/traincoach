@@ -17,6 +17,14 @@ let cachedToken = null;   // { token, expiresAt }
 let keyInfo = null;       // { length, trimmed } — reported on failures (never the key itself)
 
 const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
+
+// Paths observed in other Personal API clients (used only if Garmin's spec can't be found)
+const KNOWN_ENDPOINTS = [
+  { path: '/hrv-service/hrv/{date}', summary: 'HRV for a night', params: ['date*:path:string'], fields: [] },
+  { path: '/sleep-service/sleep/dailySleep', summary: 'Daily sleep', params: ['date:query:string'], fields: [] },
+  { path: '/weight-service/weight/range/{startDate}/{endDate}', summary: 'Weight range', params: ['startDate*:path:string', 'endDate*:path:string'], fields: [] },
+  { path: '/activitylist-service/activities/search/activities', summary: 'Activity search', params: ['limit:query:int'], fields: [] },
+];
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers });
 
 async function getToken(env, force) {
@@ -26,7 +34,8 @@ async function getToken(env, force) {
   // Pasted secrets often carry a stray space/newline or quotes — strip them
   const key = String(rawKey).trim().replace(/^["']|["']$/g, '').replace(/^ApiKey\s+/i, '');
   keyInfo = { length: key.length, trimmed: key !== rawKey };
-  const call = () => fetch(TOKEN_URL, { method: 'POST', headers: { 'Authorization': 'ApiKey ' + key, 'Accept': 'application/json' } });
+  // The token comes back as plain text, so don't demand JSON (Garmin answers 406 if we do)
+  const call = () => fetch(TOKEN_URL, { method: 'POST', headers: { 'Authorization': 'ApiKey ' + key, 'Accept': '*/*' } });
   let r = await call();
   if (r.status >= 500) { await new Promise(z => setTimeout(z, 1500)); r = await call(); }   // one retry on server/edge errors
   const text = await r.text();
@@ -35,11 +44,13 @@ async function getToken(env, force) {
     err.status = r.status; err.cfRay = r.headers.get('cf-ray'); err.server = r.headers.get('server');
     throw err;
   }
+  // Accept either JSON ({access_token,...}), a JSON string ("eyJ..."), or the raw token text
   let data = {}; try { data = JSON.parse(text); } catch (e) { data = { access_token: text.trim() }; }
-  const token = data.access_token || data.accessToken || data.token;
+  if (typeof data === 'string') data = { access_token: data };
+  const token = (data.access_token || data.accessToken || data.token || '').trim();
   if (!token) throw new Error('Token response had no access token. Fields: ' + Object.keys(data).join(', '));
   const ttl = Number(data.expires_in || data.expiresIn || 86400);
-  cachedToken = { token, expiresAt: Date.now() + ttl * 1000, raw: Object.keys(data) };
+  cachedToken = { token, expiresAt: Date.now() + ttl * 1000, raw: Object.keys(data).concat(['len ' + token.length]) };
   return token;
 }
 
@@ -147,7 +158,8 @@ export async function onRequestPost(context) {
     if (action === 'discover') {
       const token = await getToken(context.env);
       const { spec, from, tried } = await findSpec(token);
-      if (!spec) return json({ ok: false, error: 'Could not locate the OpenAPI spec automatically', tried });
+      // Fall back to endpoint paths known to work from other Personal API clients
+      if (!spec) return json({ ok: true, from: 'fallback list (spec not found: ' + tried.length + ' places tried)', version: null, endpoints: KNOWN_ENDPOINTS });
       return json({ ok: true, from, title: spec.info && spec.info.title, version: spec.info && spec.info.version,
         servers: spec.servers || spec.basePath || null, endpoints: summarizeSpec(spec) });
     }
@@ -160,7 +172,8 @@ export async function onRequestPost(context) {
       Object.entries(body.query || {}).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') qs.set(k, String(v)); });
       const token = await getToken(context.env);
       const url = API_HOST + path + (qs.toString() ? '?' + qs : '');
-      const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' } });
+      let r = await fetch(url, { headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' } });
+      if (r.status === 406) r = await fetch(url, { headers: { Authorization: 'Bearer ' + token, Accept: '*/*' } });
       const text = await r.text();
       let data = null; try { data = JSON.parse(text); } catch (e) {}
       return json({ ok: r.ok, status: r.status, url: path + (qs.toString() ? '?' + qs : ''), data, text: data ? undefined : text.slice(0, 2000) });
