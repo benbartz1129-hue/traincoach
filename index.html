@@ -9853,6 +9853,8 @@ async function garminRunChecks() {
     log('\n[1] Key → token: ' + (st.ok ? 'OK (expires ' + st.expiresAt + ', fields: ' + (st.tokenFields || []).join(',') + ')' : 'FAILED — ' + st.error));
     if (!st.ok) {
       if (st.server || st.cfRay) log('    server: ' + (st.server || '?') + ' · cf-ray: ' + (st.cfRay || '?'));
+      if (st.key) log('    key seen by the function: ' + st.key.length + ' characters' + (st.key.trimmed ? ' (extra spaces/quotes were stripped)' : ''));
+      if (st.status === 401 || st.status === 403) log('    → Garmin rejected the key. Create a new key in Garmin Connect, paste it into GARMIN_API_KEY, then redeploy the site.');
       if (st.net) { log('\n    Reachability from the Cloudflare function:'); st.net.forEach(n => log('    ' + n.label + ': ' + (n.error ? 'ERROR ' + n.error : 'HTTP ' + n.status + ' · server ' + (n.server || '?') + (n.cfRay ? ' · cf-ray ' + n.cfRay : '')))); }
       return;
     }
