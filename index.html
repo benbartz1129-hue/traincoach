@@ -1319,7 +1319,6 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
 /* ── HOME (streamlined dashboard) ── */
 .home-legend { display: flex; justify-content: center; gap: 12px; margin-top: 10px; font-size: 10px; color: var(--dim); flex-wrap: wrap; }
 .home-legend i { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
-body.on-home #header-race-chips { display: none; }
 .home-greet { padding: 6px 0 4px; }
 .home-greet h1 { font-family: var(--font-display); font-size: 25px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
 .home-greet p { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.5; }
@@ -3257,7 +3256,11 @@ function buildWidgetSnapshot(d) {
   const sessions = trainingPlan.filter(p => p.date === todayStr);
   const workouts = sessions.filter(s => (s.sport || '').toLowerCase() !== 'rest');
   const doneToday = allActivities.some(a => homeSportOf(a) && (a.start_date_local || '').slice(0, 10) === todayStr && (a.moving_time > 0 || a.distance > 0)) || !!sgCompletedOn(todayStr);
-  const today = workouts.length ? { title: workouts[0].title, detail: (workouts[0].detail || '').slice(0, 80), sport: (workouts[0].sport || 'run').toLowerCase(), more: workouts.length - 1 }
+  let doneActs = allActivities.filter(a => homeSportOf(a) && (a.start_date_local || '').slice(0, 10) === todayStr && (a.moving_time > 0 || a.distance > 0));
+  try { if (sgCompletedOn(todayStr)) doneActs.push(...sgActivities().filter(a => a.start_date_local.slice(0, 10) === todayStr).slice(0, 1)); } catch (e) {}
+  const doneInfo = doneActs.length ? homeTodayDone(workouts, doneActs) : null;
+  const today = doneInfo ? { title: doneInfo.title, detail: doneInfo.detail.slice(0, 80), sport: 'done', swapped: !!doneInfo.swapped }
+    : workouts.length ? { title: workouts[0].title, detail: (workouts[0].detail || '').slice(0, 80), sport: (workouts[0].sport || 'run').toLowerCase(), more: workouts.length - 1 }
     : sessions.length ? { title: 'Rest day', detail: 'Recovery is part of the plan.', sport: 'rest' }
     : { title: doneToday ? 'Done for today' : 'Nothing planned', detail: '', sport: doneToday ? 'done' : 'none' };
   today.done = doneToday;
@@ -3321,15 +3324,11 @@ function homeAthleteName() {
 
 function homeGreetingHtml() {
   const name = homeAthleteName();
-  const todayStr = localDateStr();
-  const next = races.filter(r => r.date >= todayStr).sort((a,b) => a.date.localeCompare(b.date))[0];
   const dateTxt = new Date().toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
-  const raceTxt = next
-    ? `<span class="home-link" onclick="openRaceHub(${next.id})">${next.name} in ${daysUntil(new Date(next.date + 'T12:00:00'))} days</span>`
-    : `<span class="home-link" onclick="switchTab('races')">No races scheduled</span>`;
+  // Race countdown lives in the header bubbles (tap one to open that race)
   return `<div class="home-greet">
       <h1>${getGreeting()}${name ? ', ' + name : ''}</h1>
-      <p>${dateTxt} · ${raceTxt}</p>
+      <p>${dateTxt}</p>
     </div>`;
 }
 
@@ -3353,6 +3352,30 @@ function homeLoadBadge() {
   return `<span class="home-chip home-chip-ok">✓ Load looks healthy</span>`;
 }
 
+// What today's card should say once something is logged: the planned session when you did it,
+// otherwise what you ACTUALLY did (with the plan noted underneath).
+const PLAN_SPORT_KEY = { run:'Run', ride:'Ride', bike:'Ride', swim:'Swim', strength:'Strength' };
+function homeTodayDone(workouts, done) {
+  const doneSports = [...new Set(done.map(a => homeSportOf(a)).filter(Boolean))];
+  const planned = workouts[0] || null;
+  const matchedW = workouts.find(w => doneSports.includes(PLAN_SPORT_KEY[(w.sport || '').toLowerCase()]));
+  const matched = !!matchedW;
+  const label = { Run:'Run', Ride:'Ride', Swim:'Swim', Strength:'Strength' };
+  const actualTitle = () => {
+    if (done.length === 1) {
+      const a = done[0], sp = homeSportOf(a);
+      if (a._brbStrength) return a.name;
+      return a.distance > 0 ? `${label[sp] || a.type} · ${mToMi(a.distance).toFixed(1)} mi` : `${label[sp] || a.type} · ${secToTime(a.moving_time)}`;
+    }
+    return doneSports.map(s => label[s] || s).join(' + ');
+  };
+  const stats = done.map(a => (a.distance > 0 ? mToMi(a.distance).toFixed(1) + ' mi ' : '') + (homeSportOf(a) || a.type).replace('Ride', 'ride').replace('WeightTraining', 'strength').toLowerCase() +
+    (a.moving_time ? ' · ' + secToTime(a.moving_time) : '')).join(' + ');
+  if (matched) return { title: matchedW.title, detail: stats, matched: true };
+  if (planned) return { title: actualTitle(), detail: (done.length > 1 ? stats + ' · ' : (done[0].moving_time && done[0].distance > 0 ? secToTime(done[0].moving_time) + ' · ' : '')) + 'planned: ' + planned.title, matched: false, swapped: true };
+  return { title: actualTitle(), detail: done.length > 1 ? stats : (done[0].distance > 0 && done[0].moving_time ? secToTime(done[0].moving_time) : ''), matched: false };
+}
+
 function homeTodayCardHtml() {
   const todayStr = localDateStr();
   const sessions = trainingPlan.filter(p => p.date === todayStr);
@@ -3362,12 +3385,11 @@ function homeTodayCardHtml() {
   let icon, tint, title, detail, extra = '';
 
   if (done.length) {
-    const planned = workouts[0];
+    const r = homeTodayDone(workouts, done);
     icon = '✅'; tint = 'rgba(109,186,109,.13)';
-    title = planned ? planned.title : 'Done for today';
-    detail = done.map(a => (a.distance > 0 ? mToMi(a.distance).toFixed(1) + ' mi ' : '') + a.type.replace('WeightTraining','strength').toLowerCase() +
-      (a.moving_time ? ' · ' + secToTime(a.moving_time) : '')).join(' + ');
-    extra = `<span class="home-chip home-chip-ok">✓ Logged</span>`;
+    title = r.title;
+    detail = r.detail;
+    extra = `<span class="home-chip home-chip-ok">✓ Logged</span>` + (r.swapped ? `<span class="home-chip">↔ Swapped from plan</span>` : '');
   } else if (workouts.length) {
     const s = workouts[0], sp = (s.sport || 'run').toLowerCase();
     icon = sportEmoji(sp); tint = HOME_SPORT_TINT[sp] || HOME_SPORT_TINT.rest;
@@ -3870,12 +3892,12 @@ function updateRaceCountdowns() {
     if (upcoming.length >= 2) {
       chipsEl.innerHTML = upcoming.map((r,i) => {
         const cls = i === 0 ? 'chip-tri' : 'chip-mar';
-        const label = r.name.length > 8 ? r.subtype : r.name;
-        return `<div class="chip ${cls}">${label} <span>${daysUntil(new Date(r.date))}d</span></div>`;
+        const label = r.name.length > 8 ? (r.subtype || r.name.slice(0, 8)) : r.name;
+        return `<div class="chip ${cls}" onclick="openRaceHub(${r.id})" style="cursor:pointer">${label} <span>${daysUntil(new Date(r.date))}d</span></div>`;
       }).join('');
     } else if (upcoming.length === 1) {
       const r = upcoming[0];
-      chipsEl.innerHTML = `<div class="chip chip-tri">${r.subtype} <span>${daysUntil(new Date(r.date))}d</span></div>`;
+      chipsEl.innerHTML = `<div class="chip chip-tri" onclick="openRaceHub(${r.id})" style="cursor:pointer">${r.subtype || (r.name.length > 10 ? r.name.slice(0, 10) + '…' : r.name)} <span>${daysUntil(new Date(r.date))}d</span></div>`;
     } else {
       chipsEl.innerHTML = `<div class="chip" onclick="switchTab('races')" style="cursor:pointer;color:var(--muted);border-color:var(--border)">No races</div>`;
     }
