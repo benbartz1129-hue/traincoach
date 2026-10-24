@@ -148,6 +148,18 @@ body {
 .chip { font-size: 10px; font-weight: 500; padding: 4px 9px; border-radius: 99px; letter-spacing: 0.03em; font-family: var(--font-display); }
 .chip-tri { background: var(--tri-dim); color: var(--tri); border: 1px solid var(--tri-border); }
 .chip-mar { background: var(--mar-dim); color: var(--mar); border: 1px solid var(--mar-border); }
+/* Race countdown badges in the header */
+.rc-badge { display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 46px; padding: 4px 8px 3px; border-radius: 10px; cursor: pointer; line-height: 1; white-space: nowrap; }
+.rc-badge b { font-family: var(--font-display); font-size: 15px; font-weight: 700; letter-spacing: -0.02em; }
+.rc-badge b i { font-style: normal; font-size: 10px; font-weight: 600; margin-left: 1px; opacity: .75; }
+.rc-badge span { font-family: var(--font-display); font-size: 8px; font-weight: 600; letter-spacing: .1em; margin-top: 3px; opacity: .85; }
+.rc-tri { background: var(--tri-dim); color: var(--tri); border: 1px solid var(--tri-border); }
+.rc-run { background: var(--mar-dim); color: var(--mar); border: 1px solid var(--mar-border); }
+/* keep the logo + "last updated" on one line each, shrinking gracefully */
+.app-logo { white-space: nowrap; }
+#last-updated-banner { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 42vw; }
+/* Narrow phones: icon-only Sync so two race badges + logo fit comfortably */
+@media (max-width: 430px) { .sync-label { display: none; } #refresh-btn { padding: 0 11px !important; } }
 .refresh-btn {
   background: none; border: 1px solid var(--border2); border-radius: 8px;
   color: var(--muted); width: 32px; height: 32px;
@@ -1448,7 +1460,7 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
     <div class="header-right">
       <div class="race-chips" id="header-race-chips"></div>
       <button class="refresh-btn" id="refresh-btn" onclick="refreshData()" aria-label="Sync Strava" title="Sync latest Strava data" style="width:auto;padding:0 10px;font-size:11px;font-family:var(--font-display);font-weight:600;gap:5px;display:flex;align-items:center;">
-        <span style="font-size:14px">↺</span> Sync
+        <span style="font-size:14px">↺</span><span class="sync-label"> Sync</span>
       </button>
     </div>
   </div>
@@ -3880,24 +3892,39 @@ function buildBannerRaces() {
 }
 
 // Update just the banner and header chips without re-rendering the whole dashboard
+// Short label for a race badge: 70.3, 140.6, OLY, SPRINT, MAR, HALF, 10K, 5K…
+function raceShortLabel(r) {
+  const s = ((r.subtype || '') + ' ' + (r.name || '')).toLowerCase();
+  if (/70\.3|half[ -]?iron/.test(s)) return '70.3';
+  if (/140\.6|full[ -]?iron|\bironman\b(?!.*70)/.test(s) && r.type === 'triathlon') return '140.6';
+  if (/olympic|\boly\b/.test(s)) return 'OLY';
+  if (/sprint/.test(s)) return 'SPRINT';
+  if (/super ?sprint/.test(s)) return 'SPRINT';
+  if (/ultra|50k|50 ?mi|100k/.test(s)) return 'ULTRA';
+  if (/half/.test(s)) return 'HALF';
+  if (/marathon/.test(s)) return 'MAR';
+  const k = s.match(/\b(\d+(?:\.\d+)?)\s*k\b/); if (k) return k[1] + 'K';
+  if (/mile/.test(s)) return 'MILE';
+  return (r.subtype || r.name || 'RACE').split(' ')[0].slice(0, 6).toUpperCase();
+}
+
 function updateRaceCountdowns() {
   const bannerEl = document.getElementById('banner-races');
   if (bannerEl) bannerEl.innerHTML = buildBannerRaces();
   // Update header chips
   const chipsEl = document.getElementById('header-race-chips');
   if (chipsEl) {
-    const upcoming = races.filter(r => daysUntil(new Date(r.date)) >= 0)
-      .sort((a,b) => new Date(a.date) - new Date(b.date))
+    const upcoming = races.filter(r => daysUntil(new Date(r.date + 'T12:00:00')) >= 0)
+      .sort((a,b) => a.date.localeCompare(b.date))
       .slice(0, 2);
-    if (upcoming.length >= 2) {
-      chipsEl.innerHTML = upcoming.map((r,i) => {
-        const cls = i === 0 ? 'chip-tri' : 'chip-mar';
-        const label = r.name.length > 8 ? (r.subtype || r.name.slice(0, 8)) : r.name;
-        return `<div class="chip ${cls}" onclick="openRaceHub(${r.id})" style="cursor:pointer">${label} <span>${daysUntil(new Date(r.date))}d</span></div>`;
+    if (upcoming.length) {
+      // Compact countdown badges: big day count, short race label underneath (never wraps)
+      chipsEl.innerHTML = upcoming.map(r => {
+        const days = daysUntil(new Date(r.date + 'T12:00:00'));
+        return `<div class="rc-badge ${r.type === 'triathlon' ? 'rc-tri' : 'rc-run'}" onclick="openRaceHub(${r.id})" title="${r.name}">
+            <b>${days === 0 ? 'Today' : days}<i>${days === 0 ? '' : 'd'}</i></b><span>${raceShortLabel(r)}</span>
+          </div>`;
       }).join('');
-    } else if (upcoming.length === 1) {
-      const r = upcoming[0];
-      chipsEl.innerHTML = `<div class="chip chip-tri" onclick="openRaceHub(${r.id})" style="cursor:pointer">${r.subtype || (r.name.length > 10 ? r.name.slice(0, 10) + '…' : r.name)} <span>${daysUntil(new Date(r.date))}d</span></div>`;
     } else {
       chipsEl.innerHTML = `<div class="chip" onclick="switchTab('races')" style="cursor:pointer;color:var(--muted);border-color:var(--border)">No races</div>`;
     }
