@@ -14,14 +14,18 @@ const DOCS_PAGE = 'https://developer.garmin.com/gc-developer-program/personal/sw
 
 // Access tokens last 24h and there are no refresh tokens — cache per isolate and re-mint when close to expiry.
 let cachedToken = null;   // { token, expiresAt }
+let keyInfo = null;       // { length, trimmed } — reported on failures (never the key itself)
 
 const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers });
 
 async function getToken(env, force) {
   if (!force && cachedToken && cachedToken.expiresAt - Date.now() > 60 * 60 * 1000) return cachedToken.token;
-  const key = env.GARMIN_API_KEY;
-  if (!key) throw new Error('GARMIN_API_KEY is not set in Cloudflare');
+  const rawKey = env.GARMIN_API_KEY;
+  if (!rawKey) throw new Error('GARMIN_API_KEY is not set in Cloudflare');
+  // Pasted secrets often carry a stray space/newline or quotes — strip them
+  const key = String(rawKey).trim().replace(/^["']|["']$/g, '').replace(/^ApiKey\s+/i, '');
+  keyInfo = { length: key.length, trimmed: key !== rawKey };
   const call = () => fetch(TOKEN_URL, { method: 'POST', headers: { 'Authorization': 'ApiKey ' + key, 'Accept': 'application/json' } });
   let r = await call();
   if (r.status >= 500) { await new Promise(z => setTimeout(z, 1500)); r = await call(); }   // one retry on server/edge errors
@@ -136,7 +140,7 @@ export async function onRequestPost(context) {
     if (action === 'status') {
       let token;
       try { token = await getToken(context.env, true); }
-      catch (e) { return json({ ok: false, error: e.message, status: e.status, cfRay: e.cfRay, server: e.server, net: await netCheck() }); }
+      catch (e) { return json({ ok: false, error: e.message, status: e.status, cfRay: e.cfRay, server: e.server, key: keyInfo, net: e.status === 401 || e.status === 403 ? null : await netCheck() }); }
       return json({ ok: true, tokenOk: !!token, tokenFields: cachedToken.raw, expiresAt: new Date(cachedToken.expiresAt).toISOString() });
     }
 
