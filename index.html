@@ -1247,6 +1247,72 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
 /* ── PRs: section headings match home/stats ── */
 #page-prs .section-label { font-family: var(--font-display); font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 22px 0 10px; }
 
+
+/* ── SEASON PLANNER v2 ── */
+.sp-race { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.sp-race:last-child { border-bottom: none; }
+.sp-race b { display: block; font-family: var(--font-display); font-size: 13px; font-weight: 600; }
+.sp-race span { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; font-family: var(--font-mono); }
+.sp-role { display: flex; background: var(--surface2); border-radius: 8px; padding: 2px; }
+.sp-role button { border: none; background: none; color: var(--muted); font-family: var(--font-display); font-weight: 700; font-size: 12px; width: 30px; padding: 5px 0; border-radius: 6px; cursor: pointer; }
+.sp-role button.on { background: rgba(79,196,168,.18); color: var(--tri); }
+.sp-tpl { display: grid; grid-template-columns: 38px 1fr 52px; gap: 8px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+.sp-tpl b { font-family: var(--font-display); font-size: 12px; }
+.sp-tpl.open { border-bottom: none; }
+.sp-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.sp-chip { font-size: 10px; padding: 3px 7px; border-radius: 6px; font-weight: 600; font-family: var(--font-display); }
+.sp-max { font-family: var(--font-mono); font-size: 11px; color: var(--muted); text-align: right; }
+.sp-edit { background: var(--surface2); border-radius: 10px; padding: 10px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 8px; }
+.sp-edit-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.sp-edit-lbl { font-size: 10px; color: var(--muted); width: 58px; text-transform: uppercase; letter-spacing: .06em; font-family: var(--font-display); }
+.sp-step { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border2); background: var(--surface); color: var(--text); font-size: 16px; cursor: pointer; }
+.sp-tot { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
+.sp-tot b { display: block; font-size: 15px; }
+.sp-tot span { font-size: 10px; color: var(--muted); }
+.sp-warn { font-size: 11px; color: var(--mar); background: rgba(240,160,80,.1); border: 1px solid rgba(240,160,80,.3); border-radius: 10px; padding: 10px 12px; margin-top: 10px; line-height: 1.5; }
+.sp-preview { font-size: 11px; color: var(--muted); text-align: center; margin-top: 14px; font-family: var(--font-mono); line-height: 1.6; }
+.sp-tl { display: flex; height: 30px; border-radius: 8px; overflow: hidden; gap: 2px; }
+.sp-tl div { display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color: #0a0a0f; font-family: var(--font-display); min-width: 0; overflow: hidden; }
+.sp-tl-marks { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 6px; gap: 8px; }
+.sp-bars { display: flex; align-items: flex-end; gap: 2px; height: 110px; }
+.sp-bars i { flex: 1; border-radius: 2px 2px 0 0; display: flex; flex-direction: column-reverse; overflow: hidden; cursor: pointer; min-width: 2px; }
+.sp-bars i b { display: block; }
+.sp-bars i.now { outline: 1.5px solid var(--tri); outline-offset: 1px; }
+.sp-bars i.race { box-shadow: 0 -3px 0 var(--tri); }
+.sp-wk { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 12px; }
+.sp-wk:last-child { border-bottom: none; }
+.sp-wk b { display: block; font-family: var(--font-display); font-size: 13px; }
+.sp-wk span { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.sp-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+.sp-actions .garage-add-btn { padding: 11px 6px; font-size: 12px; }
+.wv-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 4px; }
+.wv-title { font-family: var(--font-display); font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+.wv-sub { font-size: 11px; color: var(--muted); margin-top: 3px; font-family: var(--font-mono); }
+.wv-focus { text-align: center; font-size: 11px; color: var(--tri); margin-top: 6px; }
+.wv-day { display: grid; grid-template-columns: 40px 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.wv-day:last-child { border-bottom: none; }
+.wv-dn { text-align: center; }
+.wv-dn span { display: block; font-size: 9px; color: var(--muted); font-family: var(--font-display); letter-spacing: .06em; }
+.wv-dn b { display: block; font-size: 16px; font-family: var(--font-display); margin-top: 1px; }
+.wv-day.today .wv-dn span, .wv-day.today .wv-dn b { color: var(--tri); }
+.wv-ses { display: flex; gap: 10px; padding: 4px 0; cursor: pointer; }
+.wv-ses b { display: block; font-family: var(--font-display); font-size: 13px; font-weight: 600; color: var(--text); }
+.wv-ses span { display: block; font-size: 11px; color: var(--muted); margin-top: 1px; line-height: 1.45; }
+.wv-ses.missed b { color: var(--muted); }
+.wv-ses.extra { cursor: default; }
+.wv-bar { width: 3px; border-radius: 2px; flex-shrink: 0; align-self: stretch; }
+.wv-done { color: var(--ok); font-size: 11px; font-weight: 700; display: inline !important; }
+.wv-miss { color: var(--warn); font-size: 10px; font-weight: 600; display: inline !important; margin-left: 4px; }
+.wv-empty { color: var(--dim); font-size: 12px; padding-top: 6px; }
+.wv-detail { font-size: 12px; color: var(--text); line-height: 1.55; margin-top: 6px; background: var(--surface2); border-radius: 8px; padding: 10px; }
+.wv-acts { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.wv-acts button, .wv-ease { border: 1px solid var(--border2); background: var(--surface); color: var(--text); font-family: var(--font-display); font-size: 11px; font-weight: 600; padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+.wv-acts button.danger { color: var(--warn); }
+.wv-ease { margin-top: 6px; color: var(--mar); border-color: rgba(240,160,80,.4); background: rgba(240,160,80,.1); }
+.sp-season-row { margin-top: 12px; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 10px; cursor: pointer; }
+.sp-season-row b { display: block; font-family: var(--font-display); font-size: 14px; }
+.sp-season-row span { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+
 /* ── STRENGTH GENERATOR ── */
 .act-brb-tag { font-family: var(--font-display); font-size: 9px; font-weight: 700; letter-spacing: .06em; padding: 2px 5px; border-radius: 4px; background: rgba(232,93,117,.15); color: var(--strength); vertical-align: 2px; }
 .sg-timer-wrap { position: sticky; top: 0; z-index: 5; margin: 14px 0 0; background: var(--bg); padding: 8px 0; }
@@ -1508,6 +1574,11 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
     <!-- CALENDAR -->
     <div class="page" id="page-calendar">
       <div class="page-inner">
+        <div id="wk-view"></div>
+
+        <details class="st-more" id="cal-month-wrap">
+          <summary>Month view <span>›</span></summary>
+          <div style="margin-top:12px">
         <div class="cal-header">
           <button class="cal-nav-btn" onclick="calPrevMonth()">&#8249;</button>
           <div class="cal-month-label" id="cal-month-label"></div>
@@ -1531,42 +1602,19 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
           </div>
           <div id="cal-detail-content"></div>
         </div>
-        <!-- 7-day strip -->
-        <div style="margin-top:16px">
-          <div class="section-label">Next 7 days</div>
-          <div id="seven-day-strip" class="seven-day-strip"></div>
-        </div>
+                  </div>
+        </details>
 
-        <!-- Training plan -->
-        <div style="margin-top:16px">
-          <div class="section-label">Training plan</div>
-          <div class="card" style="padding:14px 16px;margin-bottom:10px">
-            <div style="font-size:12px;color:var(--muted);line-height:1.6" id="cal-plan-summary">
-              Ask your Coach to generate or update your training plan — it will appear on the calendar automatically.
-            </div>
-          </div>
-          <div id="plan-compliance-card"></div>
-          <div id="adapt-plan-result"></div>
-          <button class="add-race-btn" style="margin-bottom:10px" onclick="switchTab('planbuilder')">
-            &#128197; Build season plan to race day
-          </button>
-          <button class="add-race-btn" style="margin-bottom:10px;background:var(--surface2);color:var(--text)" id="adapt-plan-btn" onclick="adaptPlan()">
-            &#128260; Adapt plan to my actual training
-          </button>
-        </div>
+        <!-- legacy hooks kept hidden so older code paths stay safe -->
+        <div style="display:none"><div id="seven-day-strip"></div><div id="cal-plan-summary"></div><div id="plan-compliance-card"></div><div id="adapt-plan-result"></div><button id="adapt-plan-btn"></button></div>
       </div>
     </div>
 
     <!-- PLAN BUILDER -->
     <div class="page" id="page-planbuilder">
       <div class="page-inner">
-        <div class="date-banner" style="margin-bottom:16px">
-          <div>
-            <div class="date-greeting" style="font-size:16px">📅 Season Plan</div>
-            <div class="date-sub" id="planbuilder-sub">Your arc to race day</div>
-          </div>
-          <button class="refresh-btn" onclick="switchTab('calendar')" style="font-size:11px;font-family:var(--font-display);font-weight:600;padding:0 10px;width:auto">← Calendar</button>
-        </div>
+        <div style="display:flex;justify-content:flex-end"><button class="st-link" onclick="switchTab('calendar')" style="font-size:12px">← Calendar</button></div>
+        <div id="planbuilder-sub" style="display:none"></div>
         <div id="planbuilder-content"></div>
       </div>
     </div>
@@ -2750,7 +2798,7 @@ function switchTab(tab) {
     renderDashboard(updated);
   }
   if (tab === 'activities' && allActivities.length > 0) renderActivities(allActivities);
-  if (tab === 'calendar') { renderCalendar(); renderPlanCompliance(); }
+  if (tab === 'calendar') { renderCalendar(); renderWeekView(); }
   if (tab === 'strength') { try { initStrength(); } catch(e) { console.warn('strength', e); } }
   if (tab === 'recovery') { updateRecoveryMetrics(); try { renderBodyMap(); } catch(e) { console.warn('bodymap', e); } }
   initTimer();   // leaving or entering a page always stops a running timer and releases the screen
@@ -2765,7 +2813,7 @@ function switchTab(tab) {
   if (tab === 'debug') renderDebugPage();
   if (tab === 'racelab') renderRaceLab();
   if (tab === 'today') renderTodayPage();
-  if (tab === 'planbuilder') initPlanBuilder();
+  if (tab === 'planbuilder') initSeasonPage();
   if (tab === 'workouts') initWorkoutsPage();
 }
 
@@ -3277,7 +3325,7 @@ function buildWidgetSnapshot(d) {
   try { if (sgCompletedOn(todayStr)) doneActs.push(...sgActivities().filter(a => a.start_date_local.slice(0, 10) === todayStr).slice(0, 1)); } catch (e) {}
   const doneInfo = doneActs.length ? homeTodayDone(workouts, doneActs) : null;
   const today = doneInfo ? { title: doneInfo.title, detail: doneInfo.detail.slice(0, 80), sport: 'done', swapped: !!doneInfo.swapped }
-    : workouts.length ? { title: workouts[0].title, detail: (workouts[0].detail || '').slice(0, 80), sport: (workouts[0].sport || 'run').toLowerCase(), more: workouts.length - 1 }
+    : workouts.length ? { title: planTitle(workouts[0]), detail: (workouts[0].detail || '').slice(0, 80), sport: (workouts[0].sport || 'run').toLowerCase(), more: workouts.length - 1 }
     : sessions.length ? { title: 'Rest day', detail: 'Recovery is part of the plan.', sport: 'rest' }
     : { title: doneToday ? 'Done for today' : 'Nothing planned', detail: '', sport: doneToday ? 'done' : 'none' };
   today.done = doneToday;
@@ -3301,14 +3349,14 @@ function buildWidgetSnapshot(d) {
     const ds = addDaysStr(monday, i), m = homeDayMinutes(ds), tot = Object.values(m).reduce((s, v) => s + v, 0);
     return { l, today: ds === todayStr, segs: tot ? ['Swim','Ride','Run','Strength'].filter(k => m[k]).map(k => [k, Math.round(m[k] / tot * 100) / 100]) : [] };
   });
-  const nxt = trainingPlan.filter(p => p.date > todayStr).sort((a, b) => a.date.localeCompare(b.date))[0];
+  const nxt = trainingPlan.filter(p => p.date > todayStr && p.sport !== 'rest').sort((a, b) => a.date.localeCompare(b.date))[0];
   const race = races.filter(r => r.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date))[0];
   let pace = null; try { pace = homeLoadPace(d).label; } catch (e) {}
   const weekHrs = allActivities.filter(a => homeSportOf(a) && (a.start_date_local || '').slice(0, 10) >= monday).reduce((s, a) => s + (a.moving_time || 0), 0) / 3600;
   return {
     v: 1, date: todayStr, name: homeAthleteName() || '',
     today, badge, week, days, streak: homeStreak(trained), hours: r1(weekHrs), load: pace,
-    next: nxt ? { when: nxt.date === addDaysStr(todayStr, 1) ? 'Tomorrow' : weekdayOf(nxt.date), title: nxt.title, sport: (nxt.sport || '').toLowerCase() } : null,
+    next: nxt ? { when: nxt.date === addDaysStr(todayStr, 1) ? 'Tomorrow' : weekdayOf(nxt.date), title: planTitle(nxt), sport: (nxt.sport || '').toLowerCase() } : null,
     race: race ? { name: race.name, days: daysUntil(new Date(race.date + 'T12:00:00')) } : null,
   };
 }
@@ -3388,7 +3436,7 @@ function homeTodayDone(workouts, done) {
   };
   const stats = done.map(a => (a.distance > 0 ? mToMi(a.distance).toFixed(1) + ' mi ' : '') + (homeSportOf(a) || a.type).replace('Ride', 'ride').replace('WeightTraining', 'strength').toLowerCase() +
     (a.moving_time ? ' · ' + secToTime(a.moving_time) : '')).join(' + ');
-  if (matched) return { title: matchedW.title, detail: stats, matched: true };
+  if (matched) return { title: planTitle(matchedW), detail: stats, matched: true };
   if (planned) return { title: actualTitle(), detail: (done.length > 1 ? stats + ' · ' : (done[0].moving_time && done[0].distance > 0 ? secToTime(done[0].moving_time) + ' · ' : '')) + 'planned: ' + planned.title, matched: false, swapped: true };
   return { title: actualTitle(), detail: done.length > 1 ? stats : (done[0].distance > 0 && done[0].moving_time ? secToTime(done[0].moving_time) : ''), matched: false };
 }
@@ -3410,7 +3458,7 @@ function homeTodayCardHtml() {
   } else if (workouts.length) {
     const s = workouts[0], sp = (s.sport || 'run').toLowerCase();
     icon = sportEmoji(sp); tint = HOME_SPORT_TINT[sp] || HOME_SPORT_TINT.rest;
-    title = s.title; detail = (s.detail || '') + (workouts.length > 1 ? ` <span style="color:var(--tri)">+${workouts.length - 1} more</span>` : '');
+    title = planTitle(s); detail = (s.detail || '') + (workouts.length > 1 ? ` <span style="color:var(--tri)">+${workouts.length - 1} more</span>` : '');
   } else if (sessions.length) {
     icon = '😴'; tint = HOME_SPORT_TINT.rest; title = 'Rest day'; detail = 'Recovery is part of the plan.';
   } else {
@@ -3555,14 +3603,14 @@ function homeWeekCardHtml(d) {
 
 function homeUpNextHtml() {
   const todayStr = localDateStr();
-  const next = trainingPlan.filter(p => p.date > todayStr).sort((a,b) => a.date.localeCompare(b.date))[0];
+  const next = trainingPlan.filter(p => p.date > todayStr && p.sport !== 'rest').sort((a,b) => a.date.localeCompare(b.date))[0];
   if (!next) return '';
   const sp = (next.sport || '').toLowerCase();
   const when = next.date === addDaysStr(todayStr, 1) ? 'Tomorrow' : weekdayOf(next.date);
   return `<div class="home-lbl">Up next</div>
     <div class="card home-next" onclick="switchTab('calendar')">
       <div class="home-ico home-ico-sm" style="background:${HOME_SPORT_TINT[sp] || HOME_SPORT_TINT.rest}">${sportEmoji(sp)}</div>
-      <div class="home-next-t"><b>${when} · ${next.title}</b><span>${(next.detail || '').slice(0, 60)}</span></div>
+      <div class="home-next-t"><b>${when} · ${planTitle(next)}</b><span>${(next.detail || '').slice(0, 60)}</span></div>
       <div style="color:var(--tri);font-size:18px">›</div>
     </div>`;
 }
@@ -4260,6 +4308,7 @@ function renderCalendar() {
 
   document.getElementById('cal-grid').innerHTML = html;
   renderSevenDayStrip();
+  try { renderWeekView(); } catch (e) { console.warn('week view', e); }
 }
 
 let selectedCalDay = null;
@@ -4569,6 +4618,795 @@ function initRecovery() {
   } catch(e) {}
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════
+// SEASON PLANNER v2 — ENGINE (deterministic structure)
+// Structure rules come from published plans and research:
+//   • Triathlon blocks: Triathlete 20-wk 70.3 (8 base / 6 build / 6 peak incl. 10-day taper),
+//     3 swims + 3 rides + 3 runs + 1 brick per week, every 4th week recovery, ~3¼h long ride,
+//     ~1h40 long run at peak; tune-up races mid-build.
+//   • Run blocks: Pfitzinger 18-wk marathon (6 endurance / 5 lactate-threshold / 4 race-prep /
+//     3 taper), midweek medium-long run, long runs to 20–22 mi, tier chosen from current mileage.
+//   • Between races: 1–2 days fully off within 4–5 days of a 70.3, then a low-intensity week
+//     biased to bike/swim (TrainRight).
+//   • Intensity: ~80% easy / 20% hard (Seiler; Stöggl & Sperlich 2015).
+//   • Load: ≤10% week-on-week growth on build weeks; recovery weeks ≈70% volume.
+// The AI writes the sessions INSIDE these targets; validateWeek() enforces them afterwards.
+// ══════════════════════════════════════════════════════════════════════════
+const SP_SPORTS = ['swim', 'ride', 'run', 'strength'];
+const SP_DAY = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+const SP_DEFAULT_TEMPLATE = { days: [
+  { rest: true,  sports: [],                 maxMin: 0 },
+  { sports: ['swim', 'run'],                 maxMin: 75 },
+  { sports: ['ride', 'strength'],            maxMin: 75 },
+  { sports: ['swim', 'run'],                 maxMin: 75 },
+  { sports: ['ride'],                        maxMin: 60 },
+  { sports: ['run', 'swim'],  long: 'run',   maxMin: 150 },
+  { sports: ['ride', 'strength'], long: 'ride', maxMin: 240 },
+] };
+
+// What kind of race is it, and what does the standard block look like?
+function spRaceKind(r) {
+  const lbl = raceShortLabel(r);
+  if (r.type === 'triathlon') return ({ 'SPRINT':'sprint', 'OLY':'oly', '70.3':'703', '140.6':'full' })[lbl] || '703';
+  return ({ '5K':'5k', '10K':'10k', 'HALF':'half', 'MAR':'mar', 'ULTRA':'ultra' })[lbl] || (/\b(8|12|15)K\b/.test(lbl) ? '10k' : 'half');
+}
+const SP_BLOCKS = {
+  // phases in order, standard weeks (published plan lengths)
+  sprint: { tri: true,  phases: [['Base', 4], ['Build', 4], ['Peak', 3], ['Taper', 1]], recovery: 1 },
+  oly:    { tri: true,  phases: [['Base', 6], ['Build', 5], ['Peak', 4], ['Taper', 1]], recovery: 1 },
+  '703':  { tri: true,  phases: [['Base', 8], ['Build', 6], ['Peak', 4], ['Taper', 2]], recovery: 2 },
+  full:   { tri: true,  phases: [['Base', 10], ['Build', 8], ['Peak', 6], ['Taper', 3]], recovery: 3 },
+  '5k':   { tri: false, phases: [['Endurance', 3], ['Threshold', 3], ['Race prep', 2], ['Taper', 1]], recovery: 1 },
+  '10k':  { tri: false, phases: [['Endurance', 4], ['Threshold', 3], ['Race prep', 3], ['Taper', 1]], recovery: 1 },
+  half:   { tri: false, phases: [['Endurance', 4], ['Threshold', 4], ['Race prep', 3], ['Taper', 1]], recovery: 2 },
+  mar:    { tri: false, phases: [['Endurance', 6], ['Threshold', 5], ['Race prep', 4], ['Taper', 3]], recovery: 3 },
+  ultra:  { tri: false, phases: [['Endurance', 7], ['Threshold', 5], ['Race prep', 5], ['Taper', 3]], recovery: 3 },
+};
+// Peak targets by race kind
+const SP_PEAKS = {
+  sprint: { hrsMin: 6,  hrsCap: 9,  longRide: 90,  longRun: 60,  longSwimYd: 1500 },
+  oly:    { hrsMin: 7,  hrsCap: 11, longRide: 150, longRun: 80,  longSwimYd: 2200 },
+  '703':  { hrsMin: 9,  hrsCap: 14, longRide: 195, longRun: 100, longSwimYd: 2800 },
+  full:   { hrsMin: 13, hrsCap: 20, longRide: 330, longRun: 150, longSwimYd: 4000 },
+  '5k':   { runMiMin: 20, runMiCap: 40, longRunMi: 10 },
+  '10k':  { runMiMin: 25, runMiCap: 45, longRunMi: 12 },
+  half:   { runMiMin: 28, runMiCap: 45, longRunMi: 15 },
+  mar:    { runMiMin: 40, runMiCap: 55, longRunMi: 20 },
+  ultra:  { runMiMin: 40, runMiCap: 65, longRunMi: 24 },
+};
+const SP_TAPER = { 1: [0.55], 2: [0.65, 0.45], 3: [0.75, 0.6, 0.4] };
+
+// Current fitness + paces from Strava (last 4 weeks; paces from the last ~8 weeks)
+function spFitness() {
+  const today = localDateStr(), from28 = addDaysStr(today, -28), from56 = addDaysStr(today, -56);
+  const acts = allActivities.filter(a => homeSportOf(a) && (a.start_date_local || '').slice(0, 10) >= from28 && (a.start_date_local || '').slice(0, 10) < today);
+  const sum = (t, f) => acts.filter(a => homeSportOf(a) === t).reduce((s, a) => s + f(a), 0);
+  const hours = acts.reduce((s, a) => s + (a.moving_time || 0), 0) / 3600 / 4;
+  const recent = allActivities.filter(a => (a.start_date_local || '').slice(0, 10) >= from56);
+  const median = arr => { if (!arr.length) return null; const s = [...arr].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+  const runs = recent.filter(a => homeSportOf(a) === 'Run' && a.distance > 3 * 1609 && a.moving_time > 0);
+  const rides = recent.filter(a => homeSportOf(a) === 'Ride' && a.distance > 8 * 1609 && a.moving_time > 0);
+  const swims = recent.filter(a => homeSportOf(a) === 'Swim' && a.distance > 400 && a.moving_time > 0);
+  const runPace = median(runs.map(a => a.moving_time / (a.distance / 1609.34))) || 600;           // sec per mile
+  const rideMph = median(rides.map(a => (a.distance / 1609.34) / (a.moving_time / 3600))) || 16;
+  const swimPer100 = median(swims.map(a => a.moving_time / (a.distance / 0.9144 / 100))) || 130;   // sec per 100 yd
+  const longRunMi = Math.max(0, ...recent.filter(a => homeSportOf(a) === 'Run').map(a => a.distance / 1609.34));
+  const longRideMin = Math.max(0, ...recent.filter(a => homeSportOf(a) === 'Ride').map(a => (a.moving_time || 0) / 60));
+  return {
+    hours: Math.round(hours * 10) / 10,
+    runMi: Math.round(sum('Run', a => a.distance / 1609.34) / 4 * 10) / 10,
+    rideMi: Math.round(sum('Ride', a => a.distance / 1609.34) / 4 * 10) / 10,
+    swimMi: Math.round(sum('Swim', a => a.distance / 1609.34) / 4 * 10) / 10,
+    runPace: Math.round(runPace), rideMph: Math.round(rideMph * 10) / 10, swimPer100: Math.round(swimPer100),
+    longRunMi: Math.round(longRunMi * 10) / 10, longRideMin: Math.round(longRideMin),
+  };
+}
+
+// Fit a standard block into the weeks available: extra weeks become general Prep up front;
+// too few weeks compress the build phases (taper is protected, every phase keeps ≥1 week).
+function spFitBlock(kind, avail, isFirst) {
+  const std = SP_BLOCKS[kind].phases.map(p => [...p]);
+  const stdLen = std.reduce((s, p) => s + p[1], 0);
+  if (avail >= stdLen) {
+    const extra = avail - stdLen;
+    return extra > 0 ? [[isFirst ? 'Prep' : 'Base+', extra], ...std] : std;
+  }
+  const taper = std[std.length - 1];
+  const body = std.slice(0, -1);
+  const bodyAvail = Math.max(body.length, avail - taper[1]);
+  const bodyStd = body.reduce((s, p) => s + p[1], 0);
+  const out = body.map(p => [p[0], Math.max(1, Math.round(p[1] * bodyAvail / bodyStd))]);
+  let diff = bodyAvail - out.reduce((s, p) => s + p[1], 0);
+  for (let i = 0; diff !== 0 && i < 20; i++) { const k = i % out.length; if (diff > 0) { out[k][1]++; diff--; } else if (out[k][1] > 1) { out[k][1]--; diff++; } }
+  return [...out, [taper[0], Math.min(taper[1], Math.max(1, avail - bodyAvail))]];
+}
+
+// Main: turn races + roles + template + fitness into week-by-week targets.
+function buildSeasonSkeleton(raceList, roles, template, fit) {
+  const today = localDateStr();
+  const monday = addDaysStr(today, -((new Date(today + 'T12:00:00').getDay() + 6) % 7));
+  const weekOf = ds => Math.floor((new Date(ds + 'T12:00:00') - new Date(monday + 'T12:00:00')) / (7 * 86400000));
+  const upcoming = raceList.filter(r => r.date >= today).sort((a, b) => a.date.localeCompare(b.date));
+  if (!upcoming.length) return null;
+  const A = upcoming.filter(r => (roles[r.id] || 'A') === 'A');
+  const Bs = upcoming.filter(r => (roles[r.id] || 'A') === 'B');
+  const lastWeek = weekOf(upcoming[upcoming.length - 1].date);
+  const weeks = [];
+  for (let i = 0; i <= lastWeek; i++) weeks.push({ n: i + 1, ws: addDaysStr(monday, i * 7) });
+
+  // 1. Lay out phases for each A race back-to-back (recovery weeks between them)
+  let cursor = 0;
+  (A.length ? A : [upcoming[upcoming.length - 1]]).forEach((race, idx) => {
+    const kind = spRaceKind(race), rw = weekOf(race.date);
+    const avail = rw - cursor + 1;
+    if (avail < 1) return;
+    const block = spFitBlock(kind, avail, idx === 0);
+    let w = cursor;
+    block.forEach(([phase, len]) => { for (let k = 0; k < len && w <= rw; k++, w++) Object.assign(weeks[w], { phase, phaseWeek: k + 1, phaseLen: len, race: race.id, kind }); });
+    for (; w <= rw; w++) Object.assign(weeks[w], { phase: 'Taper', phaseWeek: 1, phaseLen: 1, race: race.id, kind });
+    weeks[rw].raceWeek = race.id;
+    const rec = SP_BLOCKS[kind].recovery;
+    for (let k = 1; k <= rec && rw + k <= lastWeek; k++) Object.assign(weeks[rw + k], { phase: 'Recovery', phaseWeek: k, phaseLen: rec, race: null, kind, afterRace: race.id });
+    cursor = rw + 1 + rec;
+  });
+  // weeks after the last A race (B races only) continue as maintenance
+  weeks.forEach(w => { if (!w.phase) Object.assign(w, { phase: 'Maintain', phaseWeek: 1, phaseLen: 1, kind: weeks[Math.max(0, weeks.indexOf(w) - 1)].kind || spRaceKind(upcoming[0]) }); });
+  // B races: mini-taper race week + an easy week after longer ones
+  Bs.forEach(r => { const rw = weekOf(r.date); if (weeks[rw]) { weeks[rw].raceWeek = r.id; weeks[rw].bRace = true; if (['703','half','mar','full'].includes(spRaceKind(r)) && weeks[rw + 1] && weeks[rw + 1].phase !== 'Taper') weeks[rw + 1].postB = true; } });
+
+  // 2. Volume targets
+  const H0 = Math.max(4, fit.hours || 0);
+  const tplRunDays = template.days.filter(d => !d.rest && d.sports.includes('run')).length;
+  let loadCount = 0, prevLoadHrs = H0, prevRunMi = Math.max(10, fit.runMi || 0);
+  let triPeakRunMi = null;
+  const runBlock = {};
+  let prevSport = null;  // last load week's hours per sport (no sport regresses between load weeks)   // per-race run-block start/peak, fixed once (so the peak can't creep)
+  // your current weekly hours per sport (used to blend early weeks from where you are)
+  const curH = { swim: (fit.swimMi || 0) * 1760 / 100 * fit.swimPer100 / 3600, ride: (fit.rideMi || 0) / fit.rideMph, run: (fit.runMi || 0) * fit.runPace / 3600 };
+  weeks.forEach((w, i) => {
+    const kind = w.kind, blk = SP_BLOCKS[kind], pk = SP_PEAKS[kind];
+    const prog = w.phaseLen > 1 ? (w.phaseWeek - 1) / (w.phaseLen - 1) : 1;      // 0→1 through the phase
+    const loadPhase = !['Taper', 'Recovery'].includes(w.phase);
+    if (loadPhase) loadCount++; else loadCount = 0;
+    w.isRecovery = (loadPhase && loadCount % 4 === 0) || w.postB || w.phase === 'Recovery';
+    const lerp = (a, b) => a + (b - a) * prog;
+
+    if (blk.tri) {
+      const peakH = Math.min(Math.max(H0 * 1.7, pk.hrsMin), Math.min(H0 * 2.3, pk.hrsCap));
+      let h = ({ Prep: lerp(H0, H0 * 1.15), 'Base+': lerp(H0 * 1.1, peakH * 0.75), Base: lerp(H0 * 1.1, peakH * 0.78), Build: lerp(peakH * 0.8, peakH * 0.95), Peak: peakH, Maintain: H0 })[w.phase];
+      if (w.phase === 'Taper') h = peakH * (SP_TAPER[w.phaseLen] || SP_TAPER[1])[w.phaseWeek - 1];
+      if (w.phase === 'Recovery') h = w.phaseWeek === 1 ? H0 * 0.55 : H0 * 0.85;
+      // never step DOWN between load weeks (e.g. Prep → Base), never grow more than 10%
+      if (!w.isRecovery && loadPhase) { h = Math.min(Math.max(h, prevLoadHrs), prevLoadHrs * 1.10); prevLoadHrs = h; }
+      if (w.isRecovery && w.phase !== 'Recovery') h = prevLoadHrs * 0.7;
+      const split = ({ Prep: [.14, .44, .32, .10], 'Base+': [.15, .47, .30, .08], Base: [.15, .48, .30, .07], Build: [.15, .50, .30, .05], Peak: [.14, .52, .30, .04], Taper: [.18, .45, .32, .05], Recovery: [.25, .50, .15, .10], Maintain: [.15, .45, .30, .10] })[w.phase];
+      w.hours = { swim: h * split[0], ride: h * split[1], run: h * split[2], strength: h * split[3] };
+      // Early on, start from YOUR current mix and blend toward the triathlon split (don't cut running you already do)
+      if (['Prep', 'Base+', 'Base'].includes(w.phase)) {
+        const blend = w.phase === 'Prep' ? 0.8 : w.phase === 'Base+' ? 0.6 : 0.4;
+        const recF = w.isRecovery ? 0.7 : 1;
+        ['swim', 'ride', 'run'].forEach(k => { w.hours[k] = Math.max(w.hours[k], curH[k] * blend * recF + w.hours[k] * (1 - blend) * 0.5, curH[k] * 0.9 * recF); });
+      }
+      if (loadPhase && !w.isRecovery) {
+        if (prevSport) ['swim', 'ride', 'run'].forEach(k => { w.hours[k] = Math.max(w.hours[k], Math.min(prevSport[k], w.hours[k] * 1.25)); });
+        prevSport = { ...w.hours };
+        prevLoadHrs = Math.max(prevLoadHrs, Object.values(w.hours).reduce((s2, v) => s2 + v, 0) - w.hours.strength);
+      }
+      // long sessions (minutes), scaled to the race's published peak
+      const lr = ({ Prep: lerp(.40, .50), 'Base+': lerp(.45, .70), Base: lerp(.45, .75), Build: lerp(.75, .92), Peak: lerp(.92, 1), Taper: [.6, .4, .3][w.phaseWeek - 1] || .4, Recovery: .35, Maintain: .45 })[w.phase];
+      const lrun = ({ Prep: lerp(.5, .6), 'Base+': lerp(.55, .8), Base: lerp(.6, .8), Build: lerp(.8, .95), Peak: lerp(.95, 1), Taper: [.7, .45, .35][w.phaseWeek - 1] || .45, Recovery: .35, Maintain: .6 })[w.phase];
+      const recF = w.isRecovery && w.phase !== 'Recovery' ? 0.7 : 1;
+      w.longRideMin = Math.round(pk.longRide * lr * recF / 5) * 5;
+      w.longRunMin = Math.round(pk.longRun * lrun * recF / 5) * 5;
+      w.longSwimYd = Math.round(pk.longSwimYd * Math.min(1, lr + 0.15) * recF / 100) * 100;
+      w.brickMin = ['Build', 'Peak'].includes(w.phase) && !w.isRecovery ? Math.round(lerp(15, 30) / 5) * 5 : 0;
+      w.runMi = Math.round(w.hours.run * 3600 / fit.runPace * 10) / 10;
+      if (w.phase === 'Peak') triPeakRunMi = Math.max(triPeakRunMi || 0, w.runMi);
+      w.keys = ({ Prep: 0, 'Base+': 1, Base: 1, Build: 3, Peak: 3, Taper: 2, Recovery: 0, Maintain: 1 })[w.phase];
+      w.strengthN = ({ Prep: 2, 'Base+': 2, Base: 2, Build: 1, Peak: 1, Taper: 0, Recovery: 1, Maintain: 2 })[w.phase];
+    } else {
+      // Run block: target run miles (Pfitzinger tier from the mileage you'll carry in)
+      const bkey = w.race || w.afterRace || 'x';
+      if (!runBlock[bkey]) {
+        const startMi0 = Math.max(fit.runMi || 0, triPeakRunMi || 0, prevRunMi, 15);
+        runBlock[bkey] = { startMi: startMi0, peakMi: Math.min(Math.max(Math.round(startMi0 * 1.8), pk.runMiMin), pk.runMiCap) };
+      }
+      const { startMi, peakMi } = runBlock[bkey];
+      let mi = ({ Endurance: lerp(startMi, peakMi * 0.85), 'Base+': lerp(startMi, peakMi * 0.8), Prep: lerp(startMi * 0.9, startMi * 1.1), Threshold: lerp(peakMi * 0.88, peakMi), 'Race prep': peakMi * 0.95, Maintain: startMi })[w.phase];
+      if (w.phase === 'Taper') mi = peakMi * (SP_TAPER[w.phaseLen] || SP_TAPER[1])[w.phaseWeek - 1];
+      if (w.phase === 'Recovery') mi = startMi * (w.phaseWeek === 1 ? 0.3 : 0.6);
+      if (!w.isRecovery && loadPhase) { mi = Math.min(Math.max(mi, prevRunMi), prevRunMi * 1.10 + 1); prevRunMi = mi; }
+      if (w.isRecovery && w.phase !== 'Recovery') mi = prevRunMi * 0.75;
+      w.runMi = Math.round(mi * 10) / 10;
+      const runH = mi * fit.runPace / 3600;
+      const cross = ({ Endurance: [0.5, 1.5, 1.0], 'Base+': [0.5, 1.5, 1.0], Prep: [0.5, 1.5, 1.0], Threshold: [0.4, 1.0, 0.75], 'Race prep': [0.3, 0.75, 0.5], Taper: [0, 0.5, 0], Recovery: [0.5, 1.5, 0.5], Maintain: [0.5, 1.5, 1.0] })[w.phase];
+      w.hours = { swim: cross[0], ride: cross[1], run: runH, strength: cross[2] };
+      const lPeak = pk.longRunMi;
+      const startLong = Math.min(Math.max(fit.longRunMi || 8, lPeak * 0.5), lPeak * 0.7);
+      let lmi = ({ Endurance: lerp(startLong, lPeak * 0.85), 'Base+': lerp(startLong, lPeak * 0.8), Prep: startLong, Threshold: lerp(lPeak * 0.85, lPeak), 'Race prep': lerp(lPeak, lPeak * 0.95), Maintain: startLong })[w.phase];
+      if (w.phase === 'Taper') lmi = lPeak * [0.8, 0.6, 0.4][w.phaseWeek - 1 + (3 - w.phaseLen)] ;
+      if (w.phase === 'Recovery') lmi = w.phaseWeek === 1 ? 0 : startLong * 0.6;
+      if (w.isRecovery && w.phase !== 'Recovery') lmi *= 0.75;
+      w.longRunMi = Math.round(Math.min(lmi, w.runMi * 0.45) );
+      w.longRunMin = Math.round(w.longRunMi * fit.runPace / 60 / 5) * 5;
+      w.mlrMi = ['Threshold', 'Race prep'].includes(w.phase) && !w.isRecovery && ['mar', 'ultra', 'half'].includes(kind) ? Math.round(Math.min(lPeak * 0.7, w.runMi * 0.25)) : 0;
+      w.longRideMin = Math.round(Math.min(120, w.hours.ride * 60 * 0.6) / 5) * 5;
+      w.longSwimYd = 0; w.brickMin = 0;
+      w.keys = ({ Endurance: 1, 'Base+': 1, Prep: 0, Threshold: 2, 'Race prep': 2, Taper: 1, Recovery: 0, Maintain: 1 })[w.phase];
+      w.strengthN = ({ Endurance: 2, 'Base+': 2, Prep: 2, Threshold: 1, 'Race prep': 1, Taper: 0, Recovery: 1, Maintain: 2 })[w.phase];
+    }
+    if (w.raceWeek && w.bRace) { Object.keys(w.hours).forEach(k => w.hours[k] *= 0.7); w.keys = 1; w.longRideMin = Math.round(w.longRideMin * 0.5); w.longRunMin = Math.round(w.longRunMin * 0.5); }
+    Object.keys(w.hours).forEach(k => w.hours[k] = Math.round(w.hours[k] * 100) / 100);
+    w.totalHrs = Math.round(Object.values(w.hours).reduce((s, v) => s + v, 0) * 10) / 10;
+    w.focus = spFocus(w);
+  });
+  return { monday, weeks, races: upcoming.map(r => ({ id: r.id, name: r.name, date: r.date, type: r.type, kind: spRaceKind(r), role: roles[r.id] || 'A', week: weekOf(r.date) + 1 })) };
+}
+
+function spFocus(w) {
+  const tri = SP_BLOCKS[w.kind].tri;
+  if (w.raceWeek) return w.bRace ? 'Tune-up race week · keep it light' : 'Race week · sharpen and rest';
+  if (w.isRecovery && w.phase !== 'Recovery') return 'Recovery week · absorb the training';
+  return ({
+    Prep: 'General prep · aerobic base, strength, technique',
+    'Base+': 'Extended base · steady aerobic volume',
+    Base: tri ? 'Base · aerobic endurance, strides, swim technique' : 'Base · aerobic mileage',
+    Build: 'Build · threshold work in all three sports, weekly brick',
+    Peak: 'Peak · race-pace specificity, longest sessions',
+    Endurance: 'Endurance · build mileage, marathon-pace touches',
+    Threshold: 'Lactate threshold · tempo runs + medium-long run',
+    'Race prep': 'Race prep · VO2 intervals, marathon-pace long runs',
+    Taper: 'Taper · cut volume, keep intensity, arrive fresh',
+    Recovery: w.phaseWeek === 1 ? 'Post-race recovery · 1–2 days off, easy bike/swim' : 'Easy return · rebuild gently',
+    Maintain: 'Maintain fitness',
+  })[w.phase] || w.phase;
+}
+
+// Session minutes ↔ distance using your own paces
+function spDistance(sport, min, fit) {
+  if (sport === 'run') return { distanceMi: Math.round(min * 60 / fit.runPace * 10) / 10 };
+  if (sport === 'ride') return { distanceMi: Math.round(min / 60 * fit.rideMph * 10) / 10 };
+  if (sport === 'swim') { const yd = Math.round(min * 60 / fit.swimPer100 * 100 / 50) * 50; return { yards: yd, distanceMi: Math.round(yd / 1760 * 100) / 100 }; }
+  return {};
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SEASON PLANNER v2 — WEEK WRITER + VALIDATOR
+// spDraftWeek(): rule-based sessions for one week (also the fallback if the AI fails).
+// spValidateWeek(): takes the AI's sessions and enforces the week's rules, logging every fix.
+// ══════════════════════════════════════════════════════════════════════════
+const SP_HARD_TYPES = ['tempo', 'threshold', 'intervals', 'vo2', 'race-pace', 'css', 'fartlek'];
+const SP_LABEL = { swim: 'Swim', ride: 'Bike', run: 'Run', strength: 'Strength' };
+
+function spPaces(fit) {
+  const p = s => { s = Math.round(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  return {
+    easy: p(fit.runPace + 15) + '/mi', mp: p(fit.runPace - 45) + '/mi', threshold: p(fit.runPace - 75) + '/mi', vo2: p(fit.runPace - 105) + '/mi',
+    css: p(fit.swimPer100 - 8) + '/100yd', swimEasy: p(fit.swimPer100 + 5) + '/100yd', rideEasy: Math.round(fit.rideMph * 0.95) + ' mph (Z2)',
+  };
+}
+function spWeekDates(w) { return [0, 1, 2, 3, 4, 5, 6].map(i => addDaysStr(w.ws, i)); }
+// In run-focused blocks, bike days can host runs (running replaces most cycling)
+function spDaySports(template, i, w) {
+  const d = template.days[i]; if (d.rest) return [];
+  return !SP_BLOCKS[w.kind].tri && d.sports.includes('ride') && !d.sports.includes('run') ? [...d.sports, 'run'] : d.sports;
+}
+function spMk(date, sport, type, min, fit, extra = {}) {
+  const hard = SP_HARD_TYPES.includes(type);
+  return { date, day: weekdayOf(date), sport, type, intensity: extra.intensity || (hard ? 'hard' : (type === 'long' || type === 'brick' || type === 'mlr') ? 'moderate' : 'easy'),
+    durationMin: Math.round(min / 5) * 5, ...(sport !== 'strength' && sport !== 'rest' && sport !== 'race' ? spDistance(sport, min, fit) : {}), key: hard, ...extra };
+}
+
+// Rule-based week (deterministic). Also defines the "slots" the validator falls back to.
+function spDraftWeek(w, template, fit, raceById) {
+  const dates = spWeekDates(w), P = spPaces(fit), out = [];
+  const raceDate = w.raceWeek ? (raceById[w.raceWeek] || {}).date : null;
+  // In race week nothing but the shakeout in the last 2 days, and long sessions ≥3 days out
+  const okDay = (i, long) => !raceDate || dates[i] <= addDaysStr(raceDate, long ? -3 : -2);
+  const dayIdx = (sport, long) => dates.map((d, i) => i).filter(i => spDaySports(template, i, w).includes(sport) && okDay(i, long));
+  const longDay = kind => { const i = template.days.findIndex(d => d.long === kind && !d.rest); return i >= 0 && okDay(i, true) ? i : null; };
+  const used = {}; const add = (i, s) => { out.push(s); used[i] = (used[i] || 0) + s.durationMin; };
+
+  template.days.forEach((d, i) => { if (d.rest && (!raceDate || dates[i] < raceDate)) out.push({ date: dates[i], day: weekdayOf(dates[i]), sport: 'rest', type: 'rest', intensity: 'easy', durationMin: 0, title: 'Rest', detail: 'Full recovery day' }); });
+  if (raceDate) {
+    const r = raceById[w.raceWeek];
+    out.push({ date: raceDate, day: weekdayOf(raceDate), sport: 'race', type: 'race', intensity: 'hard', durationMin: 0, title: r.name, detail: w.bRace ? 'Tune-up race — race it, but no taper beyond this week' : 'Race day — trust the taper', key: true });
+    const eve = addDaysStr(raceDate, -1);
+    if (eve >= w.ws) out.push(spMk(eve, SP_BLOCKS[w.kind].tri ? 'ride' : 'run', 'easy', 20, fit, { title: 'Shakeout', detail: '15–20 min very easy with 3–4 short pickups' }));
+  }
+
+  // Long sessions
+  const lrD = longDay('ride') ?? (dayIdx('ride', true).slice(-1)[0] ?? null);
+  const lrunD = longDay('run') ?? (dayIdx('run', true).filter(i => i !== lrD).slice(-1)[0] ?? null);
+  let longRide = 0, longRun = 0, brick = 0, mlr = 0;
+  if (lrD != null && w.longRideMin >= 30) {
+    longRide = Math.min(w.longRideMin, template.days[lrD].maxMin - (w.brickMin || 0));
+    add(lrD, spMk(dates[lrD], 'ride', 'long', longRide, fit, { title: 'Long ride', detail: `Steady Z2 at ~${P.rideEasy}; fuel every 45 min` }));
+    if (w.brickMin) { brick = w.brickMin; add(lrD, spMk(dates[lrD], 'run', 'brick', brick, fit, { title: 'Brick run', detail: `Straight off the bike: ${brick} min, first half easy, settle to goal 70.3 run effort` })); }
+  }
+  const lrunTarget = w.longRunMi ? w.longRunMi * fit.runPace / 60 : w.longRunMin;
+  if (lrunD != null && lrunTarget >= 20) {
+    longRun = Math.min(lrunTarget, template.days[lrunD].maxMin - (used[lrunD] || 0));
+    const mpPart = ['Race prep'].includes(w.phase) && !w.isRecovery ? ` with the middle ${Math.round(longRun * 0.35)} min at marathon pace (${P.mp})` : '';
+    add(lrunD, spMk(dates[lrunD], 'run', 'long', longRun, fit, { title: 'Long run', detail: `Easy ${P.easy}${mpPart}` }));
+  }
+  if (w.mlrMi) {
+    const cand = dayIdx('run').filter(i => i !== lrunD && i !== lrD && Math.abs(i - (lrunD ?? 99)) > 1)[0];
+    if (cand != null) { mlr = Math.min(w.mlrMi * fit.runPace / 60, template.days[cand].maxMin); add(cand, spMk(dates[cand], 'run', 'mlr', mlr, fit, { title: 'Medium-long run', detail: `Steady aerobic, ~${P.easy}` })); }
+  }
+
+  // Strength
+  const strDays = dayIdx('strength').filter(i => i !== lrunD).slice(0, w.strengthN);
+  strDays.forEach(i => add(i, spMk(dates[i], 'strength', 'strength', ['Build', 'Peak', 'Threshold', 'Race prep'].includes(w.phase) ? 25 : 30, fit, { title: 'Strength', detail: 'Single-leg strength, posterior chain, core anti-rotation' })));
+
+  // Remaining volume per sport across its other days
+  const fill = (sport, targetMin, minEach) => {
+    const already = out.filter(s => s.sport === sport).reduce((a, s) => a + s.durationMin, 0);
+    let rem = targetMin - already;
+    const slots = dayIdx(sport).filter(i => !out.some(s => s.sport === sport && s.date === dates[i]));
+    if (rem < minEach || !slots.length) return;
+    const n = Math.min(slots.length, Math.max(1, Math.floor(rem / minEach)));
+    const pick = slots.slice(0, n);
+    pick.forEach(i => { const room = Math.max(minEach, template.days[i].maxMin - (used[i] || 0)); const m = Math.min(room, rem / n); add(i, spMk(dates[i], sport, 'easy', m, fit, { title: sport === 'swim' ? 'Swim' : sport === 'ride' ? 'Endurance ride' : 'Easy run', detail: sport === 'swim' ? `Drills + aerobic sets at ~${P.swimEasy}` : sport === 'ride' ? `Z2, cadence 85–95` : `Conversational, ${P.easy}` })); });
+  };
+  fill('swim', w.hours.swim * 60, 25); fill('ride', w.hours.ride * 60, 30); fill('run', w.hours.run * 60, 25);
+  out.capacity = ['swim', 'ride', 'run'].filter(sp => { const t = w.hours[sp] * 60; const got = out.filter(x => x.sport === sp).reduce((a, x) => a + x.durationMin, 0); return t > 30 && got < t * 0.85; });
+
+  // Quality: upgrade easy sessions to key workouts, never on back-to-back days
+  spAssignKeys(out, w, P);
+  const cap = out.capacity; const sorted = out.sort((a, b) => a.date.localeCompare(b.date)); sorted.capacity = cap; return sorted;
+}
+
+function spAssignKeys(sessions, w, P) {
+  const tri = SP_BLOCKS[w.kind].tri;
+  const plan = tri
+    ? ({ 'Base+': [['run', 'fartlek']], Base: [['run', 'fartlek']], Build: [['ride', 'threshold'], ['run', 'tempo'], ['swim', 'css']], Peak: [['ride', 'race-pace'], ['run', 'tempo'], ['swim', 'css']], Taper: [['ride', 'race-pace'], ['run', 'tempo']], Maintain: [['run', 'fartlek']] })[w.phase] || []
+    : ({ Endurance: [['run', 'tempo']], 'Base+': [['run', 'fartlek']], Threshold: [['run', 'threshold'], ['run', 'tempo']], 'Race prep': [['run', 'vo2'], ['run', 'threshold']], Taper: [['run', 'tempo']], Maintain: [['run', 'fartlek']] })[w.phase] || [];
+  const want = w.isRecovery && w.phase !== 'Taper' ? 0 : w.keys;
+  const hardDays = () => new Set(sessions.filter(s => s.intensity === 'hard' && s.sport !== 'race').map(s => s.date));
+  const longDays = new Set(sessions.filter(s => s.type === 'long' || s.type === 'brick').map(s => s.date));
+  const longRunDays = new Set(sessions.filter(s => s.sport === 'run' && s.type === 'long').map(s => s.date));
+  const near = (d, set) => set.has(addDaysStr(d, -1)) || set.has(addDaysStr(d, 1)) || set.has(d);
+  plan.slice(0, want).forEach(([sport, type]) => {
+    const hd = hardDays();
+    // never hard on a long day, the day before/after a hard day, or (for runs) right next to the long run
+    const cand = sessions.filter(s => s.sport === sport && s.type === 'easy' && !near(s.date, hd) && !longDays.has(s.date) && !(sport === 'run' && near(s.date, longRunDays))).sort((a, b) => b.durationMin - a.durationMin)[0];
+    if (!cand) return;
+    cand.type = type; cand.intensity = 'hard'; cand.key = true;
+    const d = cand.durationMin;
+    cand.title = ({ tempo: 'Tempo run', threshold: sport === 'ride' ? 'Threshold ride' : 'Threshold run', fartlek: 'Fartlek run', vo2: 'VO2 intervals', 'race-pace': sport === 'ride' ? '70.3-pace ride' : 'Race-pace run', css: 'CSS swim' })[type];
+    cand.detail = ({
+      tempo: `WU 15m · ${Math.max(2, Math.round((d - 25) / 10))}×8m @ ${P.threshold}, 2m jog · CD 10m`,
+      threshold: sport === 'ride' ? `WU 15m · ${Math.max(2, Math.round((d - 25) / 13))}×10m @ threshold (RPE 7–8), 3m easy · CD` : `WU 15m · ${Math.round((d - 25) * 0.7)}m continuous @ ${P.threshold} · CD 10m`,
+      fartlek: `Easy with ${Math.max(6, Math.round(d / 6))}×1m surges, 1–2m easy between`,
+      vo2: `WU 15m · ${Math.max(3, Math.min(6, Math.round((d - 25) / 7)))}×1000m @ ${P.vo2}, 2–3m jog · CD 10m`,
+      'race-pace': sport === 'ride' ? `WU 15m · ${Math.max(2, Math.round((d - 25) / 20))}×20m @ 70.3 effort (RPE 6–7) · CD` : `WU 10m · ${Math.round(d * 0.5)}m @ goal race pace · CD`,
+      css: `WU 300 · ${Math.max(6, Math.round(d / 4))}×100 @ ${P.css}, 15s rest · CD 200`,
+    })[type];
+  });
+}
+
+// ── VALIDATOR ── normalizes the AI's sessions and enforces every rule for the week
+function spValidateWeek(aiSessions, w, template, fit, raceById) {
+  const fixes = [], dates = spWeekDates(w), draft = spDraftWeek(w, template, fit, raceById);
+  const dayI = d => dates.indexOf(d);
+  const raceDate = w.raceWeek ? (raceById[w.raceWeek] || {}).date : null;
+  const sportMap = { bike: 'ride', cycling: 'ride', cycle: 'ride', ride: 'ride', run: 'run', running: 'run', swim: 'swim', swimming: 'swim', strength: 'strength', lift: 'strength', weights: 'strength', rest: 'rest', race: 'race', brick: 'run' };
+  let s = (Array.isArray(aiSessions) ? aiSessions : []).map(x => {
+    const r = reconcilePlanDay({ ...x });
+    const sport = sportMap[String(r.sport || '').toLowerCase()] || null;
+    return sport ? { ...r, sport, type: String(r.type || 'easy').toLowerCase(), durationMin: Math.max(0, Math.round(Number(r.durationMin) || 0)), intensity: ['easy', 'moderate', 'hard'].includes(r.intensity) ? r.intensity : SP_HARD_TYPES.includes(String(r.type).toLowerCase()) ? 'hard' : 'easy', title: String(r.title || SP_LABEL[sport] || 'Session').slice(0, 60), detail: String(r.detail || '').slice(0, 240) } : null;
+  }).filter(x => x && dates.includes(x.date));
+  if (!s.length) return { sessions: draft, fixes: ['AI week unusable — used rule-based week'], fallback: true };
+
+  // 1. Race day + shakeout are fixed; nothing after an A race in its week
+  s = s.filter(x => x.sport !== 'race' && !(raceDate && x.date > raceDate) && !(raceDate && x.date === raceDate));
+  draft.filter(x => x.sport === 'race' || (raceDate && x.date === addDaysStr(raceDate, -1) && x.title === 'Shakeout')).forEach(x => { s = s.filter(y => y.date !== x.date || y.sport === 'rest'); s.push(x); });
+
+  // 2. Rest days and sports not allowed on a day
+  s = s.filter(x => {
+    const t = template.days[dayI(x.date)];
+    if (x.sport === 'rest' || x.sport === 'race' || x.title === 'Shakeout') return x.sport !== 'rest' || t.rest;
+    if (t.rest) { fixes.push(`removed ${x.sport} from rest day ${x.day}`); return false; }
+    if (!spDaySports(template, dayI(x.date), w).includes(x.sport)) {
+      const alt = dates.findIndex((d, i) => spDaySports(template, i, w).includes(x.sport) && !s.some(y => y.date === d && y.sport === x.sport) && (!raceDate || d <= addDaysStr(raceDate, -2)));
+      if (alt >= 0) { fixes.push(`moved ${x.sport} ${x.day}→${SP_DAY[alt]}`); x.date = dates[alt]; x.day = weekdayOf(x.date); return true; }
+      fixes.push(`dropped ${x.sport} on ${x.day} (not in your template)`); return false;
+    }
+    return true;
+  });
+  template.days.forEach((t, i) => { if (t.rest && !s.some(x => x.date === dates[i])) { const r = draft.find(x => x.date === dates[i] && x.sport === 'rest'); if (r) s.push({ ...r }); } });
+
+  // 2b. Race week: only the shakeout the day before the race
+  if (raceDate) s = s.filter(x => { const eve = addDaysStr(raceDate, -1); if (x.date === eve && x.title !== 'Shakeout' && x.sport !== 'rest') { fixes.push(`removed ${x.sport} the day before the race`); return false; } return true; });
+
+  // 3. Long sessions: on the template's long day, close to target
+  const fixLong = (sport, kind) => {
+    const target = draft.find(x => x.sport === sport && x.type === 'long');
+    if (!target) return;
+    const onDay = s.filter(x => x.sport === sport && x.date === target.date).sort((a, b) => b.durationMin - a.durationMin)[0];
+    if (!onDay) {
+      const elsewhere = s.filter(x => x.sport === sport && x.type === 'long')[0];
+      if (elsewhere) { fixes.push(`moved long ${kind} to ${target.day}`); elsewhere.date = target.date; elsewhere.day = target.day; elsewhere.durationMin = target.durationMin; }
+      else { fixes.push(`added long ${kind}`); s.push({ ...target }); }
+      return;
+    }
+    onDay.type = 'long'; if (onDay.intensity === 'hard' && kind === 'ride') onDay.intensity = 'moderate';
+    if (Math.abs(onDay.durationMin - target.durationMin) / target.durationMin > 0.15) { fixes.push(`long ${kind} ${onDay.durationMin}→${target.durationMin} min`); onDay.durationMin = target.durationMin; }
+  };
+  fixLong('ride', 'ride'); fixLong('run', 'run');
+
+  // 4. Volume per sport within ±10% of target (scale the non-long sessions)
+  ['swim', 'ride', 'run'].forEach(sport => {
+    const target = (w.hours[sport] || 0) * 60;
+    const list = s.filter(x => x.sport === sport);
+    const total = list.reduce((a, x) => a + x.durationMin, 0);
+    if (target < 15) return;
+    if (!list.length) { const add = draft.filter(x => x.sport === sport && x.type !== 'long'); s.push(...add.map(x => ({ ...x }))); if (add.length) fixes.push(`added ${sport} sessions`); return; }
+    if (Math.abs(total - target) / target <= 0.10) return;
+    const fixed = list.filter(x => ['long', 'brick'].includes(x.type)).reduce((a, x) => a + x.durationMin, 0);
+    const flex = list.filter(x => !['long', 'brick'].includes(x.type));
+    const flexTotal = total - fixed;
+    if (flexTotal <= 0) return;
+    const k = Math.min(1.6, Math.max(0.5, (target - fixed) / flexTotal));
+    flex.forEach(x => x.durationMin = Math.max(15, Math.round(x.durationMin * k / 5) * 5));
+    fixes.push(`${sport} volume ${Math.round(total)}→${Math.round(s.filter(x => x.sport === sport).reduce((a, x) => a + x.durationMin, 0))} min (target ${Math.round(target)})`);
+  });
+
+  // 5. Strength sessions: exactly the planned number
+  const str = s.filter(x => x.sport === 'strength');
+  if (str.length > w.strengthN) { str.slice(w.strengthN).forEach(x => s.splice(s.indexOf(x), 1)); fixes.push(`strength ${str.length}→${w.strengthN}`); }
+  if (str.length < w.strengthN) { const add = draft.filter(x => x.sport === 'strength' && !s.some(y => y.sport === 'strength' && y.date === x.date)).slice(0, w.strengthN - str.length); s.push(...add.map(x => ({ ...x }))); if (add.length) fixes.push(`added ${add.length} strength`); }
+
+  // 6. Daily time limit
+  dates.forEach((d, i) => {
+    const t = template.days[i]; if (t.rest || !t.maxMin) return;
+    const day = s.filter(x => x.date === d && x.sport !== 'race'); const tot = day.reduce((a, x) => a + x.durationMin, 0);
+    if (tot > t.maxMin * 1.05) {
+      const flex = day.filter(x => !['long', 'brick'].includes(x.type)); const fixed = tot - flex.reduce((a, x) => a + x.durationMin, 0);
+      const k = flex.length ? Math.max(0.3, (t.maxMin - fixed) / (tot - fixed)) : 1;
+      flex.forEach(x => x.durationMin = Math.max(15, Math.round(x.durationMin * k / 5) * 5));
+      fixes.push(`${SP_DAY[i]} trimmed to ${t.maxMin} min`);
+    }
+  });
+
+  // 7. Hard/easy: no hard sessions on back-to-back days; at most keys+1 hard sessions; ~80/20
+  s.sort((a, b) => a.date.localeCompare(b.date));
+  const isHard = x => x.intensity === 'hard' && x.sport !== 'race';
+  let lastHard = null, hardCount = 0;
+  const allowed = (w.isRecovery && w.phase !== 'Taper') ? 0 : w.keys;
+  s.forEach(x => {
+    if (!isHard(x)) return;
+    if ((lastHard && addDaysStr(lastHard, 1) === x.date) || hardCount >= allowed) {
+      const why = (lastHard && addDaysStr(lastHard, 1) === x.date) ? 'the day after a hard session' : 'this week only has ' + allowed + ' hard session' + (allowed === 1 ? '' : 's');
+      x.intensity = 'easy'; x.key = false;
+      if (x.type !== 'long') { x.type = 'easy'; x.title = 'Easy ' + ({ swim: 'swim', ride: 'ride', run: 'run' })[x.sport]; x.detail = ({ swim: 'Aerobic swim with drills, relaxed', ride: 'Z2 endurance, steady cadence', run: 'Conversational pace' })[x.sport] + ` — kept easy: ${why}.`; }
+      fixes.push(`eased ${x.sport} on ${x.day}`); return;
+    }
+    if (lastHard !== x.date) hardCount++;
+    lastHard = x.date;
+  });
+  const totalMin = s.reduce((a, x) => a + x.durationMin, 0), hardMin = s.filter(isHard).reduce((a, x) => a + x.durationMin, 0);
+  if (totalMin && hardMin / totalMin > 0.25) fixes.push('high intensity share ' + Math.round(hardMin / totalMin * 100) + '% (target ≤20–25%)');
+
+  // 8. Distances from YOUR paces (replace missing or implausible ones)
+  s.forEach(x => {
+    if (!['run', 'ride', 'swim'].includes(x.sport) || !x.durationMin) return;
+    const exp = spDistance(x.sport, x.durationMin, fit);
+    const have = x.sport === 'swim' ? (Number(x.yards) || 0) : (Number(x.distanceMi) || 0);
+    const want = x.sport === 'swim' ? exp.yards : exp.distanceMi;
+    if (!have || Math.abs(have - want) / want > 0.3) Object.assign(x, exp);
+    else if (x.sport === 'swim') x.distanceMi = Math.round(have / 1760 * 100) / 100;
+    x.key = isHard(x);
+  });
+  return { sessions: s.filter(Boolean), fixes };
+}
+
+// ── AI: write 4 weeks at a time inside the engine's targets ──
+async function spAiWriteWeeks(batch, template, fit, raceById) {
+  const P = spPaces(fit);
+  const tpl = template.days.map((d, i) => `${SP_DAY[i]}: ${d.rest ? 'REST' : d.sports.join('+') + ' · max ' + d.maxMin + 'min' + (d.long ? ' · LONG ' + d.long : '')}`).join('\n');
+  const weeks = batch.map(w => ({
+    weekStart: w.ws, dates: spWeekDates(w).map(d => weekdayOf(d) + ' ' + d).join(', '), phase: w.phase, focus: w.focus, recoveryWeek: !!w.isRecovery,
+    targetsMin: { swim: Math.round(w.hours.swim * 60), ride: Math.round(w.hours.ride * 60), run: Math.round(w.hours.run * 60) }, runMiles: w.runMi,
+    longRideMin: w.longRideMin, longRun: w.longRunMi ? w.longRunMi + ' mi' : w.longRunMin + ' min', brickRunMin: w.brickMin || 0, mediumLongRunMi: w.mlrMi || 0,
+    hardSessions: (w.isRecovery && w.phase !== 'Taper') ? 0 : w.keys, strengthSessions: w.strengthN,
+    race: w.raceWeek ? { name: raceById[w.raceWeek].name, date: raceById[w.raceWeek].date, kind: raceById[w.raceWeek].kind, role: w.bRace ? 'B (no full taper)' : 'A' } : null,
+  }));
+  const text = await callClaude({
+    model: 'claude-sonnet-4-6', max_tokens: 8000,
+    system: `You are an expert triathlon and marathon coach writing training weeks inside a fixed periodization plan.
+Follow these rules exactly:
+- Hit each sport's target minutes within 10%. Put the long ride and long run on the template's LONG days at the given length.
+- Respect the template: only the listed sports on each day, never exceed a day's max minutes, nothing on REST days.
+- Exactly the given number of hard sessions; never two hard days in a row; about 80% of time easy (Seiler polarized model).
+- Recovery weeks: no hard sessions. Taper: shorter, keep a little intensity. Race week: the race on its date, a short shakeout the day before.
+- Brick: a run straight after the long ride when brickRunMin > 0. Medium-long run midweek when mediumLongRunMi > 0.
+- Use the athlete's paces: easy run ${P.easy}, marathon pace ${P.mp}, threshold ${P.threshold}, VO2 ${P.vo2}; swim CSS ${P.css}, easy ${P.swimEasy}; ride Z2 ${P.rideEasy}.
+- Swim workouts in yards with real sets (warm-up, drills, main set, cool-down). Strength = home free weights, endurance-focused.
+Return ONLY JSON, no markdown:
+{"weeks":[{"weekStart":"YYYY-MM-DD","sessions":[{"date":"YYYY-MM-DD","day":"Mon","sport":"swim|ride|run|strength|rest","type":"easy|long|tempo|threshold|intervals|vo2|race-pace|css|fartlek|brick|mlr|technique|recovery|strength|rest","intensity":"easy|moderate|hard","durationMin":45,"distanceMi":5.2,"yards":0,"title":"short name","detail":"the actual workout in under 30 words"}]}]}
+"day" MUST be the weekday of "date".`,
+    messages: [{ role: 'user', content: `Athlete now: ${fit.hours} h/wk, run ${fit.runMi} mi/wk, ride ${fit.rideMi} mi/wk, swim ${fit.swimMi} mi/wk.\nWeekly template:\n${tpl}\n\nWrite these ${batch.length} weeks:\n${JSON.stringify(weeks)}` }]
+  }, 'Season plan');
+  const cleaned = text.replace(/```json|```/g, '').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').trim();
+  const data = JSON.parse(cleaned.slice(cleaned.indexOf('{'), cleaned.lastIndexOf('}') + 1));
+  return data.weeks || [];
+}
+
+// Build the whole season: engine → AI in parallel batches → validator → plan
+async function spBuildSeason(roles, template, onProgress) {
+  const fit = spFitness();
+  const skel = buildSeasonSkeleton(races, roles, template, fit);
+  if (!skel) throw new Error('Add an upcoming race first.');
+  const raceById = {}; skel.races.forEach(r => raceById[r.id] = r);
+  const batches = []; for (let i = 0; i < skel.weeks.length; i += 4) batches.push(skel.weeks.slice(i, i + 4));
+  const written = {}; let done = 0, fixesTotal = 0, fallbacks = 0;
+  const runBatch = async b => {
+    let aiWeeks = null;
+    for (let attempt = 0; attempt < 2 && !aiWeeks; attempt++) { try { aiWeeks = await spAiWriteWeeks(b, template, fit, raceById); } catch (e) { console.warn('season batch', b[0].ws, e); } }
+    b.forEach(w => {
+      const ai = (aiWeeks || []).find(x => x.weekStart === w.ws);
+      const res = spValidateWeek(ai ? ai.sessions : null, w, template, fit, raceById);
+      written[w.ws] = res.sessions.map(x => ({ ...x, src: 'season', week: w.n }));
+      w.fixes = res.fixes; fixesTotal += res.fixes.length; if (res.fallback) fallbacks++;
+      done++; onProgress && onProgress(done, skel.weeks.length);
+    });
+  };
+  const queue = [...batches], workers = [0, 1, 2].map(async () => { while (queue.length) await runBatch(queue.shift()); });
+  await Promise.all(workers);
+  return { skel, fit, sessions: skel.weeks.flatMap(w => written[w.ws] || []), fixesTotal, fallbacks };
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SEASON PLANNER v2 — STATE, SCREENS, CALENDAR WEEK VIEW
+// ══════════════════════════════════════════════════════════════════════════
+const SEASON_KEY = 'brb_season';
+let seasonState = null;
+try { seasonState = JSON.parse(localStorage.getItem(SEASON_KEY) || 'null'); } catch (e) {}
+function saveSeason() { kvSet(SEASON_KEY, seasonState); }
+let spWizard = null;            // { roles, template, editDay } while building
+let calWeekStart = null;        // Monday shown in the calendar week view
+const SP_PHASE_COLOR = { Prep: '#2f6f62', 'Base+': '#3a9c86', Base: 'var(--tri)', Build: 'var(--mar)', Peak: 'var(--warn)', Taper: '#8b94ff', Recovery: '#3a3a4a',
+  Endurance: 'var(--tri)', Threshold: 'var(--mar)', 'Race prep': 'var(--warn)', Maintain: '#3a3a4a' };
+const SP_SPORT_COLOR = { swim: 'var(--swim)', ride: 'var(--ride)', run: 'var(--run)', strength: 'var(--strength)', rest: '#2a2a36', race: 'var(--tri)' };
+const SP_SPORT_TINT = { swim: 'rgba(90,176,240,.15)', ride: 'rgba(240,160,80,.15)', run: 'rgba(109,186,109,.15)', strength: 'rgba(232,93,117,.15)' };
+
+function fmtMin(m) { m = Math.round(m || 0); return m >= 60 ? Math.floor(m / 60) + 'h' + (m % 60 ? String(m % 60).padStart(2, '0') : '') : m + 'm'; }
+// Title used everywhere a planned session is shown (home, up next, widget)
+function planTitle(p) {
+  if (!p) return '';
+  if (!p.durationMin || /\d\s*(mi|min|m\b|hr|h\b|yd|k\b)/i.test(p.title || '')) return p.title || '';
+  const dist = p.sport === 'swim' && p.yards ? p.yards.toLocaleString() + ' yd' : p.distanceMi && p.sport !== 'strength' ? p.distanceMi + ' mi' : fmtMin(p.durationMin);
+  return `${p.title} · ${dist}`;
+}
+function spMondayOf(ds) { return addDaysStr(ds, -((new Date(ds + 'T12:00:00').getDay() + 6) % 7)); }
+
+// ── Season page: wizard when there's no plan, overview when there is ──
+function initSeasonPage() {
+  const el = document.getElementById('planbuilder-content'); if (!el) return;
+  const sub = document.getElementById('planbuilder-sub');
+  if (seasonState && !spWizard) { if (sub) sub.textContent = 'Your arc to race day'; return renderSeasonOverview(); }
+  if (sub) sub.textContent = 'One plan, today → every race';
+  renderSeasonWizard();
+}
+function spStartWizard() {
+  const roles = {}; races.forEach(r => roles[r.id] = (seasonState && seasonState.roles && seasonState.roles[r.id]) || 'A');
+  spWizard = { roles, template: JSON.parse(JSON.stringify((seasonState && seasonState.template) || SP_DEFAULT_TEMPLATE)), editDay: null };
+  initSeasonPage();
+}
+function renderSeasonWizard() {
+  if (!spWizard) { const roles = {}; races.forEach(r => roles[r.id] = 'A'); spWizard = { roles, template: JSON.parse(JSON.stringify(SP_DEFAULT_TEMPLATE)), editDay: null }; }
+  const el = document.getElementById('planbuilder-content');
+  const today = localDateStr();
+  const up = races.filter(r => r.date >= today).sort((a, b) => a.date.localeCompare(b.date));
+  if (!up.length) {
+    el.innerHTML = `<div class="card" style="padding:2rem;text-align:center;color:var(--muted);font-size:13px;margin-top:14px">Add an upcoming race first — the plan builds from today to race day.<br><br><button class="add-race-btn" onclick="switchTab('races')">Go to Races</button></div>`;
+    return;
+  }
+  const fit = spFitness();
+  let skel = null; try { skel = buildSeasonSkeleton(races, spWizard.roles, spWizard.template, fit); } catch (e) { console.warn('skeleton', e); }
+  const peak = skel ? Math.max(...skel.weeks.map(w => w.totalHrs)) : 0;
+  const raceRows = up.map(r => {
+    const role = spWizard.roles[r.id] || 'A', wk = skel ? (skel.races.find(x => x.id === r.id) || {}).week : '';
+    return `<div class="sp-race">
+        <div class="home-ico home-ico-sm" style="background:${r.type === 'triathlon' ? 'rgba(90,176,240,.13)' : 'rgba(109,186,109,.13)'}">${r.type === 'triathlon' ? '🏊' : '🏃'}</div>
+        <div style="flex:1;min-width:0"><b>${r.name}</b><span>${raceShortLabel(r)} · ${new Date(r.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}${wk ? ' · week ' + wk : ''}</span></div>
+        <div class="sp-role">${['A', 'B'].map(v => `<button class="${role === v ? 'on' : ''}" onclick="spWizard.roles[${r.id}]='${v}';renderSeasonWizard()">${v}</button>`).join('')}</div>
+      </div>`;
+  }).join('');
+  const t = spWizard.template;
+  const sportsOrder = ['swim', 'ride', 'run', 'strength'];
+  const tplRows = t.days.map((d, i) => {
+    const chips = d.rest ? `<span class="sp-chip" style="background:#2a2a36;color:var(--muted)">Rest</span>`
+      : sportsOrder.filter(s => d.sports.includes(s)).map(s => `<span class="sp-chip" style="background:${SP_SPORT_TINT[s]};color:${SP_SPORT_COLOR[s]}">${d.long === s ? 'Long ' + SP_LABEL[s].toLowerCase() : SP_LABEL[s]}</span>`).join('');
+    const open = spWizard.editDay === i;
+    return `<div class="sp-tpl${open ? ' open' : ''}" onclick="spWizard.editDay=${open ? 'null' : i};renderSeasonWizard()"><b>${SP_DAY[i]}</b><div class="sp-chips">${chips || '<span style="color:var(--dim);font-size:11px">nothing</span>'}</div><span class="sp-max">${d.rest ? '—' : fmtMin(d.maxMin)}</span></div>
+      ${open ? `<div class="sp-edit" onclick="event.stopPropagation()">
+        <div class="sp-edit-row">${sportsOrder.map(s => `<button class="sg-chip${!d.rest && d.sports.includes(s) ? ' on' : ''}" onclick="spTplToggle(${i},'${s}')">${SP_LABEL[s]}</button>`).join('')}<button class="sg-chip${d.rest ? ' on' : ''}" onclick="spTplRest(${i})">Rest day</button></div>
+        ${d.rest ? '' : `<div class="sp-edit-row"><span class="sp-edit-lbl">Long</span>${['', 'ride', 'run'].map(v => `<button class="sg-chip${(d.long || '') === v ? ' on' : ''}" onclick="spTplLong(${i},'${v}')">${v ? 'Long ' + SP_LABEL[v].toLowerCase() : 'None'}</button>`).join('')}</div>
+        <div class="sp-edit-row"><span class="sp-edit-lbl">Max time</span><button class="sp-step" onclick="spTplMax(${i},-15)">−</button><b class="mono" style="min-width:56px;text-align:center">${fmtMin(d.maxMin)}</b><button class="sp-step" onclick="spTplMax(${i},15)">+</button></div>`}
+      </div>` : ''}`;
+  }).join('');
+  const weeks = skel ? skel.weeks.length : 0;
+  el.innerHTML = `
+    <div class="home-greet"><h1>Build your plan</h1><p>One plan, today → every race</p></div>
+    <div class="home-lbl">Races <span style="text-transform:none;letter-spacing:0;color:var(--dim)">A = full peak & taper · B = train through</span></div>
+    <div class="card" style="padding:2px 14px">${raceRows}</div>
+    <div class="home-lbl">Your week <span style="text-transform:none;letter-spacing:0;color:var(--dim)">tap a day to edit</span></div>
+    <div class="card" style="padding:2px 14px">${tplRows}</div>
+    <div class="home-lbl">Starting point (from Strava, last 4 weeks)</div>
+    <div class="card"><div class="sp-tot"><div><b class="mono">${fit.hours}h</b><span>per week</span></div><div><b class="mono">${fit.runMi}</b><span>run mi</span></div><div><b class="mono">${fit.rideMi}</b><span>bike mi</span></div><div><b class="mono">${fit.swimMi}</b><span>swim mi</span></div></div></div>
+    ${skel ? `<div class="sp-preview">${weeks} weeks · peaks at ${peak.toFixed(1)} h/wk · ${skel.races.map(r => `${r.name.split(' ')[0]} wk ${r.week}${r.role === 'B' ? ' (B)' : ''}`).join(' · ')}</div>` : ''}
+    ${(() => { if (!skel) return '';
+      // Does the weekly template have room for the plan? (else the rules will trim sessions)
+      const cap = t.days.reduce((a, d) => a + (d.rest ? 0 : d.maxMin || 0), 0);
+      const need = Math.round(peak * 60);
+      const tight = skel.weeks.filter(w => w.totalHrs * 60 > cap * 0.95).length;
+      return need > cap * 0.95 ? `<div class="sp-warn">⚠ Your week has room for ${fmtMin(cap)}; the plan peaks at ${fmtMin(need)} (${tight} week${tight === 1 ? '' : 's'} affected). Add time to a day, or those weeks get trimmed.</div>` : `<div class="sp-preview" style="margin-top:4px;color:var(--ok)">✓ Your week has room for ${fmtMin(cap)} — enough for the peak</div>`; })()}
+    <div id="sp-build-area">
+      <button class="add-race-btn" style="margin-top:14px;padding:14px;font-size:14px" onclick="spRunBuild()">${seasonState ? 'Rebuild' : 'Build'} full plan · ${weeks} weeks</button>
+      ${seasonState ? `<button class="race-del-link" style="display:block;margin:10px auto 0" onclick="spWizard=null;initSeasonPage()">Cancel</button>` : ''}
+    </div>
+    <div style="text-align:center;font-size:10px;color:var(--dim);margin-top:10px;line-height:1.6">Structure from Triathlete's 20-week 70.3 plan, Pfitzinger's 18-week marathon plan,<br>and polarized (80/20) intensity research. The AI writes sessions; rules check every week.</div>`;
+}
+function spTplToggle(i, s) { const d = spWizard.template.days[i]; d.rest = false; d.sports = d.sports.includes(s) ? d.sports.filter(x => x !== s) : [...d.sports, s]; if (d.long && !d.sports.includes(d.long)) d.long = null; if (!d.maxMin) d.maxMin = 60; renderSeasonWizard(); }
+function spTplRest(i) { const d = spWizard.template.days[i]; d.rest = !d.rest; if (d.rest) { d.sports = []; d.long = null; d.maxMin = 0; } else { d.maxMin = 60; } renderSeasonWizard(); }
+function spTplLong(i, v) { const t = spWizard.template; t.days.forEach((d, k) => { if (k !== i && d.long === v && v) d.long = null; }); const d = t.days[i]; d.long = v || null; if (v && !d.sports.includes(v)) d.sports.push(v); if (v === 'ride' && d.maxMin < 180) d.maxMin = 240; if (v === 'run' && d.maxMin < 120) d.maxMin = 150; renderSeasonWizard(); }
+function spTplMax(i, delta) { const d = spWizard.template.days[i]; d.maxMin = Math.max(15, Math.min(480, (d.maxMin || 60) + delta)); renderSeasonWizard(); }
+
+async function spRunBuild() {
+  const area = document.getElementById('sp-build-area');
+  const total = (buildSeasonSkeleton(races, spWizard.roles, spWizard.template, spFitness()) || { weeks: [] }).weeks.length;
+  area.innerHTML = `<div class="card" style="margin-top:14px;padding:16px"><div style="display:flex;justify-content:space-between;font-size:12px"><b>Writing your plan…</b><span class="mono" id="sp-prog-txt">0 / ${total} weeks</span></div><div class="home-bar" style="margin-top:10px;height:8px"><i id="sp-prog-bar" style="width:0;background:var(--tri)"></i></div><div style="font-size:11px;color:var(--muted);margin-top:10px">The AI writes four weeks at a time; every week is checked against the rules before it's saved. This takes a minute or two — keep the app open.</div></div>`;
+  try {
+    const res = await spBuildSeason(spWizard.roles, spWizard.template, (d, n) => {
+      const b = document.getElementById('sp-prog-bar'), t = document.getElementById('sp-prog-txt');
+      if (b) b.style.width = Math.round(d / n * 100) + '%'; if (t) t.textContent = d + ' / ' + n + ' weeks';
+    });
+    // Replace everything from this Monday on; keep the past. Back up the old plan first.
+    try { localStorage.setItem('brb_training_plan_backup', JSON.stringify(trainingPlan)); } catch (e) {}
+    const start = res.skel.monday;
+    trainingPlan = trainingPlan.filter(p => p.date < start).concat(res.sessions.map(s => ({ ...s, id: Date.now() + Math.random() })));
+    trainingPlan.sort((a, b) => a.date.localeCompare(b.date));
+    savePlan();
+    seasonState = { v: 2, builtAt: new Date().toISOString(), roles: spWizard.roles, template: spWizard.template, fit: res.fit, monday: start, races: res.skel.races,
+      weeks: res.skel.weeks.map(w => ({ n: w.n, ws: w.ws, phase: w.phase, phaseWeek: w.phaseWeek, phaseLen: w.phaseLen, kind: w.kind, race: w.race, raceWeek: w.raceWeek || null, bRace: !!w.bRace, isRecovery: !!w.isRecovery, hours: w.hours, totalHrs: w.totalHrs, runMi: w.runMi, focus: w.focus, fixes: (w.fixes || []).length })),
+      fixesTotal: res.fixesTotal, fallbacks: res.fallbacks };
+    saveSeason();
+    spWizard = null;
+    initSeasonPage();
+    try { renderCalendar(); } catch (e) {}
+  } catch (e) {
+    console.error('season build', e);
+    area.innerHTML = `<div class="card" style="margin-top:14px;padding:16px;color:var(--warn);font-size:12px">Couldn't build the plan: ${e.message}<br><button class="add-race-btn" style="margin-top:10px" onclick="spRunBuild()">Try again</button></div>`;
+  }
+}
+
+function renderSeasonOverview() {
+  const el = document.getElementById('planbuilder-content'), S = seasonState;
+  const thisMon = spMondayOf(localDateStr());
+  const cur = S.weeks.find(w => w.ws === thisMon) || S.weeks[0];
+  // phase segments (merge consecutive weeks with the same phase)
+  const segs = []; S.weeks.forEach(w => { const last = segs[segs.length - 1]; if (last && last.phase === w.phase && last.race === w.race) last.n++; else segs.push({ phase: w.phase, race: w.race, n: 1 }); });
+  const abbr = { Prep: 'PREP', 'Base+': 'BASE', Base: 'BASE', Build: 'BUILD', Peak: 'PEAK', Taper: 'TPR', Recovery: 'REC', Endurance: 'END', Threshold: 'LT', 'Race prep': 'RP', Maintain: 'MNT' };
+  const max = Math.max(...S.weeks.map(w => w.totalHrs), 1);
+  const bars = S.weeks.map(w => {
+    const parts = ['swim', 'ride', 'run', 'strength'].map(k => `<b style="height:${(w.hours[k] || 0) / w.totalHrs * 100}%;background:${SP_SPORT_COLOR[k]}"></b>`).join('');
+    return `<i class="${w.ws === thisMon ? 'now' : ''}${w.raceWeek ? ' race' : ''}" style="height:${w.totalHrs / max * 100}%" title="Wk ${w.n} · ${w.phase} · ${w.totalHrs}h" onclick="spOpenWeek('${w.ws}')">${parts}</i>`;
+  }).join('');
+  const upcoming = S.weeks.filter(w => w.ws >= thisMon).slice(0, 6).map(w => `
+    <div class="sp-wk" onclick="spOpenWeek('${w.ws}')">
+      <div><b>Wk ${w.n} · ${new Date(w.ws + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</b><span>${w.focus}</span></div>
+      <div class="mono" style="text-align:right;${w.isRecovery ? 'color:var(--muted)' : ''}">${w.totalHrs}h${w.ws === thisMon ? '<div style="font-size:10px;color:var(--ok)">● this week</div>' : w.raceWeek ? '<div style="font-size:10px;color:var(--tri)">🏁 race</div>' : ''}</div>
+    </div>`).join('');
+  const raceMarks = S.races.map(r => `<span style="color:${r.type === 'triathlon' ? 'var(--swim)' : 'var(--run)'}">${r.type === 'triathlon' ? '🏊' : '🏃'} ${raceShortLabel(r)} · wk ${r.week}${r.role === 'B' ? ' (B)' : ''}</span>`).join('');
+  el.innerHTML = `
+    <div class="home-greet"><h1>Season plan</h1><p>${new Date(S.monday + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} → ${new Date(S.races[S.races.length - 1].date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · week ${cur.n} of ${S.weeks.length}</p></div>
+    <div class="home-lbl">Phases</div>
+    <div class="sp-tl">${segs.map(s => `<div style="flex:${s.n};background:${SP_PHASE_COLOR[s.phase] || '#3a3a4a'}" title="${s.phase} · ${s.n} wk">${s.n >= 3 ? abbr[s.phase] || '' : ''}</div>`).join('')}</div>
+    <div class="sp-tl-marks"><span>Now</span>${raceMarks}</div>
+    <div class="home-lbl">Weekly hours by sport</div>
+    <div class="card" style="padding:12px 12px 10px"><div class="sp-bars">${bars}</div>
+      <div class="home-legend" style="margin-top:8px"><span><i style="background:var(--swim)"></i>Swim</span><span><i style="background:var(--ride)"></i>Bike</span><span><i style="background:var(--run)"></i>Run</span><span><i style="background:var(--strength)"></i>Strength</span></div></div>
+    <div class="home-lbl">Upcoming weeks</div>
+    <div class="card" style="padding:2px 16px">${upcoming || '<div style="padding:14px 0;color:var(--muted);font-size:12px">The plan has finished.</div>'}</div>
+    <div class="sp-actions">
+      <button class="garage-add-btn" onclick="spStartWizard()">✏️ Edit races & week</button>
+      <button class="garage-add-btn" id="sp-rebuild-btn" onclick="spConfirmRebuild()">↻ Rebuild from this week</button>
+    </div>
+    <div style="text-align:center;font-size:10px;color:var(--dim);margin-top:12px">Built ${new Date(S.builtAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${S.fixesTotal} rule corrections${S.fallbacks ? ' · ' + S.fallbacks + ' weeks written by rules' : ''}</div>
+    <div style="text-align:center;margin-top:6px"><button class="race-del-link" onclick="spConfirmDelete(this)">Delete plan</button></div>`;
+}
+function spOpenWeek(ws) { calWeekStart = ws; switchTab('calendar'); }
+function spConfirmRebuild() {
+  const b = document.getElementById('sp-rebuild-btn');
+  if (b.dataset.armed) { spStartWizard(); setTimeout(() => spRunBuild(), 0); return; }
+  b.dataset.armed = '1'; b.textContent = 'Tap again — replaces sessions from this week on';
+  setTimeout(() => { if (b) { delete b.dataset.armed; b.textContent = '↻ Rebuild from this week'; } }, 4000);
+}
+function spConfirmDelete(btn) {
+  if (!btn.dataset.armed) { btn.dataset.armed = '1'; btn.textContent = 'Tap again to delete future planned sessions'; btn.style.color = 'var(--warn)'; return; }
+  const mon = spMondayOf(localDateStr());
+  trainingPlan = trainingPlan.filter(p => !(p.src === 'season' && p.date >= mon)); savePlan();
+  seasonState = null; kvSet(SEASON_KEY, null); try { localStorage.removeItem(SEASON_KEY); } catch (e) {}
+  spWizard = null; initSeasonPage();
+}
+
+// ── Calendar: week view ──
+function spDoneFor(p) {
+  const key = PLAN_SPORT_KEY[(p.sport || '').toLowerCase()]; if (!key) return null;
+  const act = allActivities.find(a => (a.start_date_local || '').slice(0, 10) === p.date && homeSportOf(a) === key && (a.moving_time > 0 || a.distance > 0));
+  if (act) return act;
+  if (key === 'Strength' && sgCompletedOn(p.date)) return { name: 'Strength workout' };
+  return null;
+}
+function calWeekShift(n) { calWeekStart = addDaysStr(calWeekStart || spMondayOf(localDateStr()), n * 7); renderWeekView(); }
+let calOpenSession = null;
+function renderWeekView() {
+  const el = document.getElementById('wk-view'); if (!el) return;
+  const today = localDateStr();
+  if (!calWeekStart) calWeekStart = spMondayOf(today);
+  const ws = calWeekStart, we = addDaysStr(ws, 6);
+  const sw = seasonState && seasonState.weeks.find(w => w.ws === ws);
+  const plan = trainingPlan.filter(p => p.date >= ws && p.date <= we).sort((a, b) => a.date.localeCompare(b.date));
+  const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const plannedMin = plan.reduce((a, p) => a + (p.durationMin || 0), 0);
+  // per-sport sessions done / planned
+  const tiles = ['swim', 'ride', 'run', 'strength'].map(sp => {
+    const list = plan.filter(p => p.sport === sp); const done = list.filter(p => spDoneFor(p)).length;
+    return `<div><b class="mono" style="color:${SP_SPORT_COLOR[sp]}">${done}/${list.length}</b><span>${SP_LABEL[sp].toLowerCase()}</span><div class="home-bar" style="height:4px;margin-top:5px"><i style="width:${list.length ? done / list.length * 100 : 0}%;background:${SP_SPORT_COLOR[sp]}"></i></div></div>`;
+  }).join('');
+  let readiness = null; try { readiness = calcReadiness(); } catch (e) {}
+  const days = [0, 1, 2, 3, 4, 5, 6].map(i => {
+    const d = addDaysStr(ws, i), list = plan.filter(p => p.date === d), isToday = d === today;
+    const race = races.find(r => r.date === d);
+    const unplanned = allActivities.filter(a => (a.start_date_local || '').slice(0, 10) === d && homeSportOf(a) && !list.some(p => PLAN_SPORT_KEY[p.sport] === homeSportOf(a)));
+    const rows = list.map(p => {
+      const done = spDoneFor(p), missed = !done && d < today && !['rest', 'race'].includes(p.sport);
+      const open = calOpenSession === String(p.id);
+      const meta = [p.durationMin ? fmtMin(p.durationMin) : '', p.sport === 'swim' && p.yards ? p.yards.toLocaleString() + ' yd' : p.distanceMi && p.sport !== 'strength' ? p.distanceMi + ' mi' : '', p.intensity && p.intensity !== 'easy' && p.sport !== 'race' ? p.intensity : ''].filter(Boolean).join(' · ');
+      const lowReady = isToday && !done && p.intensity === 'hard' && p.sport !== 'race' && readiness && ['Watch', 'Fatigued'].includes(readiness.label);
+      return `<div class="wv-ses${missed ? ' missed' : ''}" onclick="calOpenSession=${open ? 'null' : `'${p.id}'`};renderWeekView()">
+          <div class="wv-bar" style="background:${SP_SPORT_COLOR[p.sport] || 'var(--dim)'}"></div>
+          <div style="flex:1;min-width:0">
+            <b>${p.title}${done ? ' <span class="wv-done">✓</span>' : missed ? ' <span class="wv-miss">missed</span>' : ''}</b>
+            <span>${meta}${meta && p.detail && !open ? ' · ' : ''}${!open ? (p.detail || '').slice(0, 60) + ((p.detail || '').length > 60 ? '…' : '') : ''}</span>
+            ${lowReady ? `<div><button class="wv-ease" onclick="event.stopPropagation();spEaseSession('${p.id}')">Readiness ${readiness.label.toLowerCase()} · ease this session</button></div>` : ''}
+            ${open ? `<div class="wv-detail">${p.detail || ''}${done && done.distance ? `<div style="color:var(--ok);margin-top:6px">✓ Done: ${mToMi(done.distance).toFixed(1)} mi · ${secToTime(done.moving_time)}</div>` : ''}
+              <div class="wv-acts">${p.intensity === 'hard' && p.sport !== 'race' ? `<button onclick="event.stopPropagation();spEaseSession('${p.id}')">Make easy</button>` : ''}${p.sport === 'strength' ? `<button onclick="event.stopPropagation();switchTab('strength')">Open Strength</button>` : ''}<button class="danger" onclick="event.stopPropagation();spDeleteSession(this,'${p.id}')">Delete</button></div></div>` : ''}
+          </div>
+        </div>`;
+    }).join('') + unplanned.map(a => `<div class="wv-ses extra"><div class="wv-bar" style="background:var(--dim)"></div><div><b style="color:var(--muted)">${a.name} <span class="wv-done">✓</span></b><span>${a.distance > 0 ? mToMi(a.distance).toFixed(1) + ' mi · ' : ''}${secToTime(a.moving_time)} · not in plan</span></div></div>`).join('');
+    return `<div class="wv-day${isToday ? ' today' : ''}"><div class="wv-dn"><span>${SP_DAY[i].toUpperCase()}</span><b>${new Date(d + 'T12:00:00').getDate()}</b></div>
+      <div style="min-width:0">${rows || (race ? '' : '<div class="wv-empty">—</div>')}${race && !list.some(p => p.sport === 'race') ? `<div class="wv-ses"><div class="wv-bar" style="background:var(--tri)"></div><div><b>🏁 ${race.name}</b></div></div>` : ''}</div></div>`;
+  }).join('');
+  el.innerHTML = `
+    <div class="wv-head"><button class="cal-nav-btn" onclick="calWeekShift(-1)">‹</button>
+      <div style="text-align:center"><div class="wv-title">${fmt(ws)} – ${fmt(we)}</div>
+      <div class="wv-sub">${sw ? `${sw.phase} · week ${sw.n} of ${seasonState.weeks.length} · ` : ''}${fmtMin(plannedMin)} planned${ws !== spMondayOf(today) ? ` · <span class="home-link" onclick="event.stopPropagation();calWeekStart=null;renderWeekView()">this week</span>` : ''}</div></div>
+      <button class="cal-nav-btn" onclick="calWeekShift(1)">›</button></div>
+    ${sw ? `<div class="wv-focus">${sw.focus}</div>` : ''}
+    <div class="card" style="margin-top:12px"><div class="sp-tot">${tiles}</div></div>
+    <div class="card" style="margin-top:12px;padding:2px 14px">${days}</div>
+    <div class="card sp-season-row" onclick="switchTab('planbuilder')">
+      ${seasonState ? `<div><b>Season plan</b><span>${seasonState.races.map(r => raceShortLabel(r)).join(' → ')} · built ${new Date(seasonState.builtAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></div><div style="color:var(--tri);font-size:18px">›</div>`
+        : `<div><b>Build your season plan</b><span>One tap: every week from today to race day</span></div><div style="color:var(--tri);font-size:18px">›</div>`}
+    </div>`;
+}
+function spEaseSession(id) {
+  const p = trainingPlan.find(x => String(x.id) === String(id)); if (!p) return;
+  const was = p.title;
+  Object.assign(p, { intensity: 'easy', type: 'easy', key: false, durationMin: Math.round((p.durationMin || 40) * 0.75 / 5) * 5, title: 'Easy ' + (SP_LABEL[p.sport] || p.sport).toLowerCase(), detail: `Eased from "${was}" — keep it conversational.` });
+  if (p.sport !== 'strength' && p.sport !== 'swim' && seasonState) Object.assign(p, spDistance(p.sport, p.durationMin, seasonState.fit));
+  savePlan(); renderWeekView();
+}
+function spDeleteSession(btn, id) {
+  if (!btn.dataset.armed) { btn.dataset.armed = '1'; btn.textContent = 'Tap again'; return; }
+  trainingPlan = trainingPlan.filter(x => String(x.id) !== String(id)); savePlan(); calOpenSession = null; renderWeekView();
+}
 
 // ── STRENGTH GENERATOR ────────────────────────────────────────────────────
 // Home, free-weight workouts. Settings persist; the last workout is kept until you make a new one.
@@ -5797,6 +6635,10 @@ async function kvSyncAll() {
       }
     }
 
+    if (data.brb_season && typeof data.brb_season === 'object' && data.brb_season.builtAt && (!seasonState || data.brb_season.builtAt > seasonState.builtAt)) {
+      seasonState = data.brb_season; localStorage.setItem(SEASON_KEY, JSON.stringify(seasonState)); changed = true;
+      console.log('KV: updated season plan, built', seasonState.builtAt);
+    }
     if (data.brb_strength_sync && typeof data.brb_strength_sync === 'object') {
       try {
         if (sgMergeCloud(data.brb_strength_sync)) {
@@ -11135,7 +11977,7 @@ function saveHomeLocation() {
 const MIGRATE_KEYS = [
   'brb_races','brb_training_plan','brb_weight_log','brb_activity_notes',
   'brb_wellness_log','brb_swim_drills','brb_race_checklists','brb_garage',
-  'brb_strength_log','brb_strength_deleted','brb_strength_prefs',
+  'brb_strength_log','brb_strength_deleted','brb_strength_prefs','brb_season',
   // Local-only (NOT in KV) — these are the ones that would otherwise be lost:
   'brb_race_simulations','brb_race_debriefs','brb_race_intel','brb_race_weather',
   'brb_workouts','brb_fit_checks','brb_shoe_finder','brb_strava_gear',
@@ -11619,6 +12461,8 @@ function loadFromCache() {
 // when a session only gives a duration, estimates miles at easy training pace.
 const PLAN_EST_PACE_MPH = { run: 6.3, bike: 16, swim: 1.6 };
 function planSessionMiles(s, key) {
+  if (s.distanceMi != null && !isNaN(Number(s.distanceMi))) return Number(s.distanceMi);   // structured season sessions
+  if (s.yards) return Number(s.yards) / 1760;
   const text = ((s.title || '') + ' ' + (s.detail || ''))
     .replace(/week\s*\d*\s*total[^.]*/gi, '').replace(/total\s*for\s*(the\s*)?week[^.]*/gi, '');
   const num = '(\\d+(?:\\.\\d+)?)';
