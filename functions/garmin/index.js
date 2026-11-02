@@ -166,47 +166,81 @@ const RHR_CANDIDATES = [
   d => '/usersummary-service/usersummary/daily?calendarDate=' + d,
   d => '/wellness-service/wellness/dailyHeartRate?date=' + d,
 ];
-async function dailyWellness(token, endDate, days) {
-  const out = [], notes = {};
-  let rhrPick = null;   // index of the RHR endpoint that works, found on the first date
-  // weight for the whole window in one call (grams → kg)
+// Garmin limits TOTAL API requests (~100 per window), so ranges are fetched in as few calls as
+// possible: HRV/sleep/steps have range endpoints (≤28 days per call). Which endpoints work is
+// remembered in KV ("garmin_caps") so dead ones aren't retried. Per-day fallback is capped at 3 days.
+const KV_CAPS_URL = KV_TOKEN_URL.replace('garmin_access_token', 'garmin_caps');
+async function capsGet(env) { if (!env.CF_API_TOKEN) return {}; try { const r = await fetch(KV_CAPS_URL, { headers: { Authorization: 'Bearer ' + env.CF_API_TOKEN } }); return r.ok ? await r.json() : {}; } catch (e) { return {}; } }
+async function capsPut(env, caps) { if (!env.CF_API_TOKEN) return; try { await fetch(KV_CAPS_URL, { method: 'PUT', headers: { Authorization: 'Bearer ' + env.CF_API_TOKEN, 'Content-Type': 'text/plain' }, body: JSON.stringify(caps) }); } catch (e) {} }
+function chunks(start, end, size = 28) { const out = []; for (let s = start; s <= end; s = addDays(s, size)) { const e = addDays(s, size - 1) < end ? addDays(s, size - 1) : end; out.push([s, e]); } return out; }
+const rows = d => Array.isArray(d) ? d : d ? (d.hrvSummaries || d.individualStats || d.values || d.dailySleepDTOList || d.allDayHeartRate || []) : [];
+
+async function dailyWellness(token, endDate, days, env) {
   const startDate = addDays(endDate, -(days - 1));
-  const w = await gget(token, `/weight-service/weight/range/${startDate}/${endDate}`);
-  const weights = {};
-  ((w.data && w.data.dailyWeightSummaries) || []).forEach(x => {
-    const d = x.summaryDate || x.calendarDate; const g = x.latestWeight ? x.latestWeight.weight : x.weight;
-    if (d && g) weights[d] = Math.round(g / 100) / 10;
-  });
-  for (let i = 0; i < days; i++) {
-    const d = addDays(endDate, -i);
-    const rec = { date: d };
-    const h = await gget(token, '/hrv-service/hrv/' + d);
-    const hs = h.data && h.data.hrvSummary;
-    if (hs && hs.lastNightAvg) {
-      rec.hrv = hs.lastNightAvg; rec.hrvStatus = hs.status || null;
-      if (hs.baseline) rec.hrvBaseline = [hs.baseline.balancedLow, hs.baseline.balancedUpper];
+  const caps = await capsGet(env); let capsChanged = false;
+  const recs = {}; const rec = d => recs[d] || (recs[d] = { date: d });
+  const notes = { requests: 0, rateLimited: false };
+  const get = async path => { notes.requests++; const r = await gget(token, path); if (r.status === 429) notes.rateLimited = true; return r; };
+  const tryRange = async (key, pathFor, parse) => {
+    if (caps[key] === false) return false;
+    let worked = false;
+    for (const [s, e] of chunks(startDate, endDate)) {
+      const r = await get(pathFor(s, e));
+      if (r.status === 429) return worked;
+      if (!r.data) { if (!worked && [400, 404, 405].includes(r.status)) { caps[key] = false; capsChanged = true; } return worked; }
+      parse(r.data); worked = true;
     }
-    const sl = await gget(token, '/sleep-service/sleep/dailySleep?date=' + d);
-    if (sl.data && sl.data.sleepTimeSeconds) {
-      rec.sleepHrs = Math.round(sl.data.sleepTimeSeconds / 360) / 10;
-      const sc = sl.data.sleepScores && sl.data.sleepScores.overall; if (sc && sc.value) rec.sleepScore = sc.value;
-    }
-    let rhr = sl.data ? deepFind(sl.data, /^restingHeartRate$/i) : null;
-    if (rhr) notes.rhr = 'sleep';
-    if (!rhr) {
-      const tryIdx = rhrPick != null ? [rhrPick] : (i === 0 ? RHR_CANDIDATES.map((_, k) => k) : []);
-      for (const k of tryIdx) {
-        const r = await gget(token, RHR_CANDIDATES[k](d));
-        const v = r.data ? deepFind(r.data, /^restingHeartRate$/i) : null;
-        notes['rhr_' + k] = r.status;
-        if (v) { rhr = v; rhrPick = k; notes.rhr = 'endpoint ' + k; break; }
+    if (caps[key] !== true) { caps[key] = true; capsChanged = true; }
+    return worked;
+  };
+  // HRV (range)
+  const hrvOk = await tryRange('hrvRange', (s, e) => `/hrv-service/hrv/daily/${s}/${e}`, data => rows(data).forEach(x => {
+    const d = x.calendarDate; if (!d || !x.lastNightAvg) return;
+    Object.assign(rec(d), { hrv: x.lastNightAvg, hrvStatus: x.status || null, hrvBaseline: x.baseline ? [x.baseline.balancedLow, x.baseline.balancedUpper] : undefined });
+  }));
+  // Sleep (range)
+  const sleepOk = await tryRange('sleepRange', (s, e) => `/sleep-service/stats/sleep/daily/${s}/${e}`, data => rows(data).forEach(x => {
+    const d = x.calendarDate; const v = x.values || x; const secs = v.totalSleepTimeInSeconds ?? v.sleepTimeSeconds ?? v.totalSleepSeconds;
+    if (!d || !secs) return;
+    rec(d).sleepHrs = Math.round(secs / 360) / 10;
+    const sc = v.sleepScore ?? (v.sleepScores && v.sleepScores.overall && v.sleepScores.overall.value); if (sc) rec(d).sleepScore = sc;
+    const rhr = v.restingHeartRate; if (rhr) rec(d).rhr = rhr;
+  }));
+  // Resting HR (range)
+  await tryRange('rhrRange', (s, e) => `/usersummary-service/stats/heartRate/daily/${s}/${e}`, data => rows(data).forEach(x => {
+    const d = x.calendarDate; const v = x.values || x; const rhr = v.restingHR ?? v.restingHeartRate; if (d && rhr) rec(d).rhr = rhr;
+  }));
+  // Fallback: per-day for the most recent mornings only (keeps the request count small)
+  if (!notes.rateLimited) {
+    for (let i = 0; i < Math.min(days, 3); i++) {
+      const d = addDays(endDate, -i);
+      if (!hrvOk && !(recs[d] && recs[d].hrv)) {
+        const h = await get('/hrv-service/hrv/' + d); const hs = h.data && h.data.hrvSummary;
+        if (hs && hs.lastNightAvg) Object.assign(rec(d), { hrv: hs.lastNightAvg, hrvStatus: hs.status || null, hrvBaseline: hs.baseline ? [hs.baseline.balancedLow, hs.baseline.balancedUpper] : undefined });
+        if (h.status === 429) break;
+      }
+      if (!sleepOk && !(recs[d] && recs[d].sleepHrs)) {
+        const sl = await get('/sleep-service/sleep/dailySleep?date=' + d);
+        if (sl.data && sl.data.sleepTimeSeconds) {
+          rec(d).sleepHrs = Math.round(sl.data.sleepTimeSeconds / 360) / 10;
+          const sc = sl.data.sleepScores && sl.data.sleepScores.overall; if (sc && sc.value) rec(d).sleepScore = sc.value;
+          const rhr = deepFind(sl.data, /^restingHeartRate$/i); if (rhr && !rec(d).rhr) rec(d).rhr = rhr;
+        }
+        if (sl.status === 429) break;
       }
     }
-    if (rhr) rec.rhr = rhr;
-    if (weights[d]) rec.weightKg = weights[d];
-    out.push(rec);
   }
-  return { days: out, notes };
+  // Weight: one range call
+  if (!notes.rateLimited) {
+    const w = await get(`/weight-service/weight/range/${startDate}/${endDate}`);
+    ((w.data && w.data.dailyWeightSummaries) || []).forEach(x => {
+      const d = x.summaryDate || x.calendarDate; const g = x.latestWeight ? x.latestWeight.weight : x.weight;
+      if (d && g) rec(d).weightKg = Math.round(g / 100) / 10;
+    });
+  }
+  if (capsChanged) await capsPut(env, caps);
+  notes.caps = caps;
+  return { days: Object.values(recs).sort((a, b) => b.date.localeCompare(a.date)), notes };
 }
 
 // Which Garmin hosts can this function reach at all? (Diagnoses edge/TLS errors like 526.)
@@ -251,9 +285,10 @@ export async function onRequestPost(context) {
 
     if (action === 'daily') {
       const token = await getToken(context.env);
-      const days = Math.max(1, Math.min(10, Number(body.days) || 3));          // ≤10 days/call stays well under Cloudflare's 50-subrequest limit
+      const days = Math.max(1, Math.min(56, Number(body.days) || 3));          // range endpoints: ≤2 calls per sport for 56 days
       const endDate = /^\d{4}-\d{2}-\d{2}$/.test(body.endDate || '') ? body.endDate : new Date().toISOString().slice(0, 10);
-      const res = await dailyWellness(token, endDate, days);
+      const res = await dailyWellness(token, endDate, days, context.env);
+      if (res.notes.rateLimited && !res.days.length) return json({ ok: false, status: 429, error: 'Garmin rate limit (HTTP 429) — try again later', notes: res.notes });
       return json({ ok: true, ...res });
     }
 
@@ -269,13 +304,14 @@ export async function onRequestPost(context) {
         const e = addDays(s, 27) < end ? addDays(s, 27) : end;
         const r = await gget(token, `/usersummary-service/stats/steps/daily/${s}/${e}`);
         statuses.push(r.status);
+        if (r.status === 429) break;
         const list = Array.isArray(r.data) ? r.data : (r.data && (r.data.values || r.data.dailySteps)) || [];
         list.forEach(x => {
           const d = x.calendarDate || x.date; const v = x.totalSteps ?? x.steps ?? (x.values && x.values.totalSteps);
           if (d && v != null) days.push({ date: d, steps: Math.round(v) });
         });
       }
-      return json({ ok: days.length > 0 || statuses.every(st => st === 200), days, statuses });
+      return json({ ok: days.length > 0 || statuses.every(st => st === 200), days, statuses, ...(statuses.includes(429) ? { status: 429, error: 'Garmin rate limit (HTTP 429)' } : {}) });
     }
 
     if (action === 'probe') {
