@@ -237,6 +237,27 @@ export async function onRequestPost(context) {
       return json({ ok: true, ...res });
     }
 
+    if (action === 'steps') {
+      // Daily step totals for a date range (Garmin allows ≤28 days per request → chunked)
+      const token = await getToken(context.env);
+      const ok = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '');
+      const end = ok(body.end) ? body.end : new Date().toISOString().slice(0, 10);
+      let start = ok(body.start) ? body.start : addDays(end, -27);
+      if (start < addDays(end, -364)) start = addDays(end, -364);               // ≤ 1 year per call (13 requests)
+      const days = [], statuses = [];
+      for (let s = start; s <= end; s = addDays(s, 28)) {
+        const e = addDays(s, 27) < end ? addDays(s, 27) : end;
+        const r = await gget(token, `/usersummary-service/stats/steps/daily/${s}/${e}`);
+        statuses.push(r.status);
+        const list = Array.isArray(r.data) ? r.data : (r.data && (r.data.values || r.data.dailySteps)) || [];
+        list.forEach(x => {
+          const d = x.calendarDate || x.date; const v = x.totalSteps ?? x.steps ?? (x.values && x.values.totalSteps);
+          if (d && v != null) days.push({ date: d, steps: Math.round(v) });
+        });
+      }
+      return json({ ok: days.length > 0 || statuses.every(st => st === 200), days, statuses });
+    }
+
     if (action === 'probe') {
       const path = String(body.path || '');
       // Only relative API paths — no host switching, no traversal
