@@ -2673,6 +2673,14 @@ function zoomWeekCount(id, def, weekMap, thisWeekStart) {
 // ── LOCAL DATES + WEEKDAYS ────────────────────────────────────────────────
 // "Today" must be the athlete's local date. toISOString() is UTC, which in Chicago
 // rolls over to tomorrow at 7 PM — so evening opens showed tomorrow's plan.
+// Strava's start_date_local is the athlete's LOCAL wall-clock time but carries a "Z" suffix.
+// Parsing it as-is treats it as UTC, which shifts early-morning activities into the previous
+// day (by 5–6 h in Chicago) — e.g. a 5:40 AM Monday run counted as Sunday night.
+// Always parse it as local time.
+function actDate(a) {
+  const s = (a && a.start_date_local) || '';
+  return new Date(s.replace(/Z$|[+-]\d{2}:?\d{2}$/, ''));
+}
 function localDateStr(d = new Date()) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
@@ -2908,7 +2916,7 @@ function renderActivities(acts) {
   list.innerHTML = filtered.map(a => {
     const mi = mToMi(a.distance);
     const hasDist = mi > 0.1;
-    const date = new Date(a.start_date_local).toLocaleDateString('en-US', {weekday:'short',month:'short',day:'numeric'});
+    const date = actDate(a).toLocaleDateString('en-US', {weekday:'short',month:'short',day:'numeric'});
     const typeClass = ['Run','Swim','Ride','WeightTraining'].includes(a.type) ? a.type : 'other';
     const note = activityNotes[a.id];
     return `<div class="act-item-wrap">
@@ -3036,7 +3044,7 @@ function buildGearContext() {
 // and the polarized-training check (how much easy vs hard the athlete is actually doing).
 function buildCoachAnalytics() {
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 42); // 6 weeks
-  const recent = allActivities.filter(a => new Date(a.start_date_local) >= cutoff && a.distance > 0 && a.moving_time > 0);
+  const recent = allActivities.filter(a => actDate(a) >= cutoff && a.distance > 0 && a.moving_time > 0);
   if (!recent.length) return 'No recent activity detail available for analysis.';
 
   function paceSecPerMi(a) { return a.moving_time / mToMi(a.distance); }
@@ -3064,7 +3072,7 @@ function buildCoachAnalytics() {
   // Weekly volume trend (are they ramping too fast?)
   const byWeek = {};
   recent.forEach(a => {
-    const wk = isoWeek(new Date(a.start_date_local));
+    const wk = isoWeek(actDate(a));
     byWeek[wk] = (byWeek[wk]||0) + mToMi(a.distance);
   });
   const weekMiles = Object.keys(byWeek).sort().map(k => byWeek[k]);
@@ -3088,7 +3096,7 @@ function buildCoachAnalytics() {
 function buildSummary(acts) {
   const filtered = acts.filter(a => !(a.type === 'Ride' && (!a.distance || a.distance === 0)));
   return filtered.slice(0, 30).map(a => {
-    const date = new Date(a.start_date_local).toISOString().split('T')[0];
+    const date = actDate(a).toISOString().split('T')[0];
     const mi = mToMi(a.distance).toFixed(1);
     return `${date}: ${a.type} ${mi}mi${a.calories ? ' ' + a.calories + 'cal' : ''}${a.moving_time ? ' ' + secToTime(a.moving_time) : ''}${a.kudos_count ? ' ' + a.kudos_count + ' kudos' : ''}`;
   }).join('\n');
@@ -3178,7 +3186,7 @@ async function runAnalysis(summary) {
   const startOfWeek = new Date();
   startOfWeek.setHours(0,0,0,0);
   startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + (startOfWeek.getDay() === 0 ? -6 : 1)); // Monday
-  const thisWeek = allActivities.filter(a => new Date(a.start_date_local) >= startOfWeek);
+  const thisWeek = allActivities.filter(a => actDate(a) >= startOfWeek);
 
   const weekSwimMi = thisWeek.filter(a=>a.type==='Swim').reduce((s,a)=>s+mToMi(a.distance),0);
   const weekBikeMi = thisWeek.filter(a=>a.type==='Ride'&&a.distance>0).reduce((s,a)=>s+mToMi(a.distance),0);
@@ -3227,7 +3235,7 @@ function calcTriReadiness() {
       const weekStart = new Date(weekEnd); weekStart.setDate(weekEnd.getDate() - 7);
       const weekMi = allActivities
         .filter(a => a.type === sportType && a.distance > 0)
-        .filter(a => { const d = new Date(a.start_date_local); return d > weekStart && d <= weekEnd; })
+        .filter(a => { const d = actDate(a); return d > weekStart && d <= weekEnd; })
         .reduce((s,a) => s + mToMi(a.distance), 0);
       weekBuckets.push(weekMi);
     }
@@ -3244,7 +3252,7 @@ function calcTriReadiness() {
     const lastAct = allActivities.find(a => a.type === sportType && a.distance > 0);
     let recencyScore = 0;
     if (lastAct) {
-      const daysSince = Math.floor((now - new Date(lastAct.start_date_local)) / 86400000);
+      const daysSince = Math.floor((now - actDate(lastAct)) / 86400000);
       recencyScore = daysSince <= 2 ? 100 : Math.max(0, 100 - ((daysSince - 2) / 8) * 100);
     }
 
@@ -4459,7 +4467,7 @@ function updateRecoveryMetrics() {
   const startOfWeek = new Date(today);
   startOfWeek.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
 
-  const thisWeek = allActivities.filter(a => new Date(a.start_date_local) >= startOfWeek);
+  const thisWeek = allActivities.filter(a => actDate(a) >= startOfWeek);
   const activeDays = new Set(thisWeek.map(a => a.start_date_local.split('T')[0])).size;
   const daysSoFarThisWeek = Math.floor((today - startOfWeek) / 86400000) + 1;
   const restDays = Math.max(0, daysSoFarThisWeek - activeDays);
@@ -4481,7 +4489,7 @@ function updateRecoveryMetrics() {
   const lastRunEl = document.getElementById('rec-last-run');
   const lastRunSub = document.getElementById('rec-last-run-sub');
   if (lastAct && lastRunEl) {
-    const daysAgo = Math.floor((today - new Date(lastAct.start_date_local)) / 86400000);
+    const daysAgo = Math.floor((today - actDate(lastAct)) / 86400000);
     const mi = mToMi(lastAct.distance);
     lastRunEl.textContent = (mi > 0.1 ? mi.toFixed(1) + 'mi' : secToTime(lastAct.moving_time)) + ' ' + sportEmoji(lastAct.type);
     if (lastRunSub) lastRunSub.textContent = (daysAgo === 0 ? 'today' : daysAgo === 1 ? 'yesterday' : daysAgo + 'd ago') + ' \u00b7 ' + lastAct.type;
@@ -4504,7 +4512,7 @@ async function generateRecovery() {
 
   try {
     const recentActs = allActivities.slice(0, 15).map(a => {
-      const d = new Date(a.start_date_local);
+      const d = actDate(a);
       const daysAgo = Math.floor((Date.now() - d) / 86400000);
       return daysAgo + 'd ago: ' + a.type + ' ' + mToMi(a.distance).toFixed(1) + 'mi' + (a.moving_time ? ' ' + secToTime(a.moving_time) : '') + (a.total_elevation_gain > 30 ? ' +' + Math.round(a.total_elevation_gain*3.281) + 'ft climb' : '');
     }).join(', ');
@@ -4513,7 +4521,7 @@ async function generateRecovery() {
     const today = new Date(); today.setHours(0,0,0,0);
     const startOfWeek = new Date(today);
     startOfWeek.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1));
-    const thisWeek = allActivities.filter(a => new Date(a.start_date_local) >= startOfWeek);
+    const thisWeek = allActivities.filter(a => actDate(a) >= startOfWeek);
     const swimMi = thisWeek.filter(a=>a.type==='Swim').reduce((s,a)=>s+mToMi(a.distance),0);
     const runMi = thisWeek.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
     const bikeMi = thisWeek.filter(a=>a.type==='Ride'&&a.distance>0).reduce((s,a)=>s+mToMi(a.distance),0);
@@ -5735,7 +5743,7 @@ function buildPRs() {
       <div class="pr-cards">`;
 
     matches.forEach((act, i) => {
-      const date = new Date(act.start_date_local).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+      const date = actDate(act).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
       const mi = mToMi(act.distance);
       const pace = dist.type === 'run' ? pacePerMile(act.moving_time, mi) : '';
       html += `<div class="pr-card ${rankClass[i]}">
@@ -5898,7 +5906,7 @@ function buildWeeklyTLS() {
   allActivities.forEach(a => {
     if (!a.distance || !a.moving_time) return;
     if (a.type === 'Ride' && a.distance === 0) return;
-    const wk = isoWeek(new Date(a.start_date_local));
+    const wk = isoWeek(actDate(a));
     if (!weekMap[wk]) weekMap[wk] = { swim: 0, run: 0, bike: 0, weekStart: wk };
     const mi = mToMi(a.distance);
     if (a.type === 'Swim') weekMap[wk].swim += mi;
@@ -6776,7 +6784,7 @@ function getDateRange(range) {
 function calcTotals(acts, range) {
   const start = getDateRange(range);
   const filtered = start
-    ? acts.filter(a => new Date(a.start_date_local) >= start)
+    ? acts.filter(a => actDate(a) >= start)
     : acts;
 
   const count = filtered.length;
@@ -6896,7 +6904,7 @@ async function importFullHistory() {
       });
       const archiveData = await archiveResp.json();
       if (archiveData.activities) {
-        allActivities = applyDeletedBlocklist(archiveData.activities.map(a => ({ ...a, type: normalizeActivityType(a.type) }))).sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+        allActivities = applyDeletedBlocklist(archiveData.activities.map(a => ({ ...a, type: normalizeActivityType(a.type) }))).sort((a,b) => actDate(b) - actDate(a));
         activitySummary = buildSummary(allActivities);
         renderActivities(allActivities);
       }
@@ -6936,11 +6944,11 @@ function renderPaceChart() {
   if (paceRangeDays > 0) {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - paceRangeDays);
-    runs = runs.filter(a => new Date(a.start_date_local) >= cutoff);
+    runs = runs.filter(a => actDate(a) >= cutoff);
   }
 
   // Sort oldest first for chart progression
-  runs = runs.slice().sort((a,b) => new Date(a.start_date_local) - new Date(b.start_date_local));
+  runs = runs.slice().sort((a,b) => actDate(a) - actDate(b));
 
   // Filter out extreme outlier paces (e.g. accidental trainer walks) — keep 4:00-15:00/mi range
   runs = runs.filter(a => {
@@ -6958,7 +6966,7 @@ function renderPaceChart() {
   if (empty) empty.style.display = 'none';
 
   const labels = runs.map(a => {
-    const d = new Date(a.start_date_local);
+    const d = actDate(a);
     return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
   });
 
@@ -7200,7 +7208,7 @@ function renderSportWeeklyChart() {
   // Build last 12 ISO weeks of volume
   const weekMap = {};
   allActivities.filter(a => a.type === sportType && a.distance > 0).forEach(a => {
-    const wk = isoWeek(new Date(a.start_date_local));
+    const wk = isoWeek(actDate(a));
     const vol = isSwim ? (a.distance * 1.09361) : mToMi(a.distance); // meters->yards or ->miles
     weekMap[wk] = (weekMap[wk] || 0) + vol;
   });
@@ -7271,9 +7279,9 @@ function getSportActivities(sportType, rangeDays) {
   if (rangeDays > 0) {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - rangeDays);
-    acts = acts.filter(a => new Date(a.start_date_local) >= cutoff);
+    acts = acts.filter(a => actDate(a) >= cutoff);
   }
-  return acts.sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+  return acts.sort((a,b) => actDate(b) - actDate(a));
 }
 
 function renderSportDetailMetrics() {
@@ -7336,7 +7344,7 @@ function renderSportDetailChart() {
   if (!canvas) return;
 
   let acts = getSportActivities(sportType, sportDetailRangeDays)
-    .slice().sort((a,b) => new Date(a.start_date_local) - new Date(b.start_date_local));
+    .slice().sort((a,b) => actDate(a) - actDate(b));
 
   // Filter outliers for run pace
   if (sportType === 'Run') {
@@ -7355,7 +7363,7 @@ function renderSportDetailChart() {
   canvas.style.display = 'block';
   if (empty) empty.style.display = 'none';
 
-  const labels = acts.map(a => new Date(a.start_date_local).toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+  const labels = acts.map(a => actDate(a).toLocaleDateString('en-US',{month:'short',day:'numeric'}));
 
   let values, yLabel, formatFn;
   if (sportType === 'Ride') {
@@ -7406,7 +7414,7 @@ function renderSportDetailList() {
 
   list.innerHTML = acts.map(a => {
     const mi = mToMi(a.distance);
-    const date = new Date(a.start_date_local).toLocaleDateString('en-US', {weekday:'short',month:'short',day:'numeric'});
+    const date = actDate(a).toLocaleDateString('en-US', {weekday:'short',month:'short',day:'numeric'});
     return `<div class="act-item">
       <div class="act-icon ${sportType}">${SPORT_EMOJI_MAP[sportType]}</div>
       <div class="act-body">
@@ -7435,7 +7443,7 @@ async function generateSportInsights() {
     const acts = getSportActivities(sportType, sportDetailRangeDays).slice(0, 20);
     const summary = acts.map(a => {
       const mi = mToMi(a.distance);
-      const date = new Date(a.start_date_local).toISOString().split('T')[0];
+      const date = actDate(a).toISOString().split('T')[0];
       return `${date}: ${mi.toFixed(1)}mi in ${secToTime(a.moving_time)}`;
     }).join('\n');
 
@@ -7469,16 +7477,16 @@ function detectBrickSessions(acts, daysBack) {
   cutoff.setDate(cutoff.getDate() - daysBack);
 
   const recent = acts
-    .filter(a => new Date(a.start_date_local) >= cutoff && (a.type === 'Ride' || a.type === 'Run') && a.distance > 0)
-    .sort((a,b) => new Date(a.start_date_local) - new Date(b.start_date_local));
+    .filter(a => actDate(a) >= cutoff && (a.type === 'Ride' || a.type === 'Run') && a.distance > 0)
+    .sort((a,b) => actDate(a) - actDate(b));
 
   const bricks = [];
   for (let i = 0; i < recent.length - 1; i++) {
     const a = recent[i];
     const b = recent[i+1];
     if (a.type === 'Ride' && b.type === 'Run') {
-      const aEnd = new Date(a.start_date_local).getTime() + (a.moving_time * 1000);
-      const bStart = new Date(b.start_date_local).getTime();
+      const aEnd = actDate(a).getTime() + (a.moving_time * 1000);
+      const bStart = actDate(b).getTime();
       const gapMin = (bStart - aEnd) / 60000;
       // Brick = run starts within 30 min of bike ending, same calendar day
       const sameDay = a.start_date_local.split('T')[0] === b.start_date_local.split('T')[0];
@@ -7951,7 +7959,7 @@ function calcInjuryRisk() {
     const weekStart = new Date(thisMonday); weekStart.setDate(thisMonday.getDate() - (weeksAgo * 7));
     const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 7);
     const acts = allActivities.filter(a => {
-      const d = new Date(a.start_date_local);
+      const d = actDate(a);
       return d >= weekStart && d < weekEnd && a.distance > 0;
     });
     const swimMi = acts.filter(a=>a.type==='Swim').reduce((s,a)=>s+mToMi(a.distance),0);
@@ -8043,7 +8051,7 @@ function getWeekSummaryData() {
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
 
   const acts = allActivities.filter(a => {
-    const d = new Date(a.start_date_local);
+    const d = actDate(a);
     return d >= weekStart && d < tomorrow && a.distance > 0;
   });
 
@@ -8366,7 +8374,7 @@ async function generateDailyInsight(forceRefresh) {
     // Training — this week
     const startOfWeek = new Date(); startOfWeek.setHours(0,0,0,0);
     startOfWeek.setDate(startOfWeek.getDate() - (startOfWeek.getDay()===0?6:startOfWeek.getDay()-1));
-    const thisWeek = allActivities.filter(a => new Date(a.start_date_local) >= startOfWeek && a.distance > 0);
+    const thisWeek = allActivities.filter(a => actDate(a) >= startOfWeek && a.distance > 0);
     const swimMi = thisWeek.filter(a=>a.type==='Swim').reduce((s,a)=>s+mToMi(a.distance),0);
     const runMi  = thisWeek.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
     const bikeMi = thisWeek.filter(a=>a.type==='Ride').reduce((s,a)=>s+mToMi(a.distance),0);
@@ -8654,7 +8662,7 @@ function openRaceSimulator(raceId) {
 function buildPaceContext() {
   // Extract recent pace data per sport from the last 60 days
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
-  const recent = allActivities.filter(a => new Date(a.start_date_local) >= cutoff && a.distance > 0 && a.moving_time > 0);
+  const recent = allActivities.filter(a => actDate(a) >= cutoff && a.distance > 0 && a.moving_time > 0);
 
   function sportStats(type) {
     const acts = recent.filter(a => a.type === type);
@@ -9108,7 +9116,7 @@ async function generateDebrief(raceId) {
     // Find race-day activities (race date +/- same day)
     const raceDateStr = race.date;
     const raceDayActs = allActivities.filter(a => a.start_date_local.split('T')[0] === raceDateStr && a.distance > 0)
-      .sort((a,b) => new Date(a.start_date_local) - new Date(b.start_date_local));
+      .sort((a,b) => actDate(a) - actDate(b));
 
     if (!raceDayActs.length) {
       document.getElementById('debrief-content').innerHTML = `
@@ -9271,7 +9279,7 @@ function buildFitnessTrend(limitWeeks = 26) {
   const paceByWeek = {};
   allActivities.forEach(a => {
     if (a.type !== 'Run' || !a.distance || !a.moving_time) return;
-    const d = new Date(a.start_date_local);
+    const d = actDate(a);
     if (d < cutoff) return;
     const wk = isoWeek(d);
     if (!paceByWeek[wk]) paceByWeek[wk] = { mi: 0, sec: 0 };
@@ -9372,7 +9380,7 @@ const CACHE_KEY_SHOEFINDER = 'brb_shoe_finder';
 function recentGearMiles(gearId, days) {
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - days);
   return allActivities
-    .filter(a => a.gear_id === gearId && new Date(a.start_date_local) >= cutoff && a.distance > 0)
+    .filter(a => a.gear_id === gearId && actDate(a) >= cutoff && a.distance > 0)
     .reduce((s,a) => s + mToMi(a.distance), 0);
 }
 
@@ -9595,7 +9603,7 @@ function buildWeeklyHours() {
   const weekMap = {};
   allActivities.forEach(a => {
     if (!a.moving_time) return;
-    const wk = isoWeek(new Date(a.start_date_local));
+    const wk = isoWeek(actDate(a));
     if (!weekMap[wk]) weekMap[wk] = { weekStart: wk, hours: 0 };
     weekMap[wk].hours += a.moving_time / 3600;
   });
@@ -10142,7 +10150,7 @@ function initWorkoutsPage() {
 // Derive training paces from recent running data (VDOT-style relationships)
 function deriveTrainingPaces() {
   const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
-  const runs = allActivities.filter(a => a.type === 'Run' && new Date(a.start_date_local) >= cutoff && a.distance > 0 && a.moving_time > 0);
+  const runs = allActivities.filter(a => a.type === 'Run' && actDate(a) >= cutoff && a.distance > 0 && a.moving_time > 0);
   if (!runs.length) return null;
 
   // Use best sustained pace over a meaningful distance as the fitness anchor
@@ -10192,7 +10200,7 @@ async function generateWorkout() {
     // Sport-specific context
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 60);
     const sportMap = { run:'Run', ride:'Ride', swim:'Swim' };
-    const acts = allActivities.filter(a => a.type === sportMap[sport] && new Date(a.start_date_local) >= cutoff && a.distance > 0 && a.moving_time > 0);
+    const acts = allActivities.filter(a => a.type === sportMap[sport] && actDate(a) >= cutoff && a.distance > 0 && a.moving_time > 0);
     const sportCtx = acts.length
       ? sport + ': ' + acts.length + ' sessions in 60d, avg ' + fmtPaceSec(acts.reduce((s,a)=>s+a.moving_time,0)/acts.reduce((s,a)=>s+mToMi(a.distance),0)) + '/mi, longest ' + Math.max(...acts.map(a=>mToMi(a.distance))).toFixed(1) + 'mi'
       : 'No recent ' + sport + ' data.';
@@ -10942,7 +10950,7 @@ function renderDebugPage() {
   let recentRows = [];
   try {
     const recent = [...allActivities]
-      .sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local))
+      .sort((a,b) => actDate(b) - actDate(a))
       .slice(0, 8);
     if (!recent.length) {
       recentRows = [row('Recent activities', 'NONE IN MEMORY', true)];
@@ -11041,7 +11049,7 @@ function buildPlanSkeleton(race, opts) {
 
   // Starting weekly volume: infer from recent 3-week average run mileage, floored sensibly
   const cutoff = new Date(now); cutoff.setDate(now.getDate() - 21);
-  const recentRun = allActivities.filter(a => a.type === 'Run' && new Date(a.start_date_local) >= cutoff && a.distance > 0);
+  const recentRun = allActivities.filter(a => a.type === 'Run' && actDate(a) >= cutoff && a.distance > 0);
   const recentWeeklyMi = recentRun.reduce((s,a) => s + mToMi(a.distance), 0) / 3;
   const isMarathon = (race.subtype||'').toLowerCase().includes('marathon') || (race.type === 'run');
   const raceGoalMi = isMarathon ? (race.subtype||'').toLowerCase().includes('half') ? 13.1 : 26.2 : 6.2;
@@ -12396,7 +12404,7 @@ async function refreshData() {
     try { localStorage.setItem('brb_sync_trace', JSON.stringify(trace)); } catch(e) {}
     if (trace.droppedIds.length) console.warn('[sync] recovered dropped activities:', trace.droppedIds);
 
-    allActivities = staged.sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+    allActivities = staged.sort((a,b) => actDate(b) - actDate(a));
     activitySummary = buildSummary(allActivities);
 
     // CRITICAL: persist training data IMMEDIATELY — before the AI call.
@@ -12533,14 +12541,14 @@ function getWeeklyTargetsFromPlan() {
 function calcLiveWeekTotals() {
   const startOfWeek = new Date(); startOfWeek.setHours(0,0,0,0);
   startOfWeek.setDate(startOfWeek.getDate() - (startOfWeek.getDay() === 0 ? 6 : startOfWeek.getDay() - 1));
-  const thisWeek = allActivities.filter(a => new Date(a.start_date_local) >= startOfWeek);
+  const thisWeek = allActivities.filter(a => actDate(a) >= startOfWeek);
   const weekSwimMi = thisWeek.filter(a=>a.type==='Swim').reduce((s,a)=>s+mToMi(a.distance),0);
   const weekBikeMi = thisWeek.filter(a=>a.type==='Ride'&&a.distance>0).reduce((s,a)=>s+mToMi(a.distance),0);
   const weekRunMi  = thisWeek.filter(a=>a.type==='Run').reduce((s,a)=>s+mToMi(a.distance),0);
   const totalWeekMi = weekSwimMi + weekBikeMi + weekRunMi;
   // Hours across ALL sports (incl. strength etc), from moving_time
   const weekHours = allActivities
-    .filter(a => new Date(a.start_date_local) >= startOfWeek && a.moving_time > 0)
+    .filter(a => actDate(a) >= startOfWeek && a.moving_time > 0)
     .reduce((s,a) => s + a.moving_time, 0) / 3600;
   return { weekSwimMi, weekBikeMi, weekRunMi, totalWeekMi, weekHours };
 }
@@ -12613,7 +12621,7 @@ async function loadArchiveFromKV() {
 
     allActivities = applyDeletedBlocklist(data.activities
       .map(a => ({ ...a, type: normalizeActivityType(a.type) })))
-      .sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+      .sort((a,b) => actDate(b) - actDate(a));
 
     // Build a fresh analysis object and cache it locally so subsequent opens are instant
     const analysis = { ...calcLiveWeekTotals() };
