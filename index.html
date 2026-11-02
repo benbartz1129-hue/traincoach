@@ -10881,14 +10881,9 @@ async function garminAutoSync(force = false, daysOverride) {
   // First run backfills ~40 days (enough for the readiness baseline) in chunks of 10 days per call
   const total = daysOverride || (st.backfilled ? 3 : 40);
   try {
-    let data = { ok: true, days: [], notes: {} };
-    for (let done = 0; done < total; done += 10) {
-      const chunk = Math.min(10, total - done);
-      const r = await fetch('/garmin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'daily', days: chunk, endDate: addDaysStr(localDateStr(), -done) }) });
-      const part = await r.json().catch(() => ({ ok: false, error: 'HTTP ' + r.status }));
-      if (!part.ok) { if (done === 0) { data = part; } break; }
-      data.days.push(...(part.days || [])); Object.assign(data.notes, part.notes || {});
-    }
+    // One call: the function uses Garmin's range endpoints (a handful of requests for the whole span)
+    const r = await fetch('/garmin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'daily', days: total, endDate: localDateStr() }) });
+    const data = await r.json().catch(() => ({ ok: false, error: 'HTTP ' + r.status }));
     if (!data.ok) {
       // No key / rejected key: stop trying for a day instead of calling on every open
       const off = /not set|401|403|rejected/i.test(data.error || '') ? now + 24 * 3600e3
@@ -10918,7 +10913,7 @@ const STEPS_KEY = 'brb_steps', STEPS_META = 'brb_steps_meta';
 function stepsData() { try { return JSON.parse(localStorage.getItem(STEPS_KEY) || '{}'); } catch (e) { return {}; } }
 async function garminStepsSync(full) {
   let meta = {}; try { meta = JSON.parse(localStorage.getItem(STEPS_META) || '{}'); } catch (e) {}
-  const end = localDateStr(), start = addDaysStr(end, full || !meta.backfilled ? -364 : -13);
+  const end = localDateStr(), start = addDaysStr(end, full || !meta.backfilled ? -181 : -13);   // 26 weeks first time (7 requests), then 2 weeks
   try {
     const r = await fetch('/garmin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'steps', start, end }) });
     const data = await r.json();
@@ -10979,12 +10974,12 @@ function renderWeeklySteps() {
 async function garminImportNow() {
   const out = document.getElementById('gm-out'); if (out) out.textContent = 'Importing the last 40 days from Garmin…';
   const r = await garminAutoSync(true, 40);
-  const st = await garminStepsSync(true);
+  const st = r.ok ? await garminStepsSync(true) : { ok: false, error: 'skipped (wellness import failed)' };
   if (!out) return;
   if (!r.ok) { out.textContent = 'Import failed: ' + (r.error || 'unknown'); return; }
   out.textContent = 'Imported ' + (r.days || []).length + ' days' + (r.changed ? ' (log updated)' : ' (nothing new)') + '\n' +
     (r.days || []).map(d => d.date + '  HRV ' + (d.hrv ?? '—') + '  RHR ' + (d.rhr ?? '—') + '  sleep ' + (d.sleepHrs ?? '—') + 'h' + (d.weightKg ? '  ' + d.weightKg + 'kg' : '')).join('\n') +
-    '\nRHR source: ' + JSON.stringify(r.notes || {}) +
+    '\nGarmin requests used: ' + ((r.notes || {}).requests ?? '?') + ' · range endpoints: ' + JSON.stringify((r.notes || {}).caps || {}) +
     '\nSteps: ' + (st.ok ? st.days + ' days loaded (' + st.changed + ' new)' : 'failed — ' + (st.error || 'HTTP ' + JSON.stringify(st.statuses || [])));
 }
 
