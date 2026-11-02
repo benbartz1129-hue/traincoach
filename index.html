@@ -1321,6 +1321,19 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
 .sp-season-row b { display: block; font-family: var(--font-display); font-size: 14px; }
 .sp-season-row span { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
 
+/* ── WEEK RECAP ── */
+.wr-card { padding: 12px 14px 6px; }
+.wr-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.wr-title { font-family: var(--font-display); font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.wr-sub { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: var(--font-mono); }
+.wr-row { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 8px; padding: 11px 2px; border-bottom: 1px solid var(--border); }
+.wr-row:last-child { border-bottom: none; }
+.wr-ico { font-size: 17px; text-align: center; }
+.wr-lbl { font-size: 14px; color: var(--text); font-family: var(--font-display); font-weight: 600; }
+.wr-val { font-size: 14px; color: var(--text); text-align: right; font-family: var(--font-mono); white-space: nowrap; }
+.wr-val small { font-size: 10px; color: var(--dim); margin-left: 4px; }
+.wr-row.dim .wr-lbl, .wr-row.dim .wr-val { color: var(--dim); }
+
 /* ── STRENGTH GENERATOR ── */
 .act-brb-tag { font-family: var(--font-display); font-size: 9px; font-weight: 700; letter-spacing: .06em; padding: 2px 5px; border-radius: 4px; background: rgba(232,93,117,.15); color: var(--strength); vertical-align: 2px; }
 .sg-timer-wrap { position: sticky; top: 0; z-index: 5; margin: 14px 0 0; background: var(--bg); padding: 8px 0; }
@@ -2169,6 +2182,10 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
           </div>
         </div>
 
+        <!-- Week recap: one calendar week at a time, page back through history -->
+        <div class="section-label">Week recap</div>
+        <div class="card wr-card" id="week-recap" style="margin-bottom:20px"></div>
+
 
         <!-- Weekly chart -->
         <div class="section-label">12-week TLS history</div>
@@ -2822,7 +2839,7 @@ function switchTab(tab) {
   if (tab === 'recovery') { updateRecoveryMetrics(); try { renderBodyMap(); } catch(e) { console.warn('bodymap', e); } }
   initTimer();   // leaving or entering a page always stops a running timer and releases the screen
   if (tab === 'prs') initPRWall();
-  if (tab === 'load') { initLoadPage(); renderFitnessTrend(); renderWeeklyHours(); renderFitnessBars(); }
+  if (tab === 'load') { try { renderWeekRecap(); } catch (e) { console.warn('week recap', e); } initLoadPage(); renderFitnessTrend(); renderWeeklyHours(); renderFitnessBars(); }
   if (tab === 'stats') renderStatsPage();
   if (tab === 'garage') initGarage();
   if (tab === 'races') { initRacePlanner(); renderRaces(); }
@@ -5479,6 +5496,73 @@ function spEaseSession(id) {
 function spDeleteSession(btn, id) {
   if (!btn.dataset.armed) { btn.dataset.armed = '1'; btn.textContent = 'Tap again'; return; }
   trainingPlan = trainingPlan.filter(x => String(x.id) !== String(id)); savePlan(); calOpenSession = null; renderWeekView();
+}
+
+// ── WEEK RECAP (Load page) ────────────────────────────────────────────────
+// Monday–Sunday totals per sport + sleep/heart averages. Starts on last full week; arrows (or a
+// swipe) step back through history and forward to "this week so far".
+let recapWeekStart = null;
+function recapShift(n) {
+  const thisMon = addDaysStr(localDateStr(), -((new Date().getDay() + 6) % 7));
+  const next = addDaysStr(recapWeekStart, n * 7);
+  if (next > thisMon) return;
+  recapWeekStart = next; renderWeekRecap();
+}
+function renderWeekRecap() {
+  const el = document.getElementById('week-recap'); if (!el) return;
+  const today = localDateStr();
+  const thisMon = addDaysStr(today, -((new Date().getDay() + 6) % 7));
+  if (!recapWeekStart) recapWeekStart = addDaysStr(thisMon, -7);           // last full week
+  const ws = recapWeekStart, we = addDaysStr(ws, 6);
+  const inWeek = a => { const d = (a.start_date_local || '').slice(0, 10); return d >= ws && d <= we; };
+  const acts = allActivities.filter(a => inWeek(a) && (a.moving_time > 0 || a.distance > 0));
+  const of = t => acts.filter(a => homeSportOf(a) === t);
+  const mi = list => list.reduce((s, a) => s + mToMi(a.distance), 0);
+  const secs = list => list.reduce((s, a) => s + (a.moving_time || 0), 0);
+  const hms = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60; return h + ':' + String(m).padStart(2, '0') + ':' + String(x).padStart(2, '0'); };
+  const hm = s => { const h = Math.floor(s / 3600), m = Math.round(s % 3600 / 60); return h ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}m`; };
+  const rides = of('Ride'), runs = of('Run'), swims = of('Swim'), lifts = of('Strength');
+  // Strength workouts completed in the app (not on Strava) count too
+  const brb = (typeof sgActivities === 'function' ? sgActivities() : []).filter(a => { const d = a.start_date_local.slice(0, 10); return d >= ws && d <= we && typeof sgCompletedOn === 'function' && sgCompletedOn(d); });
+  const workouts = [...lifts, ...brb];
+  const other = acts.filter(a => !homeSportOf(a));
+  const swimYd = swims.reduce((s, a) => s + (a.distance || 0) / 0.9144, 0);
+  const well = wellnessLog.filter(e => e.date >= ws && e.date <= we);
+  const avg = f => { const v = well.map(f).filter(x => x != null && !isNaN(x) && x > 0); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
+  const sleepH = avg(e => e.sleep), sleepScore = avg(e => e.garmin && e.garmin.sleepScore), rhr = avg(e => e.rhr), hrv = avg(e => e.hrv);
+  const totalSec = secs(acts) + brb.reduce((s, a) => s + (a.moving_time || 0), 0);
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const fmtSleep = h => { const m = Math.round(h * 60); return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`; };
+  const row = (icon, label, value, dim) => `<div class="wr-row${dim ? ' dim' : ''}"><span class="wr-ico">${icon}</span><span class="wr-lbl">${label}</span><span class="wr-val">${value}</span></div>`;
+  const rows = [
+    row('🚴', plural(rides.length, 'Ride'), rides.length ? mi(rides).toFixed(1) + ' mi' : '—', !rides.length),
+    row('🏃', plural(runs.length, 'Run'), runs.length ? mi(runs).toFixed(1) + ' mi' : '—', !runs.length),
+    row('🏋️', plural(workouts.length, 'Workout'), workouts.length ? hms(secs(workouts)) : '—', !workouts.length),
+    row('🏊', plural(swims.length, 'Swim'), swims.length ? Math.round(swimYd / 50) * 50 > 999 ? (Math.round(swimYd / 50) * 50).toLocaleString() + ' yd' : Math.round(swimYd / 50) * 50 + ' yd' : '—', !swims.length),
+    other.length ? row('⚡', plural(other.length, 'Other'), hms(secs(other)) + ` <small>${[...new Set(other.map(a => a.type))].slice(0, 2).join(', ')}</small>`) : '',
+    row('😴', 'Sleep', sleepH ? (sleepScore ? `${Math.round(sleepScore)} Avg / ` : '') + fmtSleep(sleepH) + ' Avg' : '—', !sleepH),
+    row('❤️', 'Heart Rate', rhr ? Math.round(rhr) + ' Avg Resting' : '—', !rhr),
+    row('💓', 'HRV', hrv ? Math.round(hrv) + ' ms Avg' : '—', !hrv),
+  ].join('');
+  const weeksAgo = Math.round((new Date(thisMon + 'T12:00:00') - new Date(ws + 'T12:00:00')) / (7 * 86400000));
+  const when = weeksAgo === 0 ? 'This week so far' : weeksAgo === 1 ? 'Last week' : weeksAgo + ' weeks ago';
+  const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  el.innerHTML = `
+    <div class="wr-head">
+      <button class="cal-nav-btn" onclick="recapShift(-1)" aria-label="Previous week">‹</button>
+      <div style="text-align:center"><div class="wr-title">${when}</div><div class="wr-sub">${fmt(ws)} – ${fmt(we)} · ${hm(totalSec)} total</div></div>
+      <button class="cal-nav-btn" onclick="recapShift(1)" aria-label="Next week" ${ws >= thisMon ? 'disabled style="opacity:.25"' : ''}>›</button>
+    </div>
+    <div class="wr-list">${rows}</div>`;
+  // swipe left/right to change week
+  if (!el.dataset.swipe) {
+    el.dataset.swipe = '1'; let x0 = null, y0 = null;
+    el.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; }, { passive: true });
+    el.addEventListener('touchend', e => {
+      if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0; x0 = null;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) recapShift(dx > 0 ? -1 : 1);
+    }, { passive: true });
+  }
 }
 
 // ── STRENGTH GENERATOR ────────────────────────────────────────────────────
