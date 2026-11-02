@@ -12,8 +12,22 @@ const API_HOST = 'https://personal.connectapi.garmin.com';
 const TOKEN_URL = API_HOST + '/personalapitoken-service/personal-api/personal-api-key/token';
 const DOCS_PAGE = 'https://developer.garmin.com/gc-developer-program/personal/swagger-docs/';
 
-// Access tokens last 24h and there are no refresh tokens — cache per isolate and re-mint when close to expiry.
+// Access tokens last 24h and there are no refresh tokens. Garmin limits how many tokens can be minted
+// (HTTP 429 after ~100), and Cloudflare may start a fresh copy of this function for every request — so
+// the token is cached in KV (shared by every copy) as well as in memory, and only re-minted near expiry.
 let cachedToken = null;   // { token, expiresAt }
+let envRef = null;
+const CF_ACCOUNT_ID = '23846f97f2d5dde9557f21aabbc3f3e9';
+const KV_NAMESPACE_ID = 'ce44f82dceff46a6bd16563a2f3a3b1c';
+const KV_TOKEN_URL = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${KV_NAMESPACE_ID}/values/garmin_access_token`;
+async function kvTokenGet(env) {
+  if (!env.CF_API_TOKEN) return null;
+  try { const r = await fetch(KV_TOKEN_URL, { headers: { Authorization: 'Bearer ' + env.CF_API_TOKEN } }); if (!r.ok) return null; const j = await r.json(); return j && j.token ? j : null; } catch (e) { return null; }
+}
+async function kvTokenPut(env, val) {
+  if (!env.CF_API_TOKEN) return;
+  try { await fetch(KV_TOKEN_URL + '?expiration_ttl=' + Math.max(60, Math.floor((val.expiresAt - Date.now()) / 1000)), { method: 'PUT', headers: { Authorization: 'Bearer ' + env.CF_API_TOKEN, 'Content-Type': 'text/plain' }, body: JSON.stringify(val) }); } catch (e) {}
+}
 let keyInfo = null;       // { length, trimmed } — reported on failures (never the key itself)
 
 const headers = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
@@ -28,7 +42,9 @@ const KNOWN_ENDPOINTS = [
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers });
 
 async function getToken(env, force) {
-  if (!force && cachedToken && cachedToken.expiresAt - Date.now() > 60 * 60 * 1000) return cachedToken.token;
+  const fresh = t => t && t.expiresAt - Date.now() > 60 * 60 * 1000;
+  if (!force && fresh(cachedToken)) return cachedToken.token;
+  if (!force) { const kv = await kvTokenGet(env); if (fresh(kv)) { cachedToken = { ...kv, raw: kv.raw || ['cached'] }; return kv.token; } }
   const rawKey = env.GARMIN_API_KEY;
   if (!rawKey) throw new Error('GARMIN_API_KEY is not set in Cloudflare');
   // Pasted secrets often carry a stray space/newline or quotes — strip them
@@ -42,6 +58,7 @@ async function getToken(env, force) {
   if (!r.ok) {
     const err = new Error('Token request failed (HTTP ' + r.status + '): ' + text.slice(0, 300));
     err.status = r.status; err.cfRay = r.headers.get('cf-ray'); err.server = r.headers.get('server');
+    try { const j = JSON.parse(text); if (j.retryInSeconds) err.retryIn = j.retryInSeconds; } catch (e) {}
     throw err;
   }
   // Accept either JSON ({access_token,...}), a JSON string ("eyJ..."), or the raw token text
@@ -51,6 +68,7 @@ async function getToken(env, force) {
   if (!token) throw new Error('Token response had no access token. Fields: ' + Object.keys(data).join(', '));
   const ttl = Number(data.expires_in || data.expiresIn || 86400);
   cachedToken = { token, expiresAt: Date.now() + ttl * 1000, raw: Object.keys(data).concat(['len ' + token.length]) };
+  await kvTokenPut(env, { token, expiresAt: cachedToken.expiresAt, raw: cachedToken.raw });
   return token;
 }
 
@@ -131,6 +149,7 @@ function summarizeSpec(spec) {
 async function gget(token, path) {
   const url = API_HOST + path;
   let r = await fetch(url, { headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' } });
+  if (r.status === 401 && envRef) { token = await getToken(envRef, true); r = await fetch(url, { headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' } }); }
   if (r.status === 406) r = await fetch(url, { headers: { Authorization: 'Bearer ' + token, Accept: '*/*' } });
   if (!r.ok) return { status: r.status, data: null };
   try { return { status: r.status, data: JSON.parse(await r.text()) }; } catch (e) { return { status: r.status, data: null }; }
@@ -209,14 +228,15 @@ async function netCheck() {
 }
 
 export async function onRequestPost(context) {
+  envRef = context.env;
   try {
     const body = await context.request.json().catch(() => ({}));
     const action = body.action || 'status';
 
     if (action === 'status') {
       let token;
-      try { token = await getToken(context.env, true); }
-      catch (e) { return json({ ok: false, error: e.message, status: e.status, cfRay: e.cfRay, server: e.server, key: keyInfo, net: e.status === 401 || e.status === 403 ? null : await netCheck() }); }
+      try { token = await getToken(context.env, false); }
+      catch (e) { return json({ ok: false, error: e.message, status: e.status, retryIn: e.retryIn, cfRay: e.cfRay, server: e.server, key: keyInfo, net: [401, 403, 429].includes(e.status) ? null : await netCheck() }); }
       return json({ ok: true, tokenOk: !!token, tokenFields: cachedToken.raw, expiresAt: new Date(cachedToken.expiresAt).toISOString() });
     }
 
@@ -275,7 +295,7 @@ export async function onRequestPost(context) {
 
     return json({ ok: false, error: 'Unknown action' }, 400);
   } catch (e) {
-    return json({ ok: false, error: e.message });
+    return json({ ok: false, error: e.message, status: e.status, retryIn: e.retryIn });
   }
 }
 
