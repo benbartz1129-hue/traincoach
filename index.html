@@ -3280,6 +3280,7 @@ function getTriDistanceTargets(subtype) {
 
 // ── DASHBOARD RENDER ──────────────────────────────────────────────────────
 function renderDashboard(d) {
+  try { spRepairPlanText(); } catch (e) {}
   const loadColors = { low:'var(--ok)', moderate:'var(--mar)', high:'var(--warn)', 'very high':'var(--warn)' };
   // Defensive: week totals must always come from live activity data. Some callers pass
   // an AI-analysis object that has no week fields, which previously rendered 0.0 until
@@ -4885,7 +4886,8 @@ function spFocus(w) {
 
 // Session minutes ↔ distance using your own paces
 function spDistance(sport, min, fit) {
-  if (sport === 'run') return { distanceMi: Math.round(min * 60 / fit.runPace * 10) / 10 };
+  // Most running is easy, and the plan's descriptions use easy pace (your average + 15 s/mi)
+  if (sport === 'run') return { distanceMi: Math.round(min * 60 / (fit.runPace + 15) * 10) / 10 };
   if (sport === 'ride') return { distanceMi: Math.round(min / 60 * fit.rideMph * 10) / 10 };
   if (sport === 'swim') { const yd = Math.round(min * 60 / fit.swimPer100 * 100 / 50) * 50; return { yards: yd, distanceMi: Math.round(yd / 1760 * 100) / 100 }; }
   return {};
@@ -5016,7 +5018,7 @@ function spValidateWeek(aiSessions, w, template, fit, raceById) {
   let s = (Array.isArray(aiSessions) ? aiSessions : []).map(x => {
     const r = reconcilePlanDay({ ...x });
     const sport = sportMap[String(r.sport || '').toLowerCase()] || null;
-    return sport ? { ...r, sport, type: String(r.type || 'easy').toLowerCase(), durationMin: Math.max(0, Math.round(Number(r.durationMin) || 0)), intensity: ['easy', 'moderate', 'hard'].includes(r.intensity) ? r.intensity : SP_HARD_TYPES.includes(String(r.type).toLowerCase()) ? 'hard' : 'easy', title: String(r.title || SP_LABEL[sport] || 'Session').slice(0, 60), detail: String(r.detail || '').slice(0, 240) } : null;
+    return sport ? { ...r, sport, type: String(r.type || 'easy').toLowerCase(), durationMin: Math.max(0, Math.round(Number(r.durationMin) || 0)), _origMin: Math.round(Number(r.durationMin) || 0), _origMi: Number(r.distanceMi) || null, _origYd: Number(r.yards) || null, intensity: ['easy', 'moderate', 'hard'].includes(r.intensity) ? r.intensity : SP_HARD_TYPES.includes(String(r.type).toLowerCase()) ? 'hard' : 'easy', title: String(r.title || SP_LABEL[sport] || 'Session').slice(0, 60), detail: String(r.detail || '').slice(0, 240) } : null;
   }).filter(x => x && dates.includes(x.date));
   if (!s.length) return { sessions: draft, fixes: ['AI week unusable — used rule-based week'], fallback: true };
 
@@ -5110,17 +5112,68 @@ function spValidateWeek(aiSessions, w, template, fit, raceById) {
   const totalMin = s.reduce((a, x) => a + x.durationMin, 0), hardMin = s.filter(isHard).reduce((a, x) => a + x.durationMin, 0);
   if (totalMin && hardMin / totalMin > 0.25) fixes.push('high intensity share ' + Math.round(hardMin / totalMin * 100) + '% (target ≤20–25%)');
 
-  // 8. Distances from YOUR paces (replace missing or implausible ones)
+  // 8. Distances from YOUR paces. If the rules changed a session's time, its distance is ALWAYS
+  //    recalculated, and the AI's old numbers in the description are updated to match.
   s.forEach(x => {
-    if (!['run', 'ride', 'swim'].includes(x.sport) || !x.durationMin) return;
-    const exp = spDistance(x.sport, x.durationMin, fit);
-    const have = x.sport === 'swim' ? (Number(x.yards) || 0) : (Number(x.distanceMi) || 0);
-    const want = x.sport === 'swim' ? exp.yards : exp.distanceMi;
-    if (!have || Math.abs(have - want) / want > 0.3) Object.assign(x, exp);
-    else if (x.sport === 'swim') x.distanceMi = Math.round(have / 1760 * 100) / 100;
+    if (!x) return;
+    if (['run', 'ride', 'swim'].includes(x.sport) && x.durationMin) {
+      const exp = spDistance(x.sport, x.durationMin, fit);
+      const have = x.sport === 'swim' ? (Number(x.yards) || 0) : (Number(x.distanceMi) || 0);
+      const want = x.sport === 'swim' ? exp.yards : exp.distanceMi;
+      const timeChanged = x._origMin != null && x._origMin !== x.durationMin;
+      if (timeChanged || !have || Math.abs(have - want) / want > 0.3) Object.assign(x, exp);
+      else if (x.sport === 'swim') x.distanceMi = Math.round(have / 1760 * 100) / 100;
+    }
+    spSyncDetail(x, x._origMin, x.sport === 'swim' ? x._origYd : x._origMi);
+    delete x._origMin; delete x._origMi; delete x._origYd;
     x.key = isHard(x);
   });
   return { sessions: s.filter(Boolean), fixes };
+}
+
+// Keep a session's description in step with its time/distance. Replaces the session TOTAL only
+// (e.g. "60 min Z2 ride" → "40 min Z2 ride"); interval parts like "3×10 min" and paces like "8:37/mi" are left alone.
+function spSyncDetail(x, oldMin, oldDist) {
+  if (!x || !x.detail) return;
+  let t = x.detail;
+  const fmtH = m => m >= 60 && m % 60 === 0 ? (m / 60) + ' hr' : m + ' min';
+  if (oldMin && x.durationMin && oldMin !== x.durationMin) {
+    t = t.replace(new RegExp('(^|[^×x\\d:.\\/])' + oldMin + '(\\s*)(min|minutes|mins)\\b', 'g'), (m, pre, sp) => pre + x.durationMin + sp + 'min');
+    if (oldMin % 60 === 0) t = t.replace(new RegExp('(^|[^×x\\d:.\\/])' + (oldMin / 60) + '(\\s*)(hr|hrs|hour|hours)\\b', 'g'), (m, pre) => pre + fmtH(x.durationMin));
+  }
+  if (x.sport === 'swim' && oldDist && x.yards && Math.abs(oldDist - x.yards) > 50)
+    t = t.replace(new RegExp('(^|[^×x\\d:.\\/])' + String(oldDist).replace(/\B(?=(\d{3})+(?!\d))/g, ',?') + '(\\s*)(yd|yards)\\b', 'g'), (m, pre, sp) => pre + x.yards.toLocaleString() + sp + 'yd');
+  else if (oldDist && x.distanceMi && Math.abs(oldDist - x.distanceMi) > 0.15)
+    t = t.replace(new RegExp('(^|[^×x\\d:.\\/])' + String(oldDist).replace('.', '\\.') + '(\\s*)(mi|miles)\\b(?!\\/)', 'g'), (m, pre, sp) => pre + x.distanceMi + sp + 'mi');
+  x.detail = t;
+}
+
+// One-time repair for plans built before descriptions/distances were kept in sync.
+// Finds the single "N min" TOTAL in a description that disagrees with the session's time, and
+// recalculates distance from time using the plan's paces.
+function spRepairPlanText() {
+  try {
+    if (localStorage.getItem('brb_plan_textfix_v1') || !seasonState || !seasonState.fit) return;
+    let changed = 0;
+    trainingPlan.forEach(p => {
+      if (p.src !== 'season' || !p.durationMin) return;
+      const before = JSON.stringify([p.detail, p.distanceMi, p.yards]);
+      // Only plain descriptions ("60 min easy…"); structured workouts (warm-up / intervals / cool-down) are left alone
+      const structured = /×|\d\s*x\s*\d|\bWU\b|\bCD\b|\bwarm|\bcool|\breps?\b|@/i.test(p.detail || '');
+      const totals = structured ? [] : [...new Set([...(p.detail || '').matchAll(/(^|[^×x\d:.\/])(\d+)\s*(min|minutes|mins)\b/g)].map(m => +m[2]).filter(n => n >= 20))];
+      const oldMin = totals.length === 1 && totals[0] !== p.durationMin && totals[0] >= p.durationMin * 0.4 && totals[0] <= p.durationMin * 2.5 ? totals[0] : null;
+      let oldDist = null;
+      if (['run', 'ride'].includes(p.sport)) {
+        const ds = [...new Set([...(p.detail || '').matchAll(/(^|[^×x\d:.\/])(\d+(?:\.\d+)?)\s*(mi|miles)\b(?!\/)/g)].map(m => +m[2]))];
+        oldDist = ds.length === 1 ? ds[0] : null;
+        Object.assign(p, spDistance(p.sport, p.durationMin, seasonState.fit));
+      }
+      spSyncDetail(p, oldMin, oldDist);
+      if (JSON.stringify([p.detail, p.distanceMi, p.yards]) !== before) changed++;
+    });
+    localStorage.setItem('brb_plan_textfix_v1', '1');
+    if (changed) { savePlan(); console.log('plan text repaired:', changed, 'sessions'); }
+  } catch (e) { console.warn('plan repair', e); }
 }
 
 // ── AI: write 4 weeks at a time inside the engine's targets ──
@@ -5366,6 +5419,7 @@ function calWeekShift(n) { calWeekStart = addDaysStr(calWeekStart || spMondayOf(
 let calOpenSession = null;
 function renderWeekView() {
   const el = document.getElementById('wk-view'); if (!el) return;
+  spRepairPlanText();
   const today = localDateStr();
   if (!calWeekStart) calWeekStart = spMondayOf(today);
   const ws = calWeekStart, we = addDaysStr(ws, 6);
