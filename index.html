@@ -2208,6 +2208,16 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
           <div style="font-size:10px;color:var(--dim);margin-top:8px">Total moving time across all sports, per week (last 12 weeks)</div>
         </div>
 
+        <!-- Weekly steps (from Garmin) -->
+        <div class="section-label">Weekly steps</div>
+        <div class="card" style="padding:14px 16px;margin-bottom:20px">
+          <div style="position:relative;height:180px" id="steps-chart-wrap">
+            <canvas id="steps-chart" role="img" aria-label="Weekly step totals chart"></canvas>
+          </div>
+          <div id="steps-chart-empty" style="display:none;text-align:center;padding:1.5rem 0;font-size:12px;color:var(--dim)"></div>
+          <div style="font-size:10px;color:var(--dim);margin-top:8px" id="steps-chart-note">Total steps per week from Garmin (last 12 weeks)</div>
+        </div>
+
         <!-- Fitness trend -->
         <div class="section-label">Fitness trend <span style="color:var(--dim)">(6 months)</span></div>
         <div class="card" style="padding:14px 16px;margin-bottom:20px">
@@ -2839,7 +2849,7 @@ function switchTab(tab) {
   if (tab === 'recovery') { updateRecoveryMetrics(); try { renderBodyMap(); } catch(e) { console.warn('bodymap', e); } }
   initTimer();   // leaving or entering a page always stops a running timer and releases the screen
   if (tab === 'prs') initPRWall();
-  if (tab === 'load') { try { renderWeekRecap(); } catch (e) { console.warn('week recap', e); } initLoadPage(); renderFitnessTrend(); renderWeeklyHours(); renderFitnessBars(); }
+  if (tab === 'load') { try { renderWeekRecap(); renderWeeklySteps(); } catch (e) { console.warn('week recap/steps', e); } initLoadPage(); renderFitnessTrend(); renderWeeklyHours(); renderFitnessBars(); }
   if (tab === 'stats') renderStatsPage();
   if (tab === 'garage') initGarage();
   if (tab === 'races') { initRacePlanner(); renderRaces(); }
@@ -5540,6 +5550,9 @@ function renderWeekRecap() {
     row('🏋️', plural(workouts.length, 'Workout'), workouts.length ? hms(secs(workouts)) : '—', !workouts.length),
     row('🏊', plural(swims.length, 'Swim'), swims.length ? Math.round(swimYd / 50) * 50 > 999 ? (Math.round(swimYd / 50) * 50).toLocaleString() + ' yd' : Math.round(swimYd / 50) * 50 + ' yd' : '—', !swims.length),
     other.length ? row('⚡', plural(other.length, 'Other'), hms(secs(other)) + ` <small>${[...new Set(other.map(a => a.type))].slice(0, 2).join(', ')}</small>`) : '',
+    (() => { const sd = stepsData(); const vals = []; for (let i = 0; i < 7; i++) { const v = sd[addDaysStr(ws, i)]; if (v != null) vals.push(v); }
+      const tot = vals.reduce((s, v) => s + v, 0);
+      return row('👟', 'Steps', vals.length ? tot.toLocaleString() + ` <small>${Math.round(tot / vals.length).toLocaleString()}/day</small>` : '—', !vals.length); })(),
     row('😴', 'Sleep', sleepH ? (sleepScore ? `${Math.round(sleepScore)} Avg / ` : '') + fmtSleep(sleepH) + ' Avg' : '—', !sleepH),
     row('❤️', 'Heart Rate', rhr ? Math.round(rhr) + ' Avg Resting' : '—', !rhr),
     row('💓', 'HRV', hrv ? Math.round(hrv) + ' ms Avg' : '—', !hrv),
@@ -10883,6 +10896,7 @@ async function garminAutoSync(force = false, daysOverride) {
       return data;
     }
     const changed = garminMerge(data.days || []);
+    garminStepsSync().catch(() => {});
     garminSaveState({ at: now, ok: true, backfilled: true, info: data.notes, lastDays: (data.days || []).length });
     if (changed) {
       if (currentTab === 'stats') renderStatsPage();
@@ -10896,14 +10910,80 @@ async function garminAutoSync(force = false, daysOverride) {
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') garminAutoSync().catch(() => {}); });
 
+// ── STEPS (from Garmin) ──
+// Daily totals are kept on this device ({ 'YYYY-MM-DD': steps }); the app only shows weekly totals.
+const STEPS_KEY = 'brb_steps', STEPS_META = 'brb_steps_meta';
+function stepsData() { try { return JSON.parse(localStorage.getItem(STEPS_KEY) || '{}'); } catch (e) { return {}; } }
+async function garminStepsSync(full) {
+  let meta = {}; try { meta = JSON.parse(localStorage.getItem(STEPS_META) || '{}'); } catch (e) {}
+  const end = localDateStr(), start = addDaysStr(end, full || !meta.backfilled ? -364 : -13);
+  try {
+    const r = await fetch('/garmin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'steps', start, end }) });
+    const data = await r.json();
+    const map = stepsData(); let n = 0;
+    (data.days || []).forEach(d => { if (map[d.date] !== d.steps) { map[d.date] = d.steps; n++; } });
+    localStorage.setItem(STEPS_KEY, JSON.stringify(map));
+    localStorage.setItem(STEPS_META, JSON.stringify({ at: Date.now(), backfilled: meta.backfilled || (data.days || []).length > 0, statuses: data.statuses, ok: !!data.ok }));
+    if (n && currentTab === 'load') { renderWeeklySteps(); try { renderWeekRecap(); } catch (e) {} }
+    return { ok: !!data.ok, days: (data.days || []).length, changed: n, statuses: data.statuses, error: data.error };
+  } catch (e) { return { ok: false, error: e.message }; }
+}
+// { mondayDate: { steps, days } }
+function weeklySteps() {
+  const out = {};
+  Object.entries(stepsData()).forEach(([d, v]) => {
+    const mon = addDaysStr(d, -((new Date(d + 'T12:00:00').getDay() + 6) % 7));
+    const w = out[mon] || (out[mon] = { steps: 0, days: 0 }); w.steps += v; w.days++;
+  });
+  return out;
+}
+let stepsChartInstance = null;
+function renderWeeklySteps() {
+  const canvas = document.getElementById('steps-chart'); if (!canvas) return;
+  const empty = document.getElementById('steps-chart-empty'), wrap = document.getElementById('steps-chart-wrap'), note = document.getElementById('steps-chart-note');
+  const byWeek = weeklySteps(), keys = Object.keys(byWeek).sort();
+  if (!keys.length) {
+    if (stepsChartInstance) { stepsChartInstance.destroy(); stepsChartInstance = null; }
+    wrap.style.display = 'none'; empty.style.display = 'block'; note.style.display = 'none';
+    empty.innerHTML = 'No step data yet. Steps come from Garmin — they load automatically once your Garmin connection works (Debug page → Garmin connection).';
+    return;
+  }
+  wrap.style.display = ''; empty.style.display = 'none'; note.style.display = '';
+  const thisMon = addDaysStr(localDateStr(), -((new Date().getDay() + 6) % 7));
+  let n = weeksFor('steps-chart', 12);
+  if (n === 0) n = Math.max(1, Math.round((new Date(thisMon + 'T12:00:00') - new Date(keys[0] + 'T12:00:00')) / (7 * 86400000)) + 1);
+  const weeks = []; for (let i = n - 1; i >= 0; i--) weeks.push(addDaysStr(thisMon, -7 * i));
+  const labels = weeks.map(w => new Date(w + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+  const vals = weeks.map(w => (byWeek[w] || {}).steps || 0);
+  note.textContent = `Total steps per week from Garmin (${weeksFor('steps-chart', 12) === 0 ? 'all weeks' : 'last ' + n + ' weeks'}) · current week in progress`;
+  if (stepsChartInstance) { stepsChartInstance.destroy(); stepsChartInstance = null; }
+  stepsChartInstance = new Chart(canvas, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Steps', data: vals,
+      backgroundColor: vals.map((v, i) => i === vals.length - 1 ? 'rgba(245,197,66,0.85)' : 'rgba(245,197,66,0.35)'), borderRadius: 5, borderSkipped: false }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false },
+        tooltip: { backgroundColor: 'rgba(20,20,30,0.92)', titleColor: 'rgba(255,255,255,0.7)', bodyColor: 'rgba(255,255,255,0.9)', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
+          callbacks: { label: ctx => { const w = byWeek[weeks[ctx.dataIndex]] || { days: 0 }; return ctx.parsed.y.toLocaleString() + ' steps' + (w.days ? ' · ' + Math.round(ctx.parsed.y / w.days).toLocaleString() + '/day' : ''); } } } },
+      scales: {
+        x: { ticks: { color: 'rgba(255,255,255,0.45)', font: { size: 10, family: "'DM Mono', monospace" }, maxRotation: 45, autoSkip: true, maxTicksLimit: 7 }, grid: { display: false }, border: { color: 'rgba(255,255,255,0.1)' } },
+        y: { beginAtZero: true, ticks: { color: 'rgba(255,255,255,0.45)', font: { size: 10, family: "'DM Mono', monospace" }, callback: v => v >= 1000 ? Math.round(v / 1000) + 'k' : v }, grid: { color: 'rgba(255,255,255,0.06)' }, border: { color: 'rgba(255,255,255,0.1)' } }
+      }
+    }
+  });
+}
+
 async function garminImportNow() {
   const out = document.getElementById('gm-out'); if (out) out.textContent = 'Importing the last 40 days from Garmin…';
   const r = await garminAutoSync(true, 40);
+  const st = await garminStepsSync(true);
   if (!out) return;
   if (!r.ok) { out.textContent = 'Import failed: ' + (r.error || 'unknown'); return; }
   out.textContent = 'Imported ' + (r.days || []).length + ' days' + (r.changed ? ' (log updated)' : ' (nothing new)') + '\n' +
     (r.days || []).map(d => d.date + '  HRV ' + (d.hrv ?? '—') + '  RHR ' + (d.rhr ?? '—') + '  sleep ' + (d.sleepHrs ?? '—') + 'h' + (d.weightKg ? '  ' + d.weightKg + 'kg' : '')).join('\n') +
-    '\nRHR source: ' + JSON.stringify(r.notes || {});
+    '\nRHR source: ' + JSON.stringify(r.notes || {}) +
+    '\nSteps: ' + (st.ok ? st.days + ' days loaded (' + st.changed + ' new)' : 'failed — ' + (st.error || 'HTTP ' + JSON.stringify(st.statuses || [])));
 }
 
 // ── GARMIN PERSONAL API: setup check ─────────────────────────────────────
@@ -12905,6 +12985,7 @@ const ZOOM_RANGES = {
   'tls-chart':          zoomWeekReg('tls-chart', 12, () => initLoadPage()),
   'sport-weekly-chart': zoomWeekReg('sport-weekly-chart', 12, () => renderSportWeeklyChart()),
   'hours-chart':        zoomWeekReg('hours-chart', 12, () => renderWeeklyHours()),
+  'steps-chart':        zoomWeekReg('steps-chart', 12, () => renderWeeklySteps()),
   'fitness-chart':      zoomWeekReg('fitness-chart', 26, () => renderFitnessTrend()),
   'fitness-bars-chart': zoomWeekReg('fitness-bars-chart', 12, () => renderFitnessBars()),
   'weight-chart':       { chips: ZOOM_DAY_CHIPS, get: () => statsRange,           set: v => { statsRange = v; },           render: () => renderStatsChart() },
