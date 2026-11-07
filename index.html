@@ -1437,6 +1437,41 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
 .home-det { font-size: 12px; color: var(--muted); line-height: 1.6; margin-top: 4px; }
 .home-chips { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 .home-chips:empty { display: none; }
+
+/* Recovery fingerprint */
+.rf-card { padding: 12px 14px; }
+.rf-list { display: flex; flex-direction: column; }
+.rf-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.rf-row:last-child { border-bottom: none; }
+.rf-row.learning { opacity: .55; }
+.rf-ico { font-size: 18px; width: 26px; text-align: center; }
+.rf-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rf-main b { font-size: 14px; color: var(--text); font-weight: 600; }
+.rf-main span { font-size: 11px; color: var(--muted); }
+.rf-res { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.rf-res span { font-size: 11px; color: var(--text); font-weight: 600; }
+.rf-dots { display: flex; gap: 3px; }
+.rf-dots i { width: 9px; height: 9px; border-radius: 3px; background: var(--border); }
+.rf-dots i.on { background: var(--mar); }
+.rf-dots i.back { background: var(--ok); }
+.rf-note { font-size: 11px; color: var(--dim); line-height: 1.5; margin-top: 8px; }
+/* Daily call (home hero) */
+.dc { margin-top: 14px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: rgba(255,255,255,.03); cursor: pointer; }
+.dc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dc b { font-size: 14px; color: var(--text); font-weight: 700; }
+.dc button { flex-shrink: 0; font: inherit; font-size: 12px; font-weight: 700; padding: 7px 12px; border-radius: 9px; border: none; cursor: pointer; background: var(--tri); color: #0b1418; }
+.dc-adv { font-size: 12px; color: var(--muted); margin-top: 4px; line-height: 1.45; }
+.dc ul { list-style: none; margin: 6px 0 0; padding: 0; display: none; }
+.dc.open ul { display: block; }
+.dc li { font-size: 11.5px; color: var(--ok); line-height: 1.6; }
+.dc li.bad { color: var(--mar); }
+.dc-go { border-color: rgba(109,186,109,.35); background: rgba(109,186,109,.08); }
+.dc-ease { border-color: rgba(232,168,56,.4); background: rgba(232,168,56,.09); }
+.dc-rest { border-color: rgba(224,96,96,.4); background: rgba(224,96,96,.09); }
+.dc-rest button { background: var(--warn); color: #fff; }
+.dc-done, .dc-wait { display: flex; align-items: center; justify-content: space-between; gap: 8px; cursor: default; }
+.dc-done button { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.dc-wait span { font-size: 11.5px; color: var(--muted); }
 .home-chip { font-size: 11px; padding: 6px 10px; border-radius: 999px; background: var(--surface2); color: var(--muted); }
 .home-chip b { color: var(--text); font-weight: 600; }
 .home-chip-ok { background: rgba(109,186,109,.12); color: var(--ok); }
@@ -2186,6 +2221,10 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
         <div class="section-label">Week recap</div>
         <div class="card wr-card" id="week-recap" style="margin-bottom:20px"></div>
 
+        <!-- Recovery fingerprint: learned from Strava sessions + Garmin HRV/RHR the mornings after -->
+        <div class="section-label">Recovery fingerprint</div>
+        <div class="card rf-card" id="recovery-fp" style="margin-bottom:20px"></div>
+
 
         <!-- Weekly chart -->
         <div class="section-label">12-week TLS history</div>
@@ -2849,7 +2888,7 @@ function switchTab(tab) {
   if (tab === 'recovery') { updateRecoveryMetrics(); try { renderBodyMap(); } catch(e) { console.warn('bodymap', e); } }
   initTimer();   // leaving or entering a page always stops a running timer and releases the screen
   if (tab === 'prs') initPRWall();
-  if (tab === 'load') { try { renderWeekRecap(); renderWeeklySteps(); } catch (e) { console.warn('week recap/steps', e); } initLoadPage(); renderFitnessTrend(); renderWeeklyHours(); renderFitnessBars(); }
+  if (tab === 'load') { try { renderWeekRecap(); renderWeeklySteps(); renderRecoveryFingerprint(); } catch (e) { console.warn('week recap/steps', e); } initLoadPage(); renderFitnessTrend(); renderWeeklyHours(); renderFitnessBars(); }
   if (tab === 'stats') renderStatsPage();
   if (tab === 'garage') initGarage();
   if (tab === 'races') { initRacePlanner(); renderRaces(); }
@@ -3517,6 +3556,7 @@ function homeTodayCardHtml() {
         <div class="home-ico" style="background:${tint}">${icon}</div>
         <div style="min-width:0"><h2>${title}</h2><div class="home-det">${detail}</div></div>
       </div>
+      ${(() => { try { return dailyCallHtml(); } catch (e) { console.warn('daily call', e); return ''; } })()}
       <div class="home-chips">${extra}${homeLoadBadge()}<span id="home-wx-chip"></span></div>
     </div>`;
 }
@@ -5136,6 +5176,19 @@ function spValidateWeek(aiSessions, w, template, fit, raceById) {
     if (lastHard !== x.date) hardCount++;
     lastHard = x.date;
   });
+  // 7b. YOUR recovery fingerprint: no hard session inside the learned recovery window of a big session
+  try {
+    s.forEach(big => {
+      const need = rfDaysFor(rfPlanType(big)); if (!need || need < 2) return;
+      const lbl = RF_TYPES[rfPlanType(big)].label.toLowerCase();
+      s.forEach(x => {
+        if (x === big || !isHard(x) || x.date <= big.date || x.date >= addDaysStr(big.date, need)) return;
+        x.intensity = 'easy'; x.key = false;
+        if (x.type !== 'long') { x.type = 'easy'; x.title = 'Easy ' + ({ swim: 'swim', ride: 'ride', run: 'run' })[x.sport]; x.detail = ({ swim: 'Aerobic swim with drills, relaxed', ride: 'Z2 endurance, steady cadence', run: 'Conversational pace' })[x.sport] + ` — kept easy: you usually need ${need} days after a ${lbl}.`; }
+        fixes.push(`eased ${x.sport} on ${x.day} (recovery from ${lbl})`);
+      });
+    });
+  } catch (e) {}
   const totalMin = s.reduce((a, x) => a + x.durationMin, 0), hardMin = s.filter(isHard).reduce((a, x) => a + x.durationMin, 0);
   if (totalMin && hardMin / totalMin > 0.25) fixes.push('high intensity share ' + Math.round(hardMin / totalMin * 100) + '% (target ≤20–25%)');
 
@@ -5224,7 +5277,7 @@ Follow these rules exactly:
 - Recovery weeks: no hard sessions. Taper: shorter, keep a little intensity. Race week: the race on its date, a short shakeout the day before.
 - Brick: a run straight after the long ride when brickRunMin > 0. Medium-long run midweek when mediumLongRunMi > 0.
 - Use the athlete's paces: easy run ${P.easy}, marathon pace ${P.mp}, threshold ${P.threshold}, VO2 ${P.vo2}; swim CSS ${P.css}, easy ${P.swimEasy}; ride Z2 ${P.rideEasy}.
-- Swim workouts in yards with real sets (warm-up, drills, main set, cool-down). Strength = home free weights, endurance-focused.
+${rfPromptLine()}- Swim workouts in yards with real sets (warm-up, drills, main set, cool-down). Strength = home free weights, endurance-focused.
 Return ONLY JSON, no markdown:
 {"weeks":[{"weekStart":"YYYY-MM-DD","sessions":[{"date":"YYYY-MM-DD","day":"Mon","sport":"swim|ride|run|strength|rest","type":"easy|long|tempo|threshold|intervals|vo2|race-pace|css|fartlek|brick|mlr|technique|recovery|strength|rest","intensity":"easy|moderate|hard","durationMin":45,"distanceMi":5.2,"yards":0,"title":"short name","detail":"the actual workout in under 30 words"}]}]}
 "day" MUST be the weekday of "date".`,
@@ -5576,6 +5629,255 @@ function renderWeekRecap() {
       if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) recapShift(dx > 0 ? -1 : 1);
     }, { passive: true });
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// RECOVERY FINGERPRINT — how long YOUR body takes to bounce back from each kind of session.
+// Strava says what you did; Garmin says how the next mornings looked (HRV + resting HR vs your
+// normal range). Per session type we take the median number of mornings until both are back to
+// normal. ≥3 examples = "learned"; the season plan and the daily call then use it.
+// ══════════════════════════════════════════════════════════════════════════
+const RF_TYPES = {
+  race:      { label: 'Race',            icon: '🏁' },
+  brick:     { label: 'Brick',           icon: '🔁' },
+  longride:  { label: 'Long ride',       icon: '🚴' },
+  longrun:   { label: 'Long run',        icon: '🏃' },
+  hardrun:   { label: 'Fast run',        icon: '⚡' },
+  hardride:  { label: 'Hard ride',       icon: '🔥' },
+  strength:  { label: 'Strength',        icon: '🏋️' },
+  easy:      { label: 'Easy day',        icon: '🌿' },
+};
+const RF_ORDER = ['race', 'brick', 'longride', 'longrun', 'hardrun', 'hardride', 'strength', 'easy'];
+
+// Classify each training day by its biggest session (priority order above)
+function rfClassifyDays() {
+  const runs = allActivities.filter(a => homeSportOf(a) === 'Run' && a.distance > 3 * 1609 && a.moving_time > 0);
+  const rides = allActivities.filter(a => homeSportOf(a) === 'Ride' && a.distance > 8 * 1609 && a.moving_time > 0);
+  const med = arr => { if (!arr.length) return null; const s = [...arr].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+  const runPace = med(runs.map(a => a.moving_time / (a.distance / 1609.34))) || 600;      // s/mi
+  const rideMph = med(rides.map(a => (a.distance / 1609.34) / (a.moving_time / 3600))) || 16;
+  const raceDates = new Set(races.map(r => r.date));
+  const byDay = {};
+  allActivities.forEach(a => { const sp = homeSportOf(a); if (!sp || !(a.moving_time > 0)) return; const d = (a.start_date_local || '').slice(0, 10); (byDay[d] = byDay[d] || []).push(a); });
+  const out = {};
+  Object.entries(byDay).forEach(([d, list]) => {
+    const tags = new Set();
+    if (raceDates.has(d)) tags.add('race');
+    const rideL = list.filter(a => homeSportOf(a) === 'Ride'), runL = list.filter(a => homeSportOf(a) === 'Run');
+    // brick: a run that starts within ~45 min of a ride (≥45 min) finishing
+    rideL.forEach(r => runL.forEach(n => {
+      const rEnd = actDate(r).getTime() + r.moving_time * 1000, nStart = actDate(n).getTime();
+      if (r.moving_time >= 2700 && nStart >= rEnd - 600000 && nStart - rEnd < 2700000) tags.add('brick');
+    }));
+    if (rideL.some(a => a.moving_time >= 150 * 60)) tags.add('longride');
+    if (runL.some(a => a.moving_time >= 90 * 60 || a.distance >= 12 * 1609.34)) tags.add('longrun');
+    if (runL.some(a => a.distance > 3 * 1609 && a.moving_time / (a.distance / 1609.34) < runPace - 40)) tags.add('hardrun');
+    if (rideL.some(a => a.moving_time >= 45 * 60 && (a.distance / 1609.34) / (a.moving_time / 3600) > rideMph * 1.12)) tags.add('hardride');
+    if (list.some(a => homeSportOf(a) === 'Strength')) tags.add('strength');
+    out[d] = RF_ORDER.find(t => tags.has(t)) || 'easy';
+  });
+  return out;
+}
+
+// HRV / RHR z-scores for a morning, against the 30 days before the session
+function rfBaseline(byDate, d) {
+  const vals = f => { const v = []; for (let i = 1; i <= 30; i++) { const e = byDate[addDaysStr(d, -i)]; if (e && e[f] > 0) v.push(e[f]); } return v; };
+  const stat = (v, floor) => { if (v.length < 10) return null; const m = v.reduce((s, x) => s + x, 0) / v.length; const sd = Math.max(floor, Math.sqrt(v.reduce((s, x) => s + (x - m) ** 2, 0) / (v.length - 1))); return { m, sd }; };
+  return { hrv: stat(vals('hrv'), 2), rhr: stat(vals('rhr'), 1) };
+}
+
+let rfCache = null, rfCacheKey = '';
+function calcRecoveryFingerprint() {
+  const key = allActivities.length + ':' + wellnessLog.length + ':' + (wellnessLog[wellnessLog.length - 1] || {}).date;
+  if (rfCache && rfCacheKey === key) return rfCache;
+  const byDate = {}; wellnessLog.forEach(e => byDate[e.date] = e);
+  const days = rfClassifyDays();
+  const events = {};
+  Object.entries(days).forEach(([d, type]) => {
+    const base = rfBaseline(byDate, d);
+    if (!base.hrv) return;
+    const m1 = byDate[addDaysStr(d, 1)], m2 = byDate[addDaysStr(d, 2)];
+    if (!m1 || !m1.hrv || !m2 || !m2.hrv) return;                       // need the next two mornings
+    let back = null, dip = 0;
+    for (let k = 1; k <= 5; k++) {
+      const e = byDate[addDaysStr(d, k)]; if (!e || !e.hrv) break;
+      const zh = (e.hrv - base.hrv.m) / base.hrv.sd;
+      const zr = base.rhr && e.rhr ? (e.rhr - base.rhr.m) / base.rhr.sd : 0;
+      if (k <= 3) dip = Math.min(dip, (e.hrv - base.hrv.m) / base.hrv.m);
+      if (zh >= -0.5 && zr <= 0.75) { back = k; break; }
+    }
+    if (back == null) back = 6;                                           // not back within 5 mornings
+    (events[type] = events[type] || []).push({ date: d, back, dip });
+  });
+  const med = a => { const s = [...a].sort((x, y) => x - y); return s[Math.floor((s.length - 1) / 2)]; };
+  const types = {};
+  RF_ORDER.forEach(t => {
+    const ev = (events[t] || []).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12);   // most recent 12
+    if (!ev.length) return;
+    types[t] = { n: ev.length, days: med(ev.map(e => e.back)), dipPct: Math.round(med(ev.map(e => e.dip)) * 100), learned: ev.length >= 3, last: ev[0].date };
+  });
+  const hrvDays = wellnessLog.filter(e => e.hrv > 0).length;
+  rfCache = { types, hrvDays, firstHrv: (wellnessLog.find(e => e.hrv > 0) || {}).date || null };
+  rfCacheKey = key;
+  return rfCache;
+}
+// Mornings needed after a session type (null if not learned yet)
+function rfDaysFor(type) { const t = calcRecoveryFingerprint().types[type]; return t && t.learned ? t.days : null; }
+// Session type for a planned session (used by the plan rules)
+function rfPlanType(p) {
+  if (p.sport === 'race') return 'race';
+  if (p.type === 'brick') return 'brick';
+  if (p.type === 'long') return p.sport === 'ride' ? 'longride' : p.sport === 'run' ? 'longrun' : null;
+  if (p.intensity === 'hard') return p.sport === 'run' ? 'hardrun' : p.sport === 'ride' ? 'hardride' : null;
+  return null;
+}
+
+// One-time history import so the fingerprint has months to learn from (≈24 Garmin requests)
+async function rfLearnHistory(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Importing 6 months of Garmin data…'; }
+  let got = 0, err = null;
+  for (let back = 0; back < 182; back += 56) {
+    try {
+      const r = await fetch('/garmin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'daily', days: 56, endDate: addDaysStr(localDateStr(), -back) }) });
+      const data = await r.json();
+      if (!data.ok) { err = data.error || 'HTTP ' + r.status; break; }
+      garminMerge(data.days || []); got += (data.days || []).length;
+    } catch (e) { err = e.message; break; }
+  }
+  try { localStorage.setItem('brb_rf_history', JSON.stringify({ at: Date.now(), got, err })); } catch (e) {}
+  rfCache = null; renderRecoveryFingerprint();
+  if (btn && err) { btn.disabled = false; btn.textContent = 'Import failed (' + err + ') — try again'; }
+}
+
+function renderRecoveryFingerprint() {
+  const el = document.getElementById('recovery-fp'); if (!el) return;
+  const fp = calcRecoveryFingerprint();
+  const hist = (() => { try { return JSON.parse(localStorage.getItem('brb_rf_history') || 'null'); } catch (e) { return null; } })();
+  const rows = RF_ORDER.filter(t => fp.types[t]).map(t => {
+    const x = fp.types[t], meta = RF_TYPES[t];
+    const dots = [1, 2, 3, 4, 5].map(k => `<i class="${k < x.days ? 'on' : k === x.days ? 'back' : ''}"></i>`).join('');
+    const txt = x.days >= 6 ? '5+ days' : x.days === 1 ? 'next morning' : 'in ' + x.days + ' days';
+    return `<div class="rf-row${x.learned ? '' : ' learning'}">
+        <span class="rf-ico">${meta.icon}</span>
+        <div class="rf-main"><b>${meta.label}</b><span>${x.learned ? `HRV ${x.dipPct < 0 ? x.dipPct + '%' : 'steady'} the next morning` : `learning · ${x.n} of 3 examples`}</span></div>
+        <div class="rf-res"><div class="rf-dots">${dots}</div><span>${x.learned ? 'back ' + txt : '—'}</span></div>
+      </div>`;
+  }).join('');
+  const needsHistory = fp.hrvDays < 90 && !(hist && hist.got);
+  el.innerHTML = `
+    ${rows ? `<div class="rf-list">${rows}</div>` : `<div style="font-size:12px;color:var(--muted);line-height:1.6;padding:6px 0">Not enough paired data yet. The fingerprint needs Strava sessions plus Garmin HRV for the mornings after them.</div>`}
+    <div class="rf-note">Mornings until your HRV and resting HR are back in your normal range after each kind of session. The plan spaces hard days by these once learned (3+ examples). Based on ${fp.hrvDays} days of HRV${fp.firstHrv ? ' since ' + new Date(fp.firstHrv + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}.</div>
+    ${needsHistory ? `<button class="garage-add-btn" style="width:100%;padding:10px;margin-top:10px" onclick="rfLearnHistory(this)">⌚ Learn from 6 months of Garmin history</button>` : ''}`;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// DAILY CALL — Go / Ease / Rest each morning, with reasons and a one-tap change to today's plan.
+// ══════════════════════════════════════════════════════════════════════════
+function calcDailyCall() {
+  const today = localDateStr();
+  const well = wellnessLog.find(e => e.date === today) || {};
+  const plan = trainingPlan.filter(p => p.date === today && p.sport !== 'rest');
+  const hard = plan.filter(p => p.intensity === 'hard' || p.type === 'long' || p.type === 'brick');
+  const reasons = []; let score = 0;
+  // 1. Readiness (HRV + resting HR vs your normal)
+  let rd = null; try { rd = calcReadiness(); } catch (e) {}
+  if (rd && rd.label === 'Fatigued') { score += 2; reasons.push({ t: rd.why || 'HRV / resting HR well off your normal', bad: true }); }
+  else if (rd && rd.label === 'Watch') { score += 1; reasons.push({ t: rd.why || 'HRV / resting HR slightly off', bad: true }); }
+  else if (rd && rd.label === 'Good') reasons.push({ t: 'HRV and resting HR in your normal range', bad: false });
+  if (well.garmin && /LOW|POOR|UNBALANCED/i.test(well.garmin.hrvStatus || '')) { score += 1; reasons.push({ t: 'Garmin HRV status: ' + well.garmin.hrvStatus.toLowerCase(), bad: true }); }
+  // 2. Last night's sleep
+  if (well.sleep) {
+    if (well.sleep < 5) { score += 2; reasons.push({ t: `Only ${well.sleep} h of sleep`, bad: true }); }
+    else if (well.sleep < 6.2) { score += 1; reasons.push({ t: `Short sleep (${well.sleep} h)`, bad: true }); }
+    else reasons.push({ t: `${well.sleep} h of sleep` + (well.garmin && well.garmin.sleepScore ? ` · score ${well.garmin.sleepScore}` : ''), bad: false });
+    if (well.garmin && well.garmin.sleepScore && well.garmin.sleepScore < 60 && well.sleep >= 6.2) { score += 1; reasons.push({ t: `Low sleep score (${well.garmin.sleepScore})`, bad: true }); }
+  }
+  // 3. Still recovering from a recent big session (YOUR fingerprint)
+  const types = rfClassifyDays();
+  for (let k = 1; k <= 5; k++) {
+    const d = addDaysStr(today, -k), t = types[d];
+    if (!t || t === 'easy' || t === 'strength') continue;
+    const need = rfDaysFor(t);
+    if (need && k < need && hard.length) { score += 1; reasons.push({ t: `${RF_TYPES[t].label} ${k === 1 ? 'yesterday' : k + ' days ago'} — you usually need ${need} days`, bad: true }); }
+    break;
+  }
+  // 4. Training load
+  try {
+    const risk = calcInjuryRisk();
+    if (risk && risk.level === 'high') { score += 2; reasons.push({ t: (risk.flags[0] || {}).text || 'Training load high', bad: true }); }
+    else if (risk && risk.level === 'moderate') { score += 1; reasons.push({ t: (risk.flags[0] || {}).text || 'Training load elevated', bad: true }); }
+  } catch (e) {}
+  const haveData = !!(well.hrv || well.sleep || (rd && rd.label !== '—' && rd.label !== 'Learning'));
+  let call;
+  if (score >= 3) call = 'rest';
+  else if (score >= 1 && hard.length) call = 'ease';
+  else call = 'go';
+  const title = { go: plan.length ? (hard.length ? 'Go as planned' : 'Go — easy day as planned') : 'Good to go', ease: 'Ease today', rest: 'Rest today' }[call];
+  const advice = { go: hard.length ? 'Recovery looks good — hit the key session.' : '', ease: `Swap ${hard.map(p => planTitle(p)).join(' + ')} for easy Z2, about 25% shorter.`, rest: 'Your body is asking for recovery. Take the day off or go for an easy walk.' }[call];
+  return { call, title, advice, reasons: reasons.sort((a, b) => b.bad - a.bad).slice(0, 3), score, haveData, hard, plan };
+}
+
+function applyDailyCall(kind) {
+  const today = localDateStr();
+  const items = trainingPlan.filter(p => p.date === today && p.sport !== 'rest');
+  if (!items.length) return;
+  const undo = JSON.parse(JSON.stringify(items));
+  if (kind === 'ease') {
+    items.filter(p => p.intensity === 'hard' || p.type === 'long' || p.type === 'brick').forEach(p => {
+      const was = p.title;
+      Object.assign(p, { intensity: 'easy', type: 'easy', key: false, durationMin: Math.max(20, Math.round((p.durationMin || 40) * 0.75 / 5) * 5), title: 'Easy ' + ({ swim: 'swim', ride: 'ride', run: 'run', strength: 'strength' })[p.sport], detail: `Eased by today's call (was "${was}") — conversational effort.` });
+      if (['run', 'ride'].includes(p.sport)) { try { const fit = (typeof seasonState !== 'undefined' && seasonState && seasonState.fit) || spFitness(); Object.assign(p, spDistance(p.sport, p.durationMin, fit)); } catch (e) { delete p.distanceMi; } }
+    });
+  } else if (kind === 'rest') {
+    trainingPlan = trainingPlan.filter(p => !(p.date === today && p.sport !== 'rest'));
+    trainingPlan.push({ id: Date.now(), date: today, day: weekdayOf(today), sport: 'rest', type: 'rest', intensity: 'easy', durationMin: 0, title: 'Rest (daily call)', detail: 'Recovery day chosen from this morning\'s readiness.', src: 'dailycall' });
+  }
+  try { localStorage.setItem('brb_dailycall', JSON.stringify({ date: today, applied: kind, undo })); } catch (e) {}
+  savePlan();
+  refreshAfterPlanChange();
+}
+function undoDailyCall() {
+  let st = null; try { st = JSON.parse(localStorage.getItem('brb_dailycall') || 'null'); } catch (e) {}
+  if (!st || st.date !== localDateStr()) return;
+  trainingPlan = trainingPlan.filter(p => !(p.date === st.date && (p.src === 'dailycall' || st.undo.some(u => String(u.id) === String(p.id)))));
+  trainingPlan.push(...st.undo);
+  trainingPlan.sort((a, b) => a.date.localeCompare(b.date));
+  localStorage.removeItem('brb_dailycall');
+  savePlan(); refreshAfterPlanChange();
+}
+function refreshAfterPlanChange() {
+  try { if (currentTab === 'dashboard' && window._lastDashboardData) renderDashboard({ ...window._lastDashboardData, ...calcLiveWeekTotals() }); } catch (e) {}
+  try { renderWeekView(); } catch (e) {}
+}
+
+// Small card inside Today's hero on the home page
+function dailyCallHtml() {
+  const today = localDateStr();
+  let st = null; try { st = JSON.parse(localStorage.getItem('brb_dailycall') || 'null'); } catch (e) {}
+  if (st && st.date === today) {
+    return `<div class="dc dc-done" onclick="event.stopPropagation()"><b>${st.applied === 'rest' ? '😴 Rest day — changed by today\'s call' : '🌿 Eased by today\'s call'}</b><button onclick="event.stopPropagation();undoDailyCall()">Undo</button></div>`;
+  }
+  const done = allActivities.some(a => homeSportOf(a) && (a.start_date_local || '').slice(0, 10) === today);
+  if (done) return '';
+  const c = calcDailyCall();
+  if (!c.haveData) return `<div class="dc dc-wait" onclick="event.stopPropagation()"><b>⌚ Today's call</b><span>Waiting for this morning's Garmin data</span></div>`;
+  const icon = { go: '🟢', ease: '🟡', rest: '🔴' }[c.call];
+  const btn = c.call === 'ease' && c.hard.length ? `<button onclick="event.stopPropagation();applyDailyCall('ease')">Swap to easy</button>`
+    : c.call === 'rest' && c.plan.length ? `<button onclick="event.stopPropagation();applyDailyCall('rest')">Make it a rest day</button>` : '';
+  return `<div class="dc dc-${c.call}" onclick="event.stopPropagation();this.classList.toggle('open')">
+      <div class="dc-top"><b>${icon} ${c.title}</b>${btn}</div>
+      ${c.advice ? `<div class="dc-adv">${c.advice}</div>` : ''}
+      <ul>${c.reasons.map(r => `<li class="${r.bad ? 'bad' : ''}">${r.bad ? '•' : '✓'} ${r.t}</li>`).join('')}</ul>
+    </div>`;
+}
+
+// Line for the season-plan AI prompt
+function rfPromptLine() {
+  try {
+    const fp = calcRecoveryFingerprint().types;
+    const parts = ['longrun', 'longride', 'brick', 'hardrun', 'hardride'].filter(t => fp[t] && fp[t].learned).map(t => `${RF_TYPES[t].label.toLowerCase()} ${fp[t].days} day${fp[t].days === 1 ? '' : 's'}`);
+    return parts.length ? `- This athlete's measured recovery (mornings until HRV/RHR are back to normal): ${parts.join(', ')}. Don't schedule hard sessions inside those windows.\n` : '';
+  } catch (e) { return ''; }
 }
 
 // ── STRENGTH GENERATOR ────────────────────────────────────────────────────
