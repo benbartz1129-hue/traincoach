@@ -8509,17 +8509,30 @@ function getWeekSummaryData() {
   });
 
   const activeDays = new Set(acts.map(a => a.start_date_local.split('T')[0])).size;
-  const targets = { swim: 1.2, bike: 25, run: 15 };
+  // Goals = THIS week's plan (same numbers as the home bars), not the old fixed presets
+  const t = getWeeklyTargetsFromPlan();
+  const targets = { swim: t.planned.swim, bike: t.planned.bike, run: t.planned.run, strength: 2, hasPlan: t.hasPlan };
   const tls = calcTLS(live.weekSwimMi, live.weekRunMi, live.weekBikeMi);
+  const monday0 = localDateStr(weekStart), todayStr = localDateStr(today);
+  let strengthDone = allActivities.filter(a => homeSportOf(a) === 'Strength' && (a.start_date_local || '').slice(0, 10) >= monday0).length;
+  for (let i = 0; i < 7; i++) { const ds = addDaysStr(monday0, i); if (ds <= todayStr && sgCompletedOn(ds)) strengthDone++; }
+  // Plan adherence: each planned session up to today — done (same sport that day), swapped, or missed
+  const doneOn = ds => new Set(allActivities.filter(a => (a.start_date_local || '').slice(0, 10) === ds).map(homeSportOf).filter(Boolean).concat(sgCompletedOn(ds) ? ['Strength'] : []));
+  const planned = trainingPlan.filter(p => p.date >= monday0 && p.date <= todayStr && (p.sport || '').toLowerCase() !== 'rest' && p.sport !== 'race')
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map(p => { const did = doneOn(p.date), want = PLAN_SPORT_KEY[(p.sport || '').toLowerCase()];
+      return { day: weekdayOf(p.date), title: planTitle(p), key: !!p.key || p.intensity === 'hard' || p.type === 'long', status: did.has(want) ? 'done' : did.size ? 'swapped for ' + [...did].join('+').toLowerCase() : 'missed' }; });
+  const trainActs = allActivities.filter(a => { const d = actDate(a); return d >= weekStart && d < tomorrow && homeSportOf(a); });
 
   return {
     swimMi: live.weekSwimMi,
     runMi: live.weekRunMi,
     bikeMi: live.weekBikeMi,
     tls,
-    activeDays,
-    count: acts.length,
-    targets,
+    activeDays: new Set(trainActs.map(a => a.start_date_local.slice(0, 10))).size || activeDays,
+    count: trainActs.length || acts.length,
+    targets, strengthDone, planned,
+    hours: Math.round(trainActs.reduce((s, a) => s + (a.moving_time || 0), 0) / 360) / 10,
     weekStart: weekStart.toISOString().split('T')[0]
   };
 }
@@ -8532,7 +8545,7 @@ function renderWeeklySummaryCard() {
   // Check if we already generated a summary for this specific week
   let cached = null;
   try { cached = JSON.parse(localStorage.getItem(CACHE_KEY_WEEKLY_SUMMARY) || 'null'); } catch(e) {}
-  const alreadyGenerated = cached && cached.weekStart === wk.weekStart;
+  const alreadyGenerated = cached && cached.weekStart === wk.weekStart && cached.v === 2;
 
   return `
     <div class="home-lbl st-lbl-row">Week in review
@@ -8560,7 +8573,7 @@ async function generateWeeklySummary(forceRefresh) {
     const wk = getWeekSummaryData();
     let cached = null;
     try { cached = JSON.parse(localStorage.getItem(CACHE_KEY_WEEKLY_SUMMARY) || 'null'); } catch(e) {}
-    if (cached && cached.weekStart === wk.weekStart) {
+    if (cached && cached.weekStart === wk.weekStart && cached.v === 2) {
       container.innerHTML = `<div style="font-size:12px;color:var(--text);line-height:1.7;padding-top:10px;border-top:1px solid var(--border)">${cached.text}</div>`;
       return;
     }
@@ -8575,11 +8588,17 @@ async function generateWeeklySummary(forceRefresh) {
     const triDays = daysUntil(TRI_DATE), marDays = daysUntil(MAR_DATE);
     const reply = await callClaude({
       model: 'claude-sonnet-4-6', max_tokens: 300,
-      system: `You are a supportive but honest triathlon and marathon coach. Write a 2-3 sentence weekly recap for the athlete. Reference their actual numbers. Be encouraging but note anything worth flagging (imbalance between sports, low volume, great consistency, etc). Upcoming races: ${upcomingRaceContext()} Keep it warm and conversational, not clinical.`,
-      messages: [{ role: 'user', content: `This week: ${wk.swimMi.toFixed(1)}mi swim, ${wk.bikeMi.toFixed(1)}mi bike, ${wk.runMi.toFixed(1)}mi run, TLS ${wk.tls.toFixed(1)}, ${wk.count} activities across ${wk.activeDays} active days. Targets: swim ${wk.targets.swim}mi/wk, bike ${wk.targets.bike}mi/wk, run ${wk.targets.run}mi/wk. Write the recap.` }]
+      system: `You are a supportive but honest triathlon and marathon coach. Write a 2-3 sentence weekly recap for the athlete. Judge the week ONLY against this week's training plan given below — those are the goals. A sport with a 0 goal was intentionally not planned this week (e.g. no swim in a run block): do NOT flag it as missing. Going well over plan is not automatically good — say so if it adds fatigue risk. Mention key sessions done or missed. Upcoming races: ${upcomingRaceContext()} Keep it warm and conversational, not clinical.`,
+      messages: [{ role: 'user', content: (() => {
+        const g = wk.targets, line = (name, did, goal) => goal > 0 ? `${name} ${did.toFixed(1)} of ${goal} mi planned (${Math.round(did / goal * 100)}%)` : `${name} ${did.toFixed(1)} mi (not planned this week)`;
+        return `This week vs plan: ${line('run', wk.runMi, g.run)}; ${line('bike', wk.bikeMi, g.bike)}; ${line('swim', wk.swimMi, g.swim)}; strength ${wk.strengthDone} of 2 sessions.\n`
+          + `${wk.hours} h trained, ${wk.count} sessions across ${wk.activeDays} active days, TLS ${wk.tls.toFixed(1)}.\n`
+          + (wk.planned.length ? `Planned sessions: ${wk.planned.map(p => `${p.day} ${p.title}${p.key ? ' [key]' : ''} — ${p.status}`).join('; ')}.\n` : (g.hasPlan ? '' : 'No plan this week.\n'))
+          + 'Write the recap.';
+      })() }]
     }, 'Weekly recap');
 
-    safeSetItem(CACHE_KEY_WEEKLY_SUMMARY, JSON.stringify({ weekStart: wk.weekStart, text: reply }));
+    safeSetItem(CACHE_KEY_WEEKLY_SUMMARY, JSON.stringify({ weekStart: wk.weekStart, text: reply, v: 2 }));
     container.innerHTML = `<div style="font-size:12px;color:var(--text);line-height:1.7;padding-top:10px;border-top:1px solid var(--border)">${reply}</div>`;
   } catch(e) {
     container.innerHTML = `<div style="font-size:12px;color:var(--warn);text-align:center">Could not generate recap. <span style="color:var(--tri);cursor:pointer;text-decoration:underline" onclick="generateWeeklySummary()">Try again</span></div>`;
