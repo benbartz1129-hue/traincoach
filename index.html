@@ -1438,6 +1438,45 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
 .home-chips { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 .home-chips:empty { display: none; }
 
+/* Bike power */
+.pw-hero { padding: 18px; border-left: 3px solid var(--ride); }
+.pw-k { font-size: 11px; color: var(--muted); letter-spacing: .1em; }
+.pw-big { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; }
+.pw-big b { font-family: var(--font-display); font-size: 52px; font-weight: 800; line-height: 1; }
+.pw-big span { font-size: 18px; color: var(--muted); }
+.pw-src { font-size: 11.5px; color: var(--muted); line-height: 1.55; margin-top: 12px; }
+.pw-src b { color: var(--text); font-weight: 500; }
+.pw-load { font-size: 11px; color: var(--tri); margin-top: 10px; line-height: 1.5; }
+.pw-btns, .pw-form-row { display: flex; gap: 8px; margin-top: 14px; }
+.pw-btns button, .pw-form-row button { flex: 1; font: inherit; font-size: 12.5px; font-weight: 600; padding: 10px; border-radius: 10px; border: none; background: var(--ride); color: #1a1206; cursor: pointer; }
+.pw-btns .btn-o, .pw-form-row .btn-o { background: transparent; border: 1px solid var(--border2); color: var(--text); }
+.pw-form { margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--surface2); }
+.pw-form select, .pw-form input { width: 100%; font: inherit; font-size: 14px; padding: 9px 10px; border-radius: 9px; border: 1px solid var(--border2); background: var(--bg); color: var(--text); }
+.pw-form .pw-form-row { margin-top: 8px; }
+.pw-msg { font-size: 11px; color: var(--warn); margin-top: 6px; }
+.pw-msg:empty { display: none; }
+.pw-tests { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 8px; }
+.pw-tests div { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); padding: 4px 0; }
+.pw-tests b { color: var(--text); }
+.pw-tests button { background: none; border: none; color: var(--dim); font: inherit; font-size: 12px; cursor: pointer; padding: 2px 6px; }
+.pw-leg { font-size: 10.5px; color: var(--dim); margin-top: 8px; display: flex; gap: 14px; }
+.pc-row { display: grid; grid-template-columns: 52px 1fr 70px; align-items: center; gap: 10px; padding: 6px 0; }
+.pc-row .n { font-size: 12px; color: var(--muted); }
+.pc-row .v { text-align: right; font-size: 13px; }
+.pc-row .v small { display: block; font-size: 10px; }
+.pw-bar { position: relative; height: 8px; border-radius: 5px; background: var(--surface2); }
+.pw-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; background: var(--ride); max-width: 100%; }
+.pw-bar u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--muted); border-radius: 1px; }
+.pz { display: grid; grid-template-columns: 30px 1fr 126px 40px; gap: 8px; align-items: center; padding: 5px 0; font-size: 12px; }
+.pz .zn { font-weight: 700; }
+.pz .zr { color: var(--muted); text-align: right; white-space: nowrap; font-size: 11px; }
+.pz .zt { text-align: right; }
+.pw-plan { display: flex; gap: 12px; align-items: center; cursor: pointer; padding: 14px 16px; }
+.pw-plan b { display: block; font-family: var(--font-display); font-size: 14.5px; font-weight: 700; color: var(--text); }
+.pw-plan span { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+.pw-ic { width: 40px; height: 40px; flex-shrink: 0; border-radius: 11px; background: rgba(240,160,80,.13); display: grid; place-items: center; font-size: 19px; }
+.pw-note { font-size: 10.5px; color: var(--dim); line-height: 1.5; margin: 12px 2px 20px; }
+
 /* Recovery fingerprint */
 .rf-card { padding: 12px 14px; }
 .rf-list { display: flex; flex-direction: column; }
@@ -1543,6 +1582,9 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
       </button>
       <button class="nav-item" id="nav-strength" onclick="switchTab('strength')">
         <span class="nav-icon">🏋️</span>Strength
+      </button>
+      <button class="nav-item" id="nav-power" onclick="switchTab('power')">
+        <span class="nav-icon">⚡</span>Bike Power
       </button>
       <button class="nav-item" id="nav-workouts" onclick="switchTab('workouts')">
         <span class="nav-icon">⏱</span>Workouts
@@ -2221,6 +2263,8 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
         <div class="section-label">Week recap</div>
         <div class="card wr-card" id="week-recap" style="margin-bottom:20px"></div>
 
+        <div class="card pw-plan" id="pw-link" style="margin-bottom:20px" onclick="switchTab('power')"></div>
+
         <!-- Recovery fingerprint: learned from Strava sessions + Garmin HRV/RHR the mornings after -->
         <div class="section-label">Recovery fingerprint</div>
         <div class="card rf-card" id="recovery-fp" style="margin-bottom:20px"></div>
@@ -2566,6 +2610,14 @@ canvas { -webkit-touch-callout: none; -webkit-user-select: none; user-select: no
       </div>
     </div>
 
+    <!-- BIKE POWER / FTP -->
+    <div class="page" id="page-power">
+      <div class="page-inner">
+        <div class="home-greet"><h1>Bike Power</h1><p>FTP, power curve and zones from your rides.</p></div>
+        <div id="pw-root"></div>
+      </div>
+    </div>
+
     <!-- STRENGTH GENERATOR -->
     <div class="page" id="page-strength">
       <div class="page-inner">
@@ -2884,11 +2936,12 @@ function switchTab(tab) {
   }
   if (tab === 'activities' && allActivities.length > 0) renderActivities(allActivities);
   if (tab === 'calendar') { renderCalendar(); renderWeekView(); }
+  if (tab === 'power') { try { renderPowerPage(); pwSync(); } catch (e) { console.warn('power', e); } }
   if (tab === 'strength') { try { initStrength(); } catch(e) { console.warn('strength', e); } }
   if (tab === 'recovery') { updateRecoveryMetrics(); try { renderBodyMap(); } catch(e) { console.warn('bodymap', e); } }
   initTimer();   // leaving or entering a page always stops a running timer and releases the screen
   if (tab === 'prs') initPRWall();
-  if (tab === 'load') { try { renderWeekRecap(); renderWeeklySteps(); renderRecoveryFingerprint(); } catch (e) { console.warn('week recap/steps', e); } initLoadPage(); renderFitnessTrend(); renderWeeklyHours(); renderFitnessBars(); }
+  if (tab === 'load') { try { renderWeekRecap(); renderWeeklySteps(); renderRecoveryFingerprint(); renderPowerLink(); } catch (e) { console.warn('week recap/steps', e); } initLoadPage(); renderFitnessTrend(); renderWeeklyHours(); renderFitnessBars(); }
   if (tab === 'stats') renderStatsPage();
   if (tab === 'garage') initGarage();
   if (tab === 'races') { initRacePlanner(); renderRaces(); }
@@ -3544,7 +3597,7 @@ function homeTodayCardHtml() {
   } else if (workouts.length) {
     const s = workouts[0], sp = (s.sport || 'run').toLowerCase();
     icon = sportEmoji(sp); tint = HOME_SPORT_TINT[sp] || HOME_SPORT_TINT.rest;
-    title = planTitle(s); detail = (s.detail || '') + (workouts.length > 1 ? ` <span style="color:var(--tri)">+${workouts.length - 1} more</span>` : '');
+    title = planTitle(s); detail = (s.detail || '') + (pwTargetFor(s) ? ` <span style="color:var(--ride)">⚡ ${pwTargetFor(s).short}</span>` : '') + (workouts.length > 1 ? ` <span style="color:var(--tri)">+${workouts.length - 1} more</span>` : '');
   } else if (sessions.length) {
     icon = '😴'; tint = HOME_SPORT_TINT.rest; title = 'Rest day'; detail = 'Recovery is part of the plan.';
   } else {
@@ -5277,7 +5330,7 @@ Follow these rules exactly:
 - Recovery weeks: no hard sessions. Taper: shorter, keep a little intensity. Race week: the race on its date, a short shakeout the day before.
 - Brick: a run straight after the long ride when brickRunMin > 0. Medium-long run midweek when mediumLongRunMi > 0.
 - Use the athlete's paces: easy run ${P.easy}, marathon pace ${P.mp}, threshold ${P.threshold}, VO2 ${P.vo2}; swim CSS ${P.css}, easy ${P.swimEasy}; ride Z2 ${P.rideEasy}.
-${rfPromptLine()}- Swim workouts in yards with real sets (warm-up, drills, main set, cool-down). Strength = home free weights, endurance-focused.
+${rfPromptLine()}${pwPromptLine()}- Swim workouts in yards with real sets (warm-up, drills, main set, cool-down). Strength = home free weights, endurance-focused.
 Return ONLY JSON, no markdown:
 {"weeks":[{"weekStart":"YYYY-MM-DD","sessions":[{"date":"YYYY-MM-DD","day":"Mon","sport":"swim|ride|run|strength|rest","type":"easy|long|tempo|threshold|intervals|vo2|race-pace|css|fartlek|brick|mlr|technique|recovery|strength|rest","intensity":"easy|moderate|hard","durationMin":45,"distanceMi":5.2,"yards":0,"title":"short name","detail":"the actual workout in under 30 words"}]}]}
 "day" MUST be the weekday of "date".`,
@@ -5520,7 +5573,7 @@ function renderWeekView() {
     const rows = list.map(p => {
       const done = spDoneFor(p), missed = !done && d < today && !['rest', 'race'].includes(p.sport);
       const open = calOpenSession === String(p.id);
-      const meta = [p.durationMin ? fmtMin(p.durationMin) : '', p.sport === 'swim' && p.yards ? p.yards.toLocaleString() + ' yd' : p.distanceMi && p.sport !== 'strength' ? p.distanceMi + ' mi' : '', p.intensity && p.intensity !== 'easy' && p.sport !== 'race' ? p.intensity : ''].filter(Boolean).join(' · ');
+      const meta = [p.durationMin ? fmtMin(p.durationMin) : '', p.sport === 'swim' && p.yards ? p.yards.toLocaleString() + ' yd' : p.distanceMi && p.sport !== 'strength' ? p.distanceMi + ' mi' : '', p.intensity && p.intensity !== 'easy' && p.sport !== 'race' ? p.intensity : '', (pwTargetFor(p) || {}).short].filter(Boolean).join(' · ');
       const lowReady = isToday && !done && p.intensity === 'hard' && p.sport !== 'race' && readiness && ['Watch', 'Fatigued'].includes(readiness.label);
       return `<div class="wv-ses${missed ? ' missed' : ''}" onclick="calOpenSession=${open ? 'null' : `'${p.id}'`};renderWeekView()">
           <div class="wv-bar" style="background:${SP_SPORT_COLOR[p.sport] || 'var(--dim)'}"></div>
@@ -5528,7 +5581,7 @@ function renderWeekView() {
             <b>${p.title}${done ? ' <span class="wv-done">✓</span>' : missed ? ' <span class="wv-miss">missed</span>' : ''}</b>
             <span>${meta}${meta && p.detail && !open ? ' · ' : ''}${!open ? (p.detail || '').slice(0, 60) + ((p.detail || '').length > 60 ? '…' : '') : ''}</span>
             ${lowReady ? `<div><button class="wv-ease" onclick="event.stopPropagation();spEaseSession('${p.id}')">Readiness ${readiness.label.toLowerCase()} · ease this session</button></div>` : ''}
-            ${open ? `<div class="wv-detail">${p.detail || ''}${done && done.distance ? `<div style="color:var(--ok);margin-top:6px">✓ Done: ${mToMi(done.distance).toFixed(1)} mi · ${secToTime(done.moving_time)}</div>` : ''}
+            ${open ? `<div class="wv-detail">${p.detail || ''}${pwTargetFor(p) ? `<div style="color:var(--ride);margin-top:6px">⚡ ${pwTargetFor(p).long}</div>` : ''}${done && done.distance ? `<div style="color:var(--ok);margin-top:6px">✓ Done: ${mToMi(done.distance).toFixed(1)} mi · ${secToTime(done.moving_time)}</div>` : ''}
               <div class="wv-acts">${p.intensity === 'hard' && p.sport !== 'race' ? `<button onclick="event.stopPropagation();spEaseSession('${p.id}')">Make easy</button>` : ''}${p.sport === 'strength' ? `<button onclick="event.stopPropagation();switchTab('strength')">Open Strength</button>` : ''}<button class="danger" onclick="event.stopPropagation();spDeleteSession(this,'${p.id}')">Delete</button></div></div>` : ''}
           </div>
         </div>`;
@@ -5878,6 +5931,295 @@ function rfPromptLine() {
     const parts = ['longrun', 'longride', 'brick', 'hardrun', 'hardride'].filter(t => fp[t] && fp[t].learned).map(t => `${RF_TYPES[t].label.toLowerCase()} ${fp[t].days} day${fp[t].days === 1 ? '' : 's'}`);
     return parts.length ? `- This athlete's measured recovery (mornings until HRV/RHR are back to normal): ${parts.join(', ')}. Don't schedule hard sessions inside those windows.\n` : '';
   } catch (e) { return ''; }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// BIKE POWER / FTP — second-by-second watts from Strava, reduced to a small summary per ride
+// (best 5 s … 60 min, a 5-W time histogram, NP). FTP = your latest test / manual value unless a
+// ride after it clearly beats it; otherwise the estimate from rides (max of 95% × best 20 min,
+// best 60 min) over the last 60 days.
+// ══════════════════════════════════════════════════════════════════════════
+const PW_KEY = 'brb_power';
+const PW_DURS = [5, 15, 60, 180, 300, 480, 1200, 1800, 3600];
+const PW_ZONES = [
+  { z: 'Z1', name: 'Recovery', lo: 0,    hi: 0.55, color: '#8a8aa0' },
+  { z: 'Z2', name: 'Endurance', lo: 0.55, hi: 0.75, color: 'var(--swim)' },
+  { z: 'Z3', name: 'Tempo',    lo: 0.75, hi: 0.90, color: 'var(--ok)' },
+  { z: 'Z4', name: 'Threshold', lo: 0.90, hi: 1.05, color: '#e8d060' },
+  { z: 'Z5', name: 'VO2',      lo: 1.05, hi: 1.20, color: 'var(--ride)' },
+  { z: 'Z6+', name: 'Anaerobic', lo: 1.20, hi: 99, color: 'var(--warn)' },
+];
+let pwState = (() => { try { return JSON.parse(localStorage.getItem(PW_KEY) || 'null'); } catch (e) { return null; } })() || { rides: {}, tests: [], testDel: [] };
+pwState.rides = pwState.rides || {}; pwState.tests = pwState.tests || []; pwState.testDel = pwState.testDel || [];
+let pwBusy = false, pwUnit = 'w', pwChartInstance = null, pwFormOpen = null, pwDelArm = null;
+
+function pwSave(push = true) {
+  pwState.updatedAt = new Date().toISOString();
+  try { localStorage.setItem(PW_KEY, JSON.stringify(pwState)); } catch (e) { console.warn('power save', e); }
+  if (push) try { kvSet('brb_power', pwState); } catch (e) {}
+}
+// Cloud merge: union of rides; tests union minus deletions
+function pwMergeCloud(c) {
+  if (!c || typeof c !== 'object') return false;
+  let changed = false;
+  Object.entries(c.rides || {}).forEach(([id, r]) => { if (!pwState.rides[id]) { pwState.rides[id] = r; changed = true; } });
+  const del = new Set([...(pwState.testDel || []), ...(c.testDel || [])]);
+  if (del.size !== pwState.testDel.length) changed = true;
+  pwState.testDel = [...del];
+  const ids = new Set(pwState.tests.map(t => t.id));
+  (c.tests || []).forEach(t => { if (!ids.has(t.id)) { pwState.tests.push(t); changed = true; } });
+  const before = pwState.tests.length;
+  pwState.tests = pwState.tests.filter(t => !del.has(t.id)).sort((a, b) => a.date.localeCompare(b.date));
+  if (pwState.tests.length !== before) changed = true;
+  if (changed) pwSave(false);
+  return changed;
+}
+
+// Watts + time stream → summary
+function pwAnalyze(watts, time) {
+  const w1 = [];
+  for (let i = 0; i < watts.length; i++) {
+    const v = Math.max(0, watts[i] || 0);
+    if (i > 0 && time) { const gap = time[i] - time[i - 1]; if (gap > 1 && gap <= 10) for (let k = 1; k < gap; k++) w1.push(v); }
+    w1.push(v);
+  }
+  const n = w1.length; if (n < 60) return null;
+  const pre = new Float64Array(n + 1); for (let i = 0; i < n; i++) pre[i + 1] = pre[i] + w1[i];
+  const c = {};
+  PW_DURS.forEach(d => { if (d > n) return; let best = 0; for (let i = d; i <= n; i++) { const m = pre[i] - pre[i - d]; if (m > best) best = m; } c[d] = Math.round(best / d); });
+  let s4 = 0, cnt = 0; for (let i = 30; i <= n; i++) { s4 += ((pre[i] - pre[i - 30]) / 30) ** 4; cnt++; }
+  const h = {}; w1.forEach(v => { const b = Math.floor(v / 5) * 5; h[b] = (h[b] || 0) + 1; });
+  return { s: n, avg: Math.round(pre[n] / n), np: cnt ? Math.round((s4 / cnt) ** 0.25) : null, c, h };
+}
+
+// Pull streams for rides not analysed yet (newest first). Paced for Strava's limits.
+async function pwSync() {
+  if (pwBusy) return;
+  const st = (() => { try { return JSON.parse(localStorage.getItem('brb_pw_budget') || '{}'); } catch (e) { return {}; } })();
+  const now = Date.now();
+  if (st.blockedUntil && now < st.blockedUntil) { if (!window._pwTimer) window._pwTimer = setTimeout(() => { window._pwTimer = null; pwSync(); }, st.blockedUntil - now + 2000); return; }
+  if (!st.start || now - st.start > 15 * 60000) { st.start = now; st.n = 0; }
+  const since = addDaysStr(localDateStr(), -182);
+  const todo = allActivities.filter(a => homeSportOf(a) === 'Ride' && Number(a.id) > 0 && !pwState.rides[a.id] && (a.start_date_local || '').slice(0, 10) >= since
+      && (a.moving_time || 0) >= 600 && a.device_watts !== false)
+    .sort((a, b) => (b.start_date_local || '').localeCompare(a.start_date_local || ''));
+  if (!todo.length) return;
+  const room = 40 - (st.n || 0);
+  if (room <= 0) {   // budget used: try again when the 15-minute window resets
+    if (!window._pwTimer) window._pwTimer = setTimeout(() => { window._pwTimer = null; pwSync(); }, st.start + 15 * 60000 - now + 2000);
+    return;
+  }
+  pwBusy = true;
+  let token = null; try { token = await getValidToken(); } catch (e) {}
+  if (!token) { pwBusy = false; return; }
+  let done = 0;
+  try {
+    for (const a of todo.slice(0, room)) {
+      const r = await fetch(`https://www.strava.com/api/v3/activities/${a.id}/streams?keys=time,watts&key_by_type=true`, { cache: 'no-store', headers: { Authorization: 'Bearer ' + token } });
+      st.n = (st.n || 0) + 1;
+      if (r.status === 429) { st.blockedUntil = Date.now() + 15 * 60000; break; }
+      const day = (a.start_date_local || '').slice(0, 10);
+      if (r.status === 404) { pwState.rides[a.id] = { d: day, none: 1 }; continue; }
+      if (!r.ok) break;
+      const js = await r.json();
+      const W = js && js.watts && js.watts.data, T = js && js.time && js.time.data;
+      const sum = W && W.some(v => v > 0) ? pwAnalyze(W, T) : null;
+      pwState.rides[a.id] = sum ? { d: day, n: a.name, ...sum } : { d: day, none: 1 };
+      done++;
+      if (done % 5 === 0) { pwSave(false); if (currentTab === 'power' && !pwFormOpen) renderPowerPage(); }
+    }
+  } catch (e) { console.warn('power sync', e); }
+  try { localStorage.setItem('brb_pw_budget', JSON.stringify(st)); } catch (e) {}
+  pwBusy = false;
+  if (done) pwSave(true);
+  if (currentTab === 'power' && !pwFormOpen) renderPowerPage();
+  if (currentTab === 'load') try { renderPowerLink(); } catch (e) {}
+  if (done && pwPending() && (st.n || 0) < 40) setTimeout(() => pwSync(), 1500);   // keep going while there's budget
+}
+function pwPending() {
+  const since = addDaysStr(localDateStr(), -182);
+  return allActivities.filter(a => homeSportOf(a) === 'Ride' && Number(a.id) > 0 && !pwState.rides[a.id] && (a.start_date_local || '').slice(0, 10) >= since && (a.moving_time || 0) >= 600 && a.device_watts !== false).length;
+}
+
+// ── FTP model ─────────────────────────────────────────────────────────────
+function pwPowerRides() { return Object.entries(pwState.rides).filter(([, r]) => !r.none && r.c).map(([id, r]) => ({ id, ...r })); }
+// Estimate from rides in (from, to]
+function pwRideEstimate(to, from) {
+  let best = null;
+  pwPowerRides().forEach(r => {
+    if (r.d > to || r.d <= from) return;
+    const cands = [];
+    if (r.c[1200]) cands.push({ v: r.c[1200] * 0.95, basis: `95% of best 20 min (${r.c[1200]} W)` });
+    if (r.c[3600]) cands.push({ v: r.c[3600], basis: `best 60 min (${r.c[3600]} W)` });
+    cands.forEach(x => { if (!best || x.v > best.ftp) best = { ftp: Math.round(x.v), basis: x.basis, date: r.d, name: r.n }; });
+  });
+  return best;
+}
+function pwFtpAt(date) {
+  const auto = pwRideEstimate(date, addDaysStr(date, -60));
+  const tests = pwState.tests.filter(t => t.date <= date && t.date > addDaysStr(date, -84));
+  const test = tests[tests.length - 1];
+  if (test) {
+    const after = pwRideEstimate(date, test.date);
+    if (after && after.ftp > test.ftp) return { ...after, src: 'ride', auto };
+    return { ftp: test.ftp, src: test.kind, date: test.date, basis: test.label, auto };
+  }
+  return auto ? { ...auto, src: 'ride', auto } : null;
+}
+function pwCurrentFtp() { try { const f = pwFtpAt(localDateStr()); return f ? f.ftp : null; } catch (e) { return null; } }
+function pwWeightKg() {
+  const w = (typeof weightLog !== 'undefined' && weightLog.length) ? weightLog[weightLog.length - 1] : null;
+  if (!w || !w.value) return null;
+  return /lb/i.test(w.unit || 'lb') ? w.value * 0.453592 : w.value;
+}
+function pwZoneRange(z, ftp) {
+  const lo = Math.round(z.lo * ftp) + (z.lo ? 1 : 0), hi = Math.round(z.hi * ftp);
+  return z.lo === 0 ? `<${hi + 1}` : z.hi > 10 ? `${lo}+` : `${lo}–${hi}`;
+}
+// Watt target for a planned ride session (shown in the plan; not stored)
+function pwTargetFor(p) {
+  if (!p || p.sport !== 'ride') return null;
+  const ftp = pwCurrentFtp(); if (!ftp) return null;
+  const r = (a, b) => `${Math.round(a * ftp)}–${Math.round(b * ftp)} W`;
+  const t = (p.type || '').toLowerCase();
+  if (t === 'recovery') return { short: `<${Math.round(0.55 * ftp)} W`, long: `Z1 recovery: under ${Math.round(0.55 * ftp)} W (55% FTP)` };
+  if (['tempo', 'mlr'].includes(t)) return { short: r(0.76, 0.90), long: `Tempo ${r(0.76, 0.90)} (76–90% FTP)` };
+  if (['threshold', 'race-pace'].includes(t)) return { short: r(0.88, 1.0), long: `Sweet spot / threshold ${r(0.88, 1.0)} (88–100% FTP)` };
+  if (['intervals', 'vo2'].includes(t)) return { short: r(1.06, 1.20), long: `VO2 efforts ${r(1.06, 1.20)} (106–120% FTP), easy spin between` };
+  if (p.intensity === 'hard') return { short: r(0.91, 1.05), long: `Hard efforts ${r(0.91, 1.05)} (91–105% FTP)` };
+  return { short: r(0.56, 0.75), long: `Z2 endurance ${r(0.56, 0.75)} (56–75% FTP)` };
+}
+function pwPromptLine() {
+  const ftp = pwCurrentFtp();
+  return ftp ? `- Cycling FTP ${ftp} W: write ride intervals with watt targets (Z2 ${Math.round(ftp * 0.56)}–${Math.round(ftp * 0.75)} W, sweet spot ${Math.round(ftp * 0.88)}–${Math.round(ftp * 0.94)} W, threshold ${Math.round(ftp * 0.95)}–${Math.round(ftp * 1.05)} W, VO2 ${Math.round(ftp * 1.06)}–${Math.round(ftp * 1.2)} W).\n` : '';
+}
+
+// ── Tests / manual FTP ───────────────────────────────────────────────────
+function pwOpenForm(kind) { pwFormOpen = pwFormOpen === kind ? null : kind; renderPowerPage(); }
+function pwSaveTest() {
+  const kind = document.getElementById('pw-f-kind').value, v = Number(document.getElementById('pw-f-val').value), date = document.getElementById('pw-f-date').value || localDateStr();
+  const msg = document.getElementById('pw-f-msg');
+  if (!(v > 40 && v < 2000)) { msg.textContent = 'Enter watts (e.g. 230).'; return; }
+  const conv = { ftp: [1, 'FTP from your test'], t20: [0.95, `20-min test: ${v} W avg × 0.95`], ramp: [0.75, `Ramp test: best 1 min ${v} W × 0.75`], manual: [1, 'Set manually'] }[kind];
+  const ftp = Math.round(v * conv[0]);
+  pwState.tests.push({ id: 't' + Date.now(), date, ftp, kind: kind === 'manual' ? 'manual' : 'test', label: conv[1] });
+  pwState.tests.sort((a, b) => a.date.localeCompare(b.date));
+  pwFormOpen = null; pwSave(true); renderPowerPage();
+}
+function pwDeleteTest(id) {
+  if (pwDelArm !== id) { pwDelArm = id; renderPowerPage(); return; }
+  pwState.tests = pwState.tests.filter(t => t.id !== id); pwState.testDel.push(id); pwDelArm = null;
+  pwSave(true); renderPowerPage();
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────
+function renderPowerPage() {
+  const el = document.getElementById('pw-root'); if (!el) return;
+  const today = localDateStr();
+  const cur = pwFtpAt(today), kg = pwWeightKg();
+  const rides = pwPowerRides();
+  const pending = pwPending();
+  const loading = pending ? `<div class="pw-load">⚡ Reading power from your rides: ${rides.length + Object.values(pwState.rides).filter(r => r.none).length} done, ${pending} to go${pwBusy ? '…' : ' (continues automatically, paced for Strava limits)'}</div>` : '';
+  const form = pwFormOpen ? `
+    <div class="pw-form" onclick="event.stopPropagation()">
+      <select id="pw-f-kind">${pwFormOpen === 'manual' ? '<option value="manual">Set FTP (W)</option>' : '<option value="ftp">FTP your app/test gave (W)</option><option value="t20">20-min test: average power (W)</option><option value="ramp">Ramp test: best 1-min power (W)</option>'}</select>
+      <div class="pw-form-row"><input id="pw-f-val" type="number" inputmode="numeric" placeholder="Watts"><input id="pw-f-date" type="date" value="${today}"></div>
+      <div class="pw-form-row"><button class="btn-o" onclick="pwOpenForm(null)">Cancel</button><button onclick="pwSaveTest()">Save</button></div>
+      <div id="pw-f-msg" class="pw-msg"></div>
+    </div>` : '';
+
+  if (!cur) {
+    el.innerHTML = `<div class="card pw-hero"><div class="pw-k">FTP</div>
+      <div class="pw-src" style="margin-top:8px">${rides.length ? 'No ride with 20+ minutes of power in the last 60 days yet.' : 'No power data yet.'} FTP comes from rides with a power meter or smart trainer, or set it yourself.</div>
+      ${loading}
+      <div class="pw-btns"><button onclick="pwOpenForm('test')">⏱ Log FTP test</button><button class="btn-o" onclick="pwOpenForm('manual')">Set manually</button></div>${form}</div>`;
+    return;
+  }
+  const ftp = cur.ftp;
+  const prev = pwFtpAt(addDaysStr(today, -42));
+  const delta = prev ? ftp - prev.ftp : null;
+  const srcTxt = cur.src === 'ride'
+    ? `${cur.basis} — <b>${new Date(cur.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${cur.name ? ' · ' + cur.name : ''}</b>. Updates itself from every ride with power.`
+    : `${cur.basis} on <b>${new Date(cur.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</b>. A ride that beats it takes over automatically.${cur.auto && cur.auto.ftp < ftp - 5 ? ` Recent rides alone suggest ${cur.auto.ftp} W — they just haven't had a long enough hard effort.` : ''}`;
+
+  // power curve: last 6 weeks vs prior 6
+  const best = (from, to) => { const o = {}; rides.forEach(r => { if (r.d > from && r.d <= to) PW_DURS.forEach(d => { if (r.c[d] && (!o[d] || r.c[d] > o[d])) o[d] = r.c[d]; }); }); return o; };
+  const a = best(addDaysStr(today, -42), today), b = best(addDaysStr(today, -84), addDaysStr(today, -42));
+  const scale = Math.max(a[5] || 0, b[5] || 0, 1) * 1.08;
+  const curve = [[5, '5 s'], [60, '1 min'], [300, '5 min'], [1200, '20 min'], [3600, '60 min']].map(([d, l]) => {
+    const v = a[d], p = b[d];
+    if (!v && !p) return '';
+    const dl = v && p ? v - p : null;
+    return `<div class="pc-row"><span class="n">${l}</span><div class="pw-bar">${v ? `<i style="width:${v / scale * 100}%"></i>` : ''}${p ? `<u style="left:${p / scale * 100}%"></u>` : ''}</div>
+      <span class="v">${v ? (pwUnit === 'kg' && kg ? (v / kg).toFixed(1) + ' W/kg' : v + ' W') : '—'}${dl != null ? `<small style="color:${dl > 0 ? 'var(--ok)' : dl < 0 ? 'var(--warn)' : 'var(--muted)'}">${dl > 0 ? '+' : dl < 0 ? '−' : '±'}${Math.abs(dl)}</small>` : ''}</span></div>`;
+  }).join('');
+
+  // time in zone this week
+  const mon = addDaysStr(today, -((new Date().getDay() + 6) % 7));
+  const zt = PW_ZONES.map(() => 0);
+  rides.filter(r => r.d >= mon && r.d <= today && r.h).forEach(r => Object.entries(r.h).forEach(([bk, sec]) => {
+    const pct = (Number(bk) + 2.5) / ftp; const i = PW_ZONES.findIndex(z => pct < z.hi); zt[i < 0 ? zt.length - 1 : i] += sec;
+  }));
+  const ztMax = Math.max(...zt, 1);
+  const fmtT = s => s >= 3600 ? Math.floor(s / 3600) + 'h' + String(Math.round(s % 3600 / 60)).padStart(2, '0') : (s < 60 ? '<1m' : Math.round(s / 60) + 'm');
+  const zones = PW_ZONES.map((z, i) => `<div class="pz"><span class="zn" style="color:${z.color}">${z.z}</span><div class="pw-bar"><i style="width:${zt[i] / ztMax * 100}%;background:${z.color}"></i></div><span class="zr">${z.name} ${pwZoneRange(z, ftp)}</span><span class="zt">${zt[i] ? fmtT(zt[i]) : '—'}</span></div>`).join('');
+
+  // next planned ride with a target
+  const nextRide = trainingPlan.filter(p => p.sport === 'ride' && p.date >= today).sort((x, y) => x.date.localeCompare(y.date))[0];
+  const tgt = nextRide && pwTargetFor(nextRide);
+  const tests = pwState.tests.slice(-4).reverse();
+
+  el.innerHTML = `
+    <div class="card pw-hero">
+      <div class="pw-k">FTP · ${cur.src === 'ride' ? 'ESTIMATED' : cur.src === 'manual' ? 'SET MANUALLY' : 'FROM TEST'}</div>
+      <div class="pw-big"><b>${ftp}</b><span>W</span></div>
+      <div class="home-chips">${kg ? `<span class="home-chip"><b>${(ftp / kg).toFixed(2)}</b> W/kg</span>` : ''}${delta != null && delta !== 0 ? `<span class="home-chip ${delta > 0 ? 'home-chip-ok' : 'home-chip-caution'}">${delta > 0 ? '▲' : '▼'} ${Math.abs(delta)} W in 6 wks</span>` : ''}<span class="home-chip">${rides.length} rides with power</span></div>
+      <div class="pw-src">${srcTxt}</div>
+      ${loading}
+      <div class="pw-btns"><button onclick="pwOpenForm('test')">⏱ Log FTP test</button><button class="btn-o" onclick="pwOpenForm('manual')">Set manually</button></div>
+      ${form}
+      ${tests.length ? `<div class="pw-tests">${tests.map(t => `<div><span>${new Date(t.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })} · <b>${t.ftp} W</b> · ${t.label}</span><button onclick="pwDeleteTest('${t.id}')">${pwDelArm === t.id ? 'Delete?' : '✕'}</button></div>`).join('')}</div>` : ''}
+    </div>
+
+    <div class="home-lbl st-lbl-row">FTP trend · 6 months <button class="st-link" onclick="pwUnit=pwUnit==='w'?'kg':'w';renderPowerPage()">${pwUnit === 'w' ? 'W ⇄ W/kg' : 'W/kg ⇄ W'}</button></div>
+    <div class="card" style="padding:14px 12px 10px"><div style="height:170px;position:relative"><canvas id="pw-chart"></canvas></div>
+      <div class="pw-leg"><span><b style="color:var(--ride)">━</b> FTP</span><span><b style="color:var(--tri)">○</b> logged test / manual</span></div></div>
+
+    ${curve ? `<div class="home-lbl st-lbl-row">Power curve <span style="color:var(--dim);font-size:10px">last 6 wks vs prior</span></div>
+    <div class="card">${curve}<div class="pw-leg"><span><b style="color:var(--ride)">▬</b> last 6 weeks</span><span><b style="color:var(--muted)">|</b> prior 6 weeks</span></div></div>` : ''}
+
+    <div class="home-lbl st-lbl-row">Your zones <span style="color:var(--dim);font-size:10px">time this week</span></div>
+    <div class="card">${zones}</div>
+
+    ${tgt ? `<div class="home-lbl">In your plan</div>
+    <div class="card pw-plan" onclick="switchTab('calendar')"><div class="pw-ic">🚴</div><div><b>${nextRide.date === today ? 'Today' : weekdayOf(nextRide.date)} · ${planTitle(nextRide)}</b><span>@ <b style="color:var(--text)">${tgt.short}</b> · ${tgt.long.replace(/^[^(]*\(/, '(')}</span></div></div>` : ''}
+    <div class="pw-note">Zones are the standard Coggan 7-zone model from your FTP. Ride workouts in the calendar show watt targets.</div>`;
+  renderPowerChart(kg);
+}
+function renderPowerChart(kg) {
+  const canvas = document.getElementById('pw-chart'); if (!canvas || typeof Chart === 'undefined') return;
+  const today = localDateStr(), thisMon = addDaysStr(today, -((new Date().getDay() + 6) % 7));
+  const pts = []; for (let i = 26; i >= 0; i--) { const d = i ? addDaysStr(thisMon, -7 * i + 6) : today; const f = pwFtpAt(d); pts.push({ d, v: f ? f.ftp : null }); }
+  const conv = v => v == null ? null : pwUnit === 'kg' && kg ? Math.round(v / kg * 100) / 100 : v;
+  const labels = pts.map(p => new Date(p.d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+  const testPts = pts.map((p, i) => { const prevD = i ? pts[i - 1].d : addDaysStr(p.d, -7); const t = pwState.tests.filter(x => x.date > prevD && x.date <= p.d).pop(); return t ? conv(t.ftp) : null; });
+  if (pwChartInstance) { pwChartInstance.destroy(); pwChartInstance = null; }
+  const tick = { color: 'rgba(255,255,255,0.45)', font: { size: 10, family: "'DM Mono', monospace" } };
+  pwChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: 'FTP', data: pts.map(p => conv(p.v)), stepped: true, borderColor: '#f0a050', backgroundColor: 'rgba(240,160,80,0.08)', fill: true, pointRadius: 0, borderWidth: 2.5, spanGaps: true },
+      { label: 'Test', data: testPts, showLine: false, pointRadius: 5, pointBackgroundColor: '#13131a', pointBorderColor: '#4fc4a8', pointBorderWidth: 2 }] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(20,20,30,0.92)', callbacks: { label: c => c.parsed.y + (pwUnit === 'kg' ? ' W/kg' : ' W') } } },
+      scales: { x: { ticks: { ...tick, maxTicksLimit: 6, maxRotation: 0 }, grid: { display: false } }, y: { ticks: tick, grid: { color: 'rgba(255,255,255,0.06)' } } } }
+  });
+}
+// Small link card on the Load page
+function renderPowerLink() {
+  const el = document.getElementById('pw-link'); if (!el) return;
+  const f = pwFtpAt(localDateStr()), kg = pwWeightKg();
+  el.innerHTML = `<div class="pw-ic">⚡</div><div style="flex:1;min-width:0"><b>Bike power</b><span>${f ? `FTP ${f.ftp} W${kg ? ' · ' + (f.ftp / kg).toFixed(2) + ' W/kg' : ''}` : 'Track FTP, power curve and zones'}</span></div><span style="color:var(--tri);font-size:18px">›</span>`;
 }
 
 // ── STRENGTH GENERATOR ────────────────────────────────────────────────────
@@ -7111,6 +7453,9 @@ async function kvSyncAll() {
       seasonState = data.brb_season; localStorage.setItem(SEASON_KEY, JSON.stringify(seasonState)); changed = true;
       console.log('KV: updated season plan, built', seasonState.builtAt);
     }
+    if (data.brb_power && typeof data.brb_power === 'object') {
+      try { if (pwMergeCloud(data.brb_power) && currentTab === 'power') renderPowerPage(); } catch (e) { console.warn('power merge', e); }
+    } else if (Object.keys(pwState.rides).length || pwState.tests.length) { try { kvSet('brb_power', pwState); } catch (e) {} }
     if (data.brb_strength_sync && typeof data.brb_strength_sync === 'object') {
       try {
         if (sgMergeCloud(data.brb_strength_sync)) {
@@ -13139,6 +13484,7 @@ async function init() {
       renderCalendar();
       updateRefreshBanner(localStorage.getItem(CACHE_KEY_TIMESTAMP));
       garminAutoSync().catch(e => console.warn('garmin', e));   // after KV so its wellness copy can't overwrite the fill
+      setTimeout(() => { try { pwSync(); } catch (e) {} }, 8000);   // bike power: analyse new rides quietly
     });
     // (Archive now loads from localStorage cache — KV archive is only pulled during manual Sync)
   }
