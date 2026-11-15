@@ -161,11 +161,70 @@ function deepFind(obj, re, depth = 0) {           // first numeric value whose k
   return null;
 }
 function addDays(ds, n) { const d = new Date(ds + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
-// Candidate resting-HR endpoints (the Personal API's exact one isn't documented publicly yet)
-const RHR_CANDIDATES = [
-  d => '/usersummary-service/usersummary/daily?calendarDate=' + d,
-  d => '/wellness-service/wellness/dailyHeartRate?date=' + d,
-];
+// Resting HR: Garmin doesn't document which Personal API endpoint carries it, so several known
+// Connect endpoints are tried (range ones first). The first that actually returns resting HR is
+// remembered in KV caps; ones that fail are skipped from then on.
+function collectRhr(data, out) {
+  const walk = (o, key, depth) => {
+    if (!o || typeof o !== 'object' || depth > 8) return;
+    if (Array.isArray(o)) { o.forEach(x => walk(x, key, depth + 1)); return; }
+    const d = o.calendarDate || o.summaryDate;
+    if (d) {
+      const vals = o.values && typeof o.values === 'object' ? o.values : {};
+      let v = o.restingHeartRate ?? o.restingHR ?? vals.restingHR ?? vals.restingHeartRate;
+      if (v == null && /RESTING_HEART_RATE|restingHeartRate/i.test(key || '')) v = o.value;
+      if (typeof v === 'number' && v > 25 && v < 140) out[String(d).slice(0, 10)] = Math.round(v);
+    }
+    for (const [k, v] of Object.entries(o)) if (v && typeof v === 'object') walk(v, k, depth + 1);
+  };
+  walk(data, '', 0);
+}
+async function fetchRhr({ get, caps, setCap, startDate, endDate, days, recs, rec }) {
+  const have = () => Object.values(recs).filter(r => r.rhr).length;
+  const want = d => d >= startDate && d <= endDate;
+  const tried = [];
+  // displayName is part of some Connect paths; looked up once and cached
+  const dn = async () => {
+    if (caps.displayName !== undefined) return caps.displayName || null;
+    const r = await get('/userprofile-service/socialProfile');
+    const name = r.data && (r.data.displayName || r.data.userName) || false;
+    setCap('displayName', name); return name || null;
+  };
+  const sources = [
+    { key: 'rhrRange', range: true, path: (s, e) => `/usersummary-service/stats/heartRate/daily/${s}/${e}` },
+    { key: 'rhrStats', range: true, path: (s, e) => `/userstats-service/wellness/daily?fromDate=${s}&untilDate=${e}&metricId=60` },
+    { key: 'rhrStatsDN', range: true, dn: true, path: (s, e, n) => `/userstats-service/wellness/daily/${n}?fromDate=${s}&untilDate=${e}&metricId=60` },
+    { key: 'rhrDay', path: d => `/wellness-service/wellness/dailyHeartRate?date=${d}` },
+    { key: 'rhrDayDN', dn: true, path: (d, n) => `/wellness-service/wellness/dailyHeartRate/${n}?date=${d}` },
+    { key: 'rhrSleepDay', path: d => `/sleep-service/sleep/dailySleep?date=${d}` },
+  ];
+  const known = sources.find(x => caps[x.key] === true);
+  const order = known ? [known, ...sources.filter(x => x !== known && caps[x.key] !== false)] : sources.filter(x => caps[x.key] !== false);
+  for (const src of order) {
+    if (have() >= days) break;
+    if (known && src !== known && have() > 0) break;          // the remembered source worked — done
+    let name = null;
+    if (src.dn) { name = await dn(); if (!name) continue; }
+    const before = have(); let ok200 = false, bad = null, limited = false;
+    const urls = src.range
+      ? chunks(startDate, endDate).map(([s, e]) => src.path(s, e, name))
+      : [...Array(Math.min(days, 7)).keys()].map(i => addDays(endDate, -i)).filter(d => !(recs[d] && recs[d].rhr)).map(d => src.path(d, name));
+    for (const u of urls) {
+      const r = await get(u);
+      if (r.status === 429) { limited = true; break; }
+      if (!r.data) { bad = r.status; break; }
+      ok200 = true;
+      const out = {}; collectRhr(r.data, out);
+      Object.entries(out).forEach(([d, v]) => { if (want(d) && !(recs[d] && recs[d].rhr)) rec(d).rhr = v; });
+    }
+    const got = have() > before;
+    tried.push({ key: src.key, status: bad || (ok200 ? 200 : limited ? 429 : null), found: have() - before });
+    if (got) { if (caps[src.key] !== true) setCap(src.key, true); if (src.range) break; }
+    else if (!limited && (bad && [400, 401, 403, 404, 405].includes(bad) || (ok200 && days >= 7))) setCap(src.key, false);   // 200 but no resting HR in a week of data → not a source
+    if (limited) break;
+  }
+  return tried;
+}
 // Garmin limits TOTAL API requests (~100 per window), so ranges are fetched in as few calls as
 // possible: HRV/sleep/steps have range endpoints (≤28 days per call). Which endpoints work is
 // remembered in KV ("garmin_caps") so dead ones aren't retried. Per-day fallback is capped at 3 days.
@@ -206,10 +265,11 @@ async function dailyWellness(token, endDate, days, env) {
     const sc = v.sleepScore ?? (v.sleepScores && v.sleepScores.overall && v.sleepScores.overall.value); if (sc) rec(d).sleepScore = sc;
     const rhr = v.restingHeartRate; if (rhr) rec(d).rhr = rhr;
   }));
-  // Resting HR (range)
-  await tryRange('rhrRange', (s, e) => `/usersummary-service/stats/heartRate/daily/${s}/${e}`, data => rows(data).forEach(x => {
-    const d = x.calendarDate; const v = x.values || x; const rhr = v.restingHR ?? v.restingHeartRate; if (d && rhr) rec(d).rhr = rhr;
-  }));
+  // Resting HR: whichever endpoint actually carries it (see fetchRhr)
+  if (!notes.rateLimited) {
+    try { notes.rhr = await fetchRhr({ get, caps, setCap: (k, v) => { caps[k] = v; capsChanged = true; }, startDate, endDate, days, recs, rec }); }
+    catch (e) { notes.rhr = [{ error: e.message }]; }
+  }
   // Fallback: per-day for the most recent mornings only (keeps the request count small)
   if (!notes.rateLimited) {
     for (let i = 0; i < Math.min(days, 3); i++) {
