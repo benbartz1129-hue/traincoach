@@ -11545,7 +11545,8 @@ async function garminAutoSync(force = false, daysOverride) {
   }
   garminSyncing = true;
   // First run backfills ~40 days (enough for the readiness baseline) in chunks of 10 days per call
-  const total = daysOverride || (st.backfilled ? 3 : 40);
+  // rhrV: one more 40-day pass after the resting-HR fix so past mornings get RHR too
+  const total = daysOverride || (st.backfilled && st.rhrV === 1 ? 3 : 40);
   try {
     // One call: the function uses Garmin's range endpoints (a handful of requests for the whole span)
     const r = await fetch('/garmin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'daily', days: total, endDate: localDateStr() }) });
@@ -11560,7 +11561,7 @@ async function garminAutoSync(force = false, daysOverride) {
     }
     const changed = garminMerge(data.days || []);
     garminStepsSync().catch(() => {});
-    garminSaveState({ at: now, ok: true, backfilled: true, info: data.notes, lastDays: (data.days || []).length });
+    garminSaveState({ at: now, ok: true, backfilled: true, rhrV: 1, info: data.notes, lastDays: (data.days || []).length });
     if (changed) {
       if (currentTab === 'stats') renderStatsPage();
       if (currentTab === 'dashboard' && window._lastDashboardData) renderDashboard({ ...window._lastDashboardData, ...calcLiveWeekTotals() });
@@ -11646,6 +11647,7 @@ async function garminImportNow() {
   out.textContent = 'Imported ' + (r.days || []).length + ' days' + (r.changed ? ' (log updated)' : ' (nothing new)') + '\n' +
     (r.days || []).map(d => d.date + '  HRV ' + (d.hrv ?? '—') + '  RHR ' + (d.rhr ?? '—') + '  sleep ' + (d.sleepHrs ?? '—') + 'h' + (d.weightKg ? '  ' + d.weightKg + 'kg' : '')).join('\n') +
     '\nGarmin requests used: ' + ((r.notes || {}).requests ?? '?') + ' · range endpoints: ' + JSON.stringify((r.notes || {}).caps || {}) +
+    '\nResting HR sources tried: ' + JSON.stringify((r.notes || {}).rhr || []) +
     '\nSteps: ' + (st.ok ? st.days + ' days loaded (' + st.changed + ' new)' : 'failed — ' + (st.error || 'HTTP ' + JSON.stringify(st.statuses || [])));
 }
 
